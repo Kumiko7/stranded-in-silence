@@ -65,10 +65,13 @@ distortion that ramp with proximity (`player.json → effects`).
   except the exit.
 - Rooms contain 0–2 chests, 0–3 lockers, and 1–4 item spawn spots
   (`world.json → contents`).
-- **Locked doors**: exactly `world.json → doors.lockedDoorCount` of them, always placed
-  so they genuinely gate the route to the exit. The generator guarantees enough keys
-  are reachable without passing a locked door, plus `doors.keySpareCount` spares. You
-  can never be stuck.
+- **Locked doors**: exactly `world.json → doors.lockedDoorCount` of them, each one a
+  door you genuinely *must* pass to reach the exit — there is never a way around.
+  A key is generic: it opens one locked door, any locked door, and is spent. The
+  generator places the key for each lock somewhere you can already reach with the
+  keys before it, plus `doors.keySpareCount` spares. You can never be stuck. Press
+  E on a locked door with a key in hand and it is used automatically; using the key
+  itself (LMB/RMB) on the door does the same thing.
 - **Exit door**: obvious the moment you see it, placed far from the spawn. Hold E for
   `world.json → exit.holdSeconds` to leave.
 - Chests are slow and **loud** to open. That is the trade.

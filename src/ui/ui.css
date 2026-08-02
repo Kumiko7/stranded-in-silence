@@ -303,6 +303,62 @@ body {
   transition: width 60ms linear;
 }
 
+.hud__hint {
+  position: absolute;
+  top: 64%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--c-warn);
+  text-shadow: 0 2px 8px #000;
+}
+
+/* Two hands, two slots: left is LMB, right is RMB. */
+.hud__hands {
+  position: absolute;
+  bottom: 1.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.6rem;
+}
+
+.hud__slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 8.5rem;
+  padding: 0.45rem 0.7rem;
+  background: #0a0c12a8;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+}
+
+.hud__slot--filled {
+  border-color: var(--c-accent);
+}
+
+.hud__slot-name {
+  font-family: var(--font-display);
+  font-size: 0.76rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+.hud__slot--filled .hud__slot-name {
+  color: var(--c-text);
+}
+
+.hud__slot-key {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  color: var(--c-text-dim);
+}
+
 /* --- boot / fatal error surface ------------------------------------------ */
 
 .boot {

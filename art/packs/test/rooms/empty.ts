@@ -18,7 +18,9 @@ export const empty: RoomBlueprint = {
       { position: [-1.4, 0, -1.4], rotationY: 0 },
     ],
     patrolPoint: [{ position: [2.4, 0, 2.4] }, { position: [-2.4, 0, -2.4] }],
-    itemSpawn: [{ position: [3.0, 0, -3.0] }],
+    itemSpawn: [{ position: [3.0, 0, -3.0] }, { position: [-3.0, 0, 3.0] }],
+    chest: [{ position: [3.0, 0, 3.0], rotationY: 0 }],
+    locker: [{ position: [-3.3, 0, -2.4], rotationY: -Math.PI / 2 }],
   },
   build,
 };

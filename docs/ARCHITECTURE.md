@@ -121,7 +121,7 @@ world/generation ── reads ──► config/world.json  (grid, doors, content
         │           reads ──► art pack blueprint METADATA (footprint, doorWalls, anchors)
         │                     (no 3D objects built yet)
         ▼
-  RunLayout  { rooms[], doors[], keys[], containers[], itemSpawns[], exit, spawns }
+  RunLayout  { rooms[], doors[], containers[], items[], playerSpawns[], exitCell }
         │
         ├──► sent to clients as (mapId, seed) — clients regenerate identically
         │
@@ -196,7 +196,7 @@ each other at `net.json → voice.hearingRange` (22 m), the enemy only within
 | Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md) |
 | Restyle a door / chest / enemy | `art/shared/` — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
 | Add an item | `config/items.json` + a behaviour in `src/entities/items/behaviours/` + art in `art/shared/props/items/` + locale keys |
-| Change how the maze is built | `src/world/generation/` — [`systems/GENERATION.md`](systems/GENERATION.md) |
+| Change how the maze is built | `src/world/generation.ts` — [`systems/GENERATION.md`](systems/GENERATION.md) |
 | Change enemy behaviour | `src/ai/` — [`systems/AI.md`](systems/AI.md) |
 | Add a menu / screen | `src/ui/screens/` — [`systems/UI.md`](systems/UI.md) |
 | Add a HUD element | `src/ui/hud/` + `config/ui.json → hud` |

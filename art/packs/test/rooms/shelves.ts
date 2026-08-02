@@ -16,7 +16,8 @@ export const shelves: RoomBlueprint = {
       { position: [2.4, 1.15, -3.2] },
       { position: [-2.4, 1.15, 3.2] },
     ],
-    locker: [{ position: [-3.3, 0, -2.4], rotationY: Math.PI / 2 }],
+    // Backed against the west wall, so it faces east into the room.
+    locker: [{ position: [-3.3, 0, -2.4], rotationY: -Math.PI / 2 }],
   },
   build,
 };

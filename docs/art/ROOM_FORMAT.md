@@ -192,7 +192,8 @@ Rules:
   (~5 cm) rather than outward so players do not snag on decoration.
 - Do **not** add colliders for walls you built with `ctx.kit.shell()` — it returns
   those already.
-- Chests, lockers, doors and items add their own colliders. Do not add them for anchors.
+- Chests, lockers and doors bring their own colliders. Items deliberately have none.
+  Either way, do not add colliders for anchors.
 
 ---
 

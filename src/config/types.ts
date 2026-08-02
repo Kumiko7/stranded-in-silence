@@ -59,14 +59,49 @@ export interface WorldConfig {
     height: number;
     openSeconds: number;
     closeSeconds: number;
+    lockedDoorCount: number;
+    lockedDoorMinDepth: number;
+    keySpareCount: number;
   };
   exit: {
     minGridDistanceFromSpawn: number;
     holdSeconds: number;
   };
+  containers: {
+    chestOpenHoldSeconds: number;
+    lockerEnterSeconds: number;
+    lockerExitSeconds: number;
+  };
+  contents: {
+    chests: { min: number; max: number; mapTotalMin: number };
+    lockers: { min: number; max: number };
+    itemSpawns: { min: number; max: number };
+  };
+  /** Weighted `{ itemId: weight }`. The id `empty` leaves the slot bare. */
+  loot: {
+    chestTable: Record<string, number>;
+    floorTable: Record<string, number>;
+  };
   validation: {
     maxAttempts: number;
   };
+}
+
+export interface ItemDef {
+  nameKey: string;
+  descKey: string;
+  artId: string;
+  behaviour: string;
+  useMode: 'press' | 'hold' | 'toggle' | 'none';
+  consumedOnUse: boolean;
+  occupiesSlot?: boolean;
+  params: Record<string, number | string | boolean>;
+}
+
+export interface ItemsConfig {
+  sizeClass: { width: number; depth: number; height: number };
+  defaults: { pickupRange: number; dropForwardOffset: number };
+  items: Record<string, ItemDef>;
 }
 
 export interface GraphicsConfig {
@@ -112,6 +147,7 @@ export interface Config {
   game: GameConfig;
   player: PlayerConfig;
   world: WorldConfig;
+  items: ItemsConfig;
   graphics: GraphicsConfig;
   input: InputConfig;
   net: NetConfig;

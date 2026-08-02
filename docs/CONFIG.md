@@ -30,7 +30,7 @@ If you find yourself typing a number into logic, it belongs in a config file ins
 | Number of locked doors and spare keys | `world.json` | `doors.lockedDoorCount`, `doors.keySpareCount` |
 | Chests / lockers / item spawns per room | `world.json` | `contents.*` |
 | How long a chest takes to open, locker enter/exit | `world.json` | `containers.*` |
-| What chests and floors contain | `world.json` | `loot.chestTable`, `loot.floorTable` |
+| What chests and floors contain | `world.json` | `loot.chestTable`, `loot.floorTable` — only `key` and `empty` until the item roster lands (plan step 37) |
 | Exit door placement and hold time | `world.json` | `exit.*` |
 | Item stats and behaviour params | `items.json` | `items.<id>.params.*` |
 | Which maps exist | `maps.json` | `maps.*` |

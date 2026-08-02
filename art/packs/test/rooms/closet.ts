@@ -27,8 +27,9 @@ function makeCloset(side: Side): RoomBlueprint {
     tags: ['deadEnd'],
     anchors: {
       patrolPoint: [{ position: [backX * 0.4, 0, backZ * 0.4] }, { position: [backX * 0.8, 0, backZ * 0.8] }],
-      itemSpawn: [{ position: [backX, 0.95, backZ] }],
-      chest: [{ position: [backX * 1.1, 0, backZ * 1.1] }],
+      // On the bench top, and in the corner beside it - both clear of the junk pile.
+      itemSpawn: [{ position: [backX * 1.25, 0.9, backZ * 1.25] }],
+      chest: [{ position: alongZ ? [2.6, 0, backZ * 0.85] : [backX * 0.85, 0, 2.6], rotationY: 0 }],
     },
     build(ctx: RoomBuildContext): BuiltRoom {
       const shell = ctx.kit.shell(ctx, [[0, 0]]);

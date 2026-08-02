@@ -6,11 +6,17 @@
  */
 import type { ArtBuilder, ArtRegistry } from '../lib/contract';
 import { buildDoor, buildExitDoor } from './props/door';
+import { buildChest } from './props/chest';
+import { buildLocker } from './props/locker';
+import { buildKey } from './props/items/key';
 import { buildPlayer } from './characters/player';
 
 export const sharedArt: ArtRegistry = {
   'door.standard': buildDoor,
   'door.exit': buildExitDoor,
+  'chest.standard': buildChest,
+  'locker.standard': buildLocker,
+  'item.key': buildKey,
   'player.masked': buildPlayer,
 };
 

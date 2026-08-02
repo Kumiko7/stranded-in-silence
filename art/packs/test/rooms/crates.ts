@@ -16,7 +16,8 @@ export const crates: RoomBlueprint = {
       { position: [2.3, 0.9, 2.3] },
       { position: [-2.3, 0, 2.9] },
     ],
-    locker: [{ position: [3.3, 0, -2.4], rotationY: -Math.PI / 2 }],
+    // Backed against the east wall, so it faces west into the room.
+    locker: [{ position: [3.3, 0, -2.4], rotationY: Math.PI / 2 }],
   },
   build,
 };
