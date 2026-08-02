@@ -1,14 +1,14 @@
 {
-  "$doc": "Rendering + lighting. There is no player flashlight - every room lights itself, and `minAmbientFloor` is the hard 'dark but never blind' guarantee. Maps override these via config/maps.json.",
+  "$doc": "Rendering + lighting. There is no player flashlight - every room lights itself, and `minAmbientFloor` is the hard 'dark but never blind' guarantee. Maps override these via config/maps.json. Light values are real three.js units (ambient/point intensity, candela for points) - the renderer applies no hidden scaling.",
 
   "pixelRatioCap": 2.0,
   "antialias": true,
   "toneMapping": "aces",
   "exposure": 0.95,
 
-  "ambientIntensity": 0.09,
+  "ambientIntensity": 1.2,
   "ambientColor": "#2a2f45",
-  "minAmbientFloor": 0.05,
+  "minAmbientFloor": 0.8,
 
   "shadows": {
     "enabled": true,

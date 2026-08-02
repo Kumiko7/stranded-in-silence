@@ -24,6 +24,8 @@
   "menu.credits": "Credits",
   "menu.quit": "Quit",
   "menu.version": "v{version}",
+  "menu.yourCode": "Your code",
+  "menu.status.ready": "Ready",
 
   "join.prompt": "Enter lobby code",
   "join.invalidCode": "That code is not valid.",
@@ -45,6 +47,8 @@
   "lobby.hostLeft": "The host left. Returning to the main menu.",
 
   "map.random.name": "Random",
+  "map.test.name": "Test Halls",
+  "map.test.desc": "Bare rooms and long corridors. Somewhere to try the doors.",
   "map.mansion.name": "Ravenhollow Manor",
   "map.mansion.desc": "A rotting estate that has forgotten how many people it has kept.",
 

@@ -32,6 +32,8 @@
   "doors": {
     "maxPerRoom": 4,
     "minPerRoom": 1,
+    "width": 1.2,
+    "height": 2.2,
     "openSeconds": 0.55,
     "closeSeconds": 0.55,
     "autoCloseSeconds": 0,

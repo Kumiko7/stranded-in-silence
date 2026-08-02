@@ -60,8 +60,8 @@ stranded/
 | `voice/` | Mic capture, per-peer audio tracks, proximity attenuation, PTT/VAD modes | `net`, `config` |
 | `audio/` | Mixer buses, spatial SFX, music/ambience, sound registry | `config`, `assets` |
 | `ui/` | Preact screens (`screens/`), per-frame HUD (`hud/`), theme from `config/ui.json` | `i18n`, `config`, `core` |
+| `game/` | Run orchestration: owns the world, local player, remotes and the per-frame update while a run is live | everything below |
 | `util/` | Small pure helpers: maths, arrays, colour, easing | nothing |
-| `server/` | The signalling server (Node + `ws`). Brokers 6-digit codes and SDP/ICE. **No game logic.** | `shared` |
 
 **Dependency direction is strictly downward in that table.** `world/` may import
 `config/`; `config/` may never import `world/`. Cross-cutting communication goes
@@ -216,7 +216,7 @@ each other at `net.json → voice.hearingRange` (22 m), the enemy only within
 | Build | **Vite** | Fast HMR (config JSON edits hot-reload), zero-config TS, standard. |
 | UI | **Preact + TSX** for screens, **plain DOM** for HUD | Screens (options, rebinding, lobby, scoreboard) are real UI and benefit from a component model; Preact is 3 kB. HUD updates every frame, so it bypasses the vdom entirely. |
 | Netcode | **Host-authoritative WebRTC P2P** | 4 players, low latency, no per-run server cost. One player simulates; peers predict locally. Voice rides the same peer connections. |
-| Signalling | **Tiny `ws` server in `src/server/`** | Only brokers 6-digit codes and SDP/ICE. Cheap to host, and the seam where Steam lobbies drop in later. |
+| Signalling | **PeerJS public server now; our own later** | PeerJS gets multiplayer working with zero infrastructure. Codes are namespaced peer ids. Self-hosting a small `ws` signalling server is plan step 23, and the seam where Steam lobbies drop in later. |
 | Voice | **Native `RTCPeerConnection` audio tracks** | Proximity attenuation needs per-peer `GainNode` control; a wrapper library would only get in the way. |
 | Physics | **Custom 2D circle-vs-shape** | There is no jumping and no vertical movement. A full physics engine (rapier/cannon) would add a large dependency and a determinism headache to solve a problem that is ~150 lines here. Revisit only if verticality ships. |
 | Pathfinding | **A\* over the room graph + per-room waypoints** | The world is already a graph of rooms; hierarchical pathing on it is cheaper and more controllable than a navmesh, and makes "search a nearby room" trivial to express. |

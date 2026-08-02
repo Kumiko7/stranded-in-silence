@@ -1,7 +1,7 @@
 {
   "$doc": "Map pool. Each entry binds an art pack to generation + enemy overrides. Adding a map = add an art pack under art/packs/<id>/ and one entry here. No logic changes.",
 
-  "defaultMapId": "mansion",
+  "defaultMapId": "test",
   "randomOption": {
     "enabled": true,
     "nameKey": "map.random.name",
@@ -9,6 +9,22 @@
   },
 
   "maps": {
+    "test": {
+      "nameKey": "map.test.name",
+      "descKey": "map.test.desc",
+      "artPack": "test",
+      "posterArtId": "poster.test",
+      "enabled": true,
+      "enemies": [],
+      "overrides": {
+        "graphics": {
+          "ambientIntensity": 1.5,
+          "ambientColor": "#38405e",
+          "fog": { "color": "#080a10", "density": 0.045 }
+        }
+      }
+    },
+
     "mansion": {
       "nameKey": "map.mansion.name",
       "descKey": "map.mansion.desc",
@@ -27,7 +43,8 @@
         }
       },
       "ambienceTrack": "ambience/mansion_loop",
-      "musicTrack": "music/mansion_tension"
+      "musicTrack": "music/mansion_tension",
+      "enabled": false
     }
   }
 }

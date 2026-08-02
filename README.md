@@ -16,19 +16,19 @@ npm install
 npm run dev
 ```
 
-Then open the printed URL. For multiplayer you also need the signalling server:
-
-```bash
-npm run dev:all
-```
+Then open the printed URL. Multiplayer needs no local server — signalling currently
+runs through PeerJS's public server.
 
 | Script | Does |
 | --- | --- |
 | `npm run dev` | Vite dev server with HMR |
-| `npm run signal` | Signalling server for lobby codes and WebRTC handshakes |
-| `npm run dev:all` | Both of the above |
 | `npm run build` | Typecheck then production build to `dist/` |
 | `npm run typecheck` | Types only |
+
+**To play:** press **Play** to start a run, or share the six-character code shown on
+the menu and have someone paste it into the join box. Move with **WASD**, look with
+the mouse, **Shift** to sprint, **Ctrl** to crouch, **E** to open doors. Find the
+glowing exit door and hold **E** on it.
 
 ## Where things are
 
@@ -71,5 +71,9 @@ project and links to everything else.
 
 ## Status
 
-Phase 0, step 1 of [`docs/PLAN.md`](docs/PLAN.md) — scaffold. The build boots to a
-placeholder scene; systems land step by step from there.
+**Slice 1 is playable**: main menu with lobby codes, PeerJS multiplayer, a 6×6 maze
+generated from the test art pack, first-person movement with collision, doors you can
+open, and an exit door that ends the run.
+
+No enemy, keys, chests, items, voice chat or audio yet. See
+[`docs/PLAN.md`](docs/PLAN.md) for exactly what is done and what is next.
