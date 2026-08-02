@@ -3,12 +3,17 @@
 Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 `src/shared/`. Config: `config/net.json`.
 
-> **Current state (slice 1).** Multiplayer runs on **PeerJS** using its public
+> **Current state (slice 2).** Multiplayer runs on **PeerJS** using its public
 > signalling server (`src/net/index.ts`), in a star topology where the host relays.
-> The host is authoritative over the **run seed** only — player transforms and door
-> toggles are broadcast and trusted, which is safe while there is no enemy and no
-> items. The authoritative simulation, prediction and our own signalling server are
-> plan steps 23–27. The rest of this document describes that target design.
+> The host is authoritative over the **run seed** only — everything else is
+> broadcast and trusted: player transforms (`move`), door toggles (`door`), door
+> unlocks (`unlock`), chest openings (`chest`) and item pickup/drop (`take` /
+> `drop`). World items are named deterministically from the seed (`item:x,y:i`,
+> `chest:x,y:i:loot`), so a `take` needs only an id; dropped items are namespaced
+> by peer (`drop:<peer>:<n>`). Nothing stops two peers taking the same item at
+> once — that is step 26. The authoritative simulation, prediction and our own
+> signalling server are plan steps 23–27. The rest of this document describes that
+> target design.
 
 ## Model
 

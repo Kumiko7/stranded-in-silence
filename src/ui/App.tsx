@@ -17,9 +17,17 @@ export interface UiState {
   error: string | null;
   players: number;
   promptVerbKey: string | null;
+  /** Locale key of the item a pick-up prompt names, if any. */
+  promptItemKey: string | null;
   promptHold: boolean;
-  exitProgress: number;
+  holdProgress: number;
   interactKey: string;
+  /** Locale key of the item in each hand, or null for an empty hand. */
+  hands: { left: string | null; right: string | null };
+  useLeftKey: string;
+  useRightKey: string;
+  /** Transient objective line, e.g. "This door needs a key." */
+  hint: string | null;
 }
 
 export interface UiCallbacks {
@@ -100,19 +108,37 @@ function Hud({ state }: { state: UiState }) {
 
       {state.promptVerbKey && (
         <div class="hud__prompt">
-          <span class="hud__prompt-verb">{t(state.promptVerbKey)}</span>
+          <span class="hud__prompt-verb">
+            {t(state.promptVerbKey, state.promptItemKey ? { item: t(state.promptItemKey) } : undefined)}
+          </span>
           <span class="hud__prompt-key">
             {state.promptHold
               ? t('hud.interact.holdHint', { key: state.interactKey })
               : t('hud.interact.pressHint', { key: state.interactKey })}
           </span>
-          {state.promptHold && state.exitProgress > 0 && (
+          {state.promptHold && state.holdProgress > 0 && (
             <div class="hud__progress">
-              <div class="hud__progress-fill" style={{ width: `${state.exitProgress * 100}%` }} />
+              <div class="hud__progress-fill" style={{ width: `${state.holdProgress * 100}%` }} />
             </div>
           )}
         </div>
       )}
+
+      {state.hint && <div class="hud__hint">{t(state.hint)}</div>}
+
+      <div class="hud__hands">
+        <HandSlot nameKey={state.hands.left} useKey={state.useLeftKey} />
+        <HandSlot nameKey={state.hands.right} useKey={state.useRightKey} />
+      </div>
+    </div>
+  );
+}
+
+function HandSlot({ nameKey, useKey }: { nameKey: string | null; useKey: string }) {
+  return (
+    <div class={nameKey ? 'hud__slot hud__slot--filled' : 'hud__slot'}>
+      <span class="hud__slot-name">{nameKey ? t(nameKey) : t('hud.slot.empty')}</span>
+      <span class="hud__slot-key">{useKey}</span>
     </div>
   );
 }

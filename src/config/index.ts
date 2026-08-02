@@ -58,7 +58,7 @@ export function loadConfig(): Config {
     sections[name] = stripDocKeys(value) as Json;
   }
 
-  const required = ['game', 'player', 'world', 'graphics', 'input', 'net', 'maps', 'ui'];
+  const required = ['game', 'player', 'world', 'items', 'graphics', 'input', 'net', 'maps', 'ui'];
   const missing = required.filter((name) => !sections[name]);
   if (missing.length) throw new Error(`config: missing ${missing.join(', ')}.json`);
 

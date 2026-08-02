@@ -29,6 +29,12 @@ export function createMaterials(): MaterialLibrary {
     doorFrame: standard(0x5e4a30),
     lockIndicator: () => new THREE.MeshStandardMaterial({ color: 0xc9a227, emissive: 0xc9a227, emissiveIntensity: 0.7 }),
 
+    chest: standard(0x7a5c3a),
+    chestTrim: standard(0x8f939c, 0.5, 0.7),
+    locker: standard(0x6d7a80, 0.6, 0.45),
+    lockerVent: standard(0x33393d),
+    itemMetal: standard(0xc4b072, 0.4, 0.8),
+
     exitDoor: standard(0x5f9a76),
     exitFrame: standard(0x3d5c48),
     exitGlow: () =>

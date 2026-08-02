@@ -1,8 +1,9 @@
 /**
- * Doors: the game's core tactical object and, for now, its only interaction.
+ * Doors: the game's core tactical object.
  *
- * Logic owns the state and drives the art's `hinge` part. It never inspects what
- * the door looks like, which is why a themed door drops in without code changes.
+ * Logic owns the state and drives the art's `hinge` and `lockIndicator` parts. It
+ * never inspects what the door looks like, which is why a themed door drops in
+ * without code changes.
  */
 import type * as THREE from 'three';
 import type { WorldCollider } from './collision';
@@ -14,8 +15,11 @@ export interface Door {
   readonly isExit: boolean;
   readonly object: THREE.Object3D;
   readonly hinge: THREE.Object3D;
+  readonly lockIndicator: THREE.Object3D;
   readonly x: number;
   readonly z: number;
+  /** A locked door cannot be opened until a key is spent on it. */
+  locked: boolean;
   open: boolean;
   /** 0 = closed, 1 = fully open. Animated toward `open`. */
   progress: number;
@@ -25,7 +29,14 @@ export interface Door {
 const OPEN_ANGLE = Math.PI / 2;
 
 export function toggleDoor(door: Door, open?: boolean): void {
+  if (door.locked) return;
   door.open = open ?? !door.open;
+}
+
+/** Spends a key on a door. The key itself is consumed by the caller. */
+export function unlockDoor(door: Door): void {
+  door.locked = false;
+  door.lockIndicator.visible = false;
 }
 
 export function updateDoors(doors: readonly Door[], dt: number, openSeconds: number, closeSeconds: number): void {

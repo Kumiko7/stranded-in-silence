@@ -16,24 +16,28 @@ anything that was not asked for.
 
 ---
 
-## Where it is right now — Slice 1: a walkable map
+## Where it is right now — Slice 2: keys, containers and the inventory
 
-A deliberately minimal vertical slice through the whole architecture is **playable**:
+Slice 1 gave a walkable, multiplayer, procedurally generated map. Slice 2 makes a
+run something you have to *solve*:
 
-- Main menu with a lobby code, copy button, join field and start
-- Multiplayer over PeerJS (public signalling), star topology, host relays
-- No lobby — Start drops you straight into a run; joining does the same
-- A 6×6 maze generated from the **test art pack**, doors matched between neighbours
-- First-person movement with collision, sprint and crouch
-- `E` opens and closes doors — the only interaction
-- Hold `E` on the exit door to escape, then back to the main menu
+- **Locked doors** that genuinely gate the exit — `doors.lockedDoorCount` of them,
+  with loops never allowed to run around one
+- **Keys** placed so the key for each lock is always reachable before that lock, so
+  a run can never be unwinnable (verified over 400 seeds)
+- **Chests** — hold `E`, slow, and they hold most of the keys
+- **Lockers** — press `E` to hide inside, `E` again to step out
+- **Two-hand inventory** — pick up with `E`, use with LMB / RMB, drop with `Q` / `F`,
+  and picking up a third item drops one
+- Hand slots, hold ring and a "this door needs a key" hint in the HUD
+- Unlocks, chest openings and item pickup/drop replicated to peers
 
-Deliberately not in it yet: enemy, locked doors, keys, chests, lockers, items,
-voice chat, lobby, audio.
+Still missing from slice 1's list: enemy, item roster beyond the key, voice chat,
+lobby, audio.
 
-Because it is a slice rather than a sequence of finished steps, several steps below
-are `◐` — the part this slice needed is done, the rest is not. Each one lists what
-is still missing.
+Because these are slices rather than a sequence of finished steps, several steps
+below are `◐` — the part the slice needed is done, the rest is not. Each one lists
+what is still missing.
 
 ---
 
@@ -102,10 +106,10 @@ the simulation is written host-authoritative from the start.*
 
 ### ◐ 9. Map generation
 **Goal:** the maze.
-**Touches:** `src/world/generation/{index,slots,connect,assign,lock,contents,validate}.ts`.
+**Touches:** `src/world/generation.ts`.
 **Details:** the full pipeline in [`systems/GENERATION.md`](systems/GENERATION.md) — 1×1 slots, spanning tree + loops, blueprint assignment by door mask, spawn/exit placement, locked doors + key placement in the still-reachable region, content rolls, validation and re-roll.
 **Done when:** the same seed always produces the same map; 500 generated maps all pass validation; a debug top-down view renders the layout.
-**Still missing:** locked doors, key placement, room contents, the validation/re-roll pass, and the debug map view. Spanning-tree-plus-loops connection, blueprint assignment by door-mask superset, spawn/exit placement and per-seed determinism are done and verified across peers.
+**Still missing:** the validation/re-roll pass, the enemy spawn, and the debug map view. Connection, blueprint assignment, spawn/exit placement, per-seed determinism, locked doors, lock regions, room contents and key placement are done — solvability is structural (see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys") and was checked over 400 seeds.
 
 ### ◐ 10. Room streaming + world assembly
 **Goal:** turn a `RunLayout` into a walkable 3D world.
@@ -129,22 +133,24 @@ the simulation is written host-authoritative from the start.*
 
 ### ◐ 13. Doors
 **Goal:** the game's core tactical object.
-**Touches:** `src/entities/door.ts`, `art/shared/props/door.ts`, `art/shared/props/exitDoor.ts`.
+**Touches:** `src/world/doors.ts`, `art/shared/props/door.ts`.
 **Details:** open/close on press, swing animation via the `hinge` part, locked state + `lockIndicator`, noise emission on open/slam, collider toggling, exit door with glow and hold-to-escape.
 **Done when:** doors open, close, block movement when closed, and refuse to open when locked.
-**Still missing:** locked state, noise emission. Open/close with swing animation, collider toggling at half-swing, the exit door with glow and hold-to-escape, and network-synced door state are done.
+**Still missing:** noise emission (step 16). Open/close with swing animation, collider toggling at half-swing, locked state with the `lockIndicator` part, the exit door with glow and hold-to-escape, and network-synced door state are done.
 
-### ☐ 14. Chests, lockers and items
+### ◐ 14. Chests, lockers and items
 **Goal:** loot and hiding.
-**Touches:** `src/entities/{chest,locker,item,inventory}.ts`, `art/shared/props/{chest,locker,items/}.ts`.
+**Touches:** `src/world/containers.ts`, `src/entities/items.ts`, `art/shared/props/{chest,locker,items/key}.ts`.
 **Details:** hold-to-open chest for `world.json → containers.chestOpenHoldSeconds` (loud, drives the `lid` part), locker enter/exit timings from the same block with the camera moving to `insideAnchor`, two-slot inventory with drop-on-replace, pickup/drop, item attachment to `handLeft`/`handRight`.
 **Done when:** you can open a chest, take a key, carry two items, and hide in a locker.
+**Still missing:** held items are not yet attached to the `handLeft`/`handRight` sockets — carrying shows in the HUD only, and nothing renders in first person or on a remote player. Chests, lockers, pickup/drop and the two-slot inventory are done.
 
-### ☐ 15. Keys, locked doors and the exit
+### ◐ 15. Keys, locked doors and the exit
 **Goal:** the run is completable.
-**Touches:** `src/entities/items/behaviours/unlock.ts`, `src/world/runState.ts`.
+**Touches:** `src/world/generation.ts`, `src/game/Game.ts`.
 **Details:** key item unlocks a door and is consumed, exit door hold completes the run, win/lose evaluation per [`GAMEPLAY.md §6`](GAMEPLAY.md).
 **Done when:** you can play a full solo run from spawn to escape.
+**Still missing:** win/lose evaluation — there is no `runState.ts`, and no enemy to lose to yet. A full solo run from spawn through two locked doors to the exit is playable.
 
 ### ☐ 16. Noise bus
 **Goal:** the spine described in [`ARCHITECTURE.md §8`](ARCHITECTURE.md).
@@ -182,11 +188,12 @@ the simulation is written host-authoritative from the start.*
 **Details:** distinct visuals for patrolling / alerted / chasing, heartbeat + distortion ramping between `effects.heartbeatStartDistance` and `heartbeatMaxDistance`, damage flash, injured and downed vignettes. Keep it to exactly these — no general post-processing stack.
 **Done when:** each alert level and proximity band is unmistakable without reading any text.
 
-### ☐ 22. HUD
+### ◐ 22. HUD
 **Goal:** the in-game interface.
 **Touches:** `src/ui/hud/*`.
 **Details:** every element in [`systems/UI.md`](systems/UI.md) — crosshair, hand slots, health vignette, teammate list, voice indicator, objective hints. Plain DOM, config-toggleable.
 **Done when:** all elements update correctly and each can be disabled from `config/ui.json`.
+**Still missing:** health vignette, teammate list, voice indicator, per-element `config/ui.json → hud` toggles, and the move out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots and the objective hint render from `src/ui/App.tsx`.
 
 **Milestone: a complete single-player run is playable end to end.**
 
@@ -215,11 +222,12 @@ the simulation is written host-authoritative from the start.*
 **Done when:** four players walk around one generated map with smooth remote motion under simulated 100 ms latency.
 **Still missing:** all of the authority. Slice 1 broadcasts each player's own transform and interpolates remotes — there is no authoritative sim, no input frames, no reconciliation. The host owns only the run seed. `stepPlayer()` is already a pure `(state, input, dt)` function so prediction can reuse it verbatim.
 
-### ☐ 26. Networked world interactions
+### ◐ 26. Networked world interactions
 **Goal:** doors, chests, items and the exit work for everyone.
 **Touches:** `src/net/replication/`, entity modules from steps 13–15.
 **Details:** host-decided interaction results on the `events` channel, optimistic local feedback, item ownership and hand slots, exit progress.
 **Done when:** two players cannot dupe an item, and door state is consistent for all four.
+**Still missing:** all of the authority. Unlocks, chest openings and item pickup/drop are broadcast and trusted, exactly like doors — two players can still take the same item. Deterministic item ids (`item:x,y:i`, `chest:x,y:i:loot`, `drop:<peer>:<n>`) are in place, so adding host arbitration is a change of who decides, not of what is sent.
 
 ### ☐ 27. Networked enemy and run state
 **Goal:** the hunter is shared.
@@ -319,3 +327,4 @@ the simulation is written host-authoritative from the start.*
 | 2026-08-02 | Plan created. Step 1 complete. |
 | 2026-08-02 | Scope trim to match the original spec: removed the player flashlight, stamina, sound/voice occlusion, backpedal and strafe penalties, graphics quality tiers, the general post-processing stack, accessibility settings, peer config-hash checking and reconnect grace. Added `world.json → containers` hold timings for chests and lockers. |
 | 2026-08-02 | **Slice 1 playable**: menu with lobby code / join / start, PeerJS multiplayer, generated 6×6 map from the test art pack, first-person movement with collision, door interaction, exit-door escape. Steps 7, 11, 12 done; 2–6, 8–10, 13, 23–25 partially. Signalling server deferred to step 23 (PeerJS public server for now), so `ws`/`tsx`/`concurrently` deps and the `signal` scripts were removed. |
+| 2026-08-02 | **Slice 2 playable**: locked doors, keys, chests, lockers and the two-hand inventory. Generation now locks doors on the spanning-tree route *before* adding loops and forbids loops across a lock, which makes "always X locked doors, always enough keys" structural rather than checked — see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys". Steps 9, 13, 14, 15, 22, 26 advanced. `loot.chestTable` / `floorTable` were trimmed to `key` + `empty` until the item roster lands in step 37. |

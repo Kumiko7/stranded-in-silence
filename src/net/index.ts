@@ -28,6 +28,10 @@ export type NetMessage =
   | { t: 'leave'; id: string }
   | { t: 'move'; id: string; x: number; z: number; yaw: number; height: number }
   | { t: 'door'; id: string; open: boolean }
+  | { t: 'unlock'; id: string }
+  | { t: 'chest'; id: string }
+  | { t: 'take'; id: string }
+  | { t: 'drop'; id: string; itemId: string; x: number; y: number; z: number }
   | { t: 'escaped'; id: string };
 
 export type NetRole = 'offline' | 'host' | 'client';
@@ -39,6 +43,10 @@ export interface NetEvents {
   onPeerLeave(id: string): void;
   onPeerMove(id: string, transform: PlayerTransform): void;
   onDoor(doorId: string, open: boolean): void;
+  onDoorUnlocked(doorId: string): void;
+  onChestOpened(chestId: string): void;
+  onItemTaken(id: string): void;
+  onItemDropped(id: string, itemId: string, x: number, y: number, z: number): void;
   onStatus(status: string): void;
 }
 
@@ -198,6 +206,18 @@ export class Net {
         break;
       case 'door':
         this.#events.onDoor(message.id, message.open);
+        break;
+      case 'unlock':
+        this.#events.onDoorUnlocked(message.id);
+        break;
+      case 'chest':
+        this.#events.onChestOpened(message.id);
+        break;
+      case 'take':
+        this.#events.onItemTaken(message.id);
+        break;
+      case 'drop':
+        this.#events.onItemDropped(message.id, message.itemId, message.x, message.y, message.z);
         break;
       case 'escaped':
         break;

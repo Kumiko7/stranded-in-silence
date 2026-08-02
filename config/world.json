@@ -77,22 +77,15 @@
   },
 
   "loot": {
-    "$doc": "Weighted tables. Ids resolve against config/items.json. Key generation is enforced separately by doors.keySpareCount.",
+    "$doc": "Weighted tables. Ids resolve against config/items.json; `empty` leaves the slot bare. The mandatory keys are placed separately and override whatever these rolled - see doors.lockedDoorCount / keySpareCount.",
+    "$note": "Only `key` has a behaviour and a model so far. medicine / brick / coin / flashGrenade / barricade come back into these tables with plan step 37.",
     "chestTable": {
-      "key": 55,
-      "medicine": 15,
-      "brick": 10,
-      "coin": 10,
-      "flashGrenade": 5,
-      "empty": 5
+      "key": 8,
+      "empty": 92
     },
     "floorTable": {
-      "coin": 30,
-      "brick": 25,
-      "medicine": 15,
-      "key": 10,
-      "flashGrenade": 10,
-      "barricade": 10
+      "key": 1,
+      "empty": 99
     }
   },
 

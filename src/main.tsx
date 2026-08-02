@@ -58,9 +58,14 @@ async function boot(): Promise<void> {
     error: null,
     players: 1,
     promptVerbKey: null,
+    promptItemKey: null,
     promptHold: false,
-    exitProgress: 0,
+    holdProgress: 0,
     interactKey: input.labelFor('interact'),
+    hands: { left: null, right: null },
+    useLeftKey: input.labelFor('useLeft'),
+    useRightKey: input.labelFor('useRight'),
+    hint: null,
   };
 
   const set = (patch: Partial<UiState>): void => {
@@ -76,6 +81,10 @@ async function boot(): Promise<void> {
     onPeerLeave: (id) => game.removeRemote(id),
     onPeerMove: (id, transform) => game.moveRemote(id, transform),
     onDoor: (doorId, open) => game.setDoor(doorId, open),
+    onDoorUnlocked: (doorId) => game.setDoorUnlocked(doorId),
+    onChestOpened: (chestId) => game.openChest(chestId),
+    onItemTaken: (id) => game.takeWorldItem(id),
+    onItemDropped: (id, itemId, x, y, z) => game.dropWorldItem(id, itemId, x, y, z),
     onStatus: (status) => console.info('[net]', status),
   });
 
@@ -83,8 +92,20 @@ async function boot(): Promise<void> {
 
   const game = new Game(config, renderer, input, net, {
     onInteractTargetChange: (target) =>
-      set({ promptVerbKey: target?.verbKey ?? null, promptHold: target?.hold ?? false }),
-    onExitProgress: (progress) => set({ exitProgress: progress }),
+      set({
+        promptVerbKey: target?.verbKey ?? null,
+        promptItemKey: target?.itemNameKey ?? null,
+        promptHold: target?.hold ?? false,
+        hint: target?.kind === 'locked' ? 'hud.objective.needKey' : null,
+      }),
+    onHoldProgress: (progress) => set({ holdProgress: progress }),
+    onHandsChange: (hands) =>
+      set({
+        hands: {
+          left: config.items.items[hands.left ?? '']?.nameKey ?? null,
+          right: config.items.items[hands.right ?? '']?.nameKey ?? null,
+        },
+      }),
     onEscaped: () => {
       input.releasePointerLock();
       set({ screen: 'escaped' });
@@ -94,14 +115,14 @@ async function boot(): Promise<void> {
 
   function enterRun(mapId: string, seed: number, slot = 0): void {
     game.start(mapId, seed, slot);
-    set({ screen: 'run', promptVerbKey: null, exitProgress: 0 });
+    set({ screen: 'run', promptVerbKey: null, holdProgress: 0, hint: null });
     input.requestPointerLock();
   }
 
   function leaveRun(): void {
     game.end();
     input.releasePointerLock();
-    set({ screen: 'menu', promptVerbKey: null, exitProgress: 0, players: 1 });
+    set({ screen: 'menu', promptVerbKey: null, holdProgress: 0, hint: null, players: 1 });
   }
 
   /* --- screens ------------------------------------------------------------ */

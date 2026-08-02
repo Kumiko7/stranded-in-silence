@@ -93,6 +93,10 @@ Read from across a room as "this is the way out" even in the dark.
 | `contentsAnchor` | Where a revealed item is displayed (also used by the x-ray lens). |
 | `interactAnchor` | Prompt position. |
 
+Build the body **hollow**. Logic drops the revealed item at `contentsAnchor` as a
+real world object, and the player has to be able to see and click it — a solid
+block swallows it.
+
 ### `locker.standard` — `0.9 × 0.7 m` footprint, `2.0 m` tall
 
 | Part | Purpose |
@@ -131,7 +135,27 @@ Mostly floating — minimal animation is expected and preferred.
 | `gripAnchor` | Where the hand socket attaches when held. |
 | `restAnchor` | Contact point when resting on a surface. |
 
-Items get a `circle` collider of radius `0.2` automatically — do not add one.
+**Items have no collider at all** — return `colliders: []`. They sit on tables,
+shelves and chest floors, and collision is a 2D floor-plane test, so a collider
+under a shelf ledge would block a doorway you can see straight through. You pick
+an item up by looking at it, not by walking into it.
+
+## 3.1 Materials shared art asks for
+
+Shared art gets its materials from the **pack's** library, so every pack must
+provide these names (see `art/packs/test/materials.ts` for a minimal set):
+
+| Name | Used by |
+| --- | --- |
+| `door`, `doorFrame`, `lockIndicator` | `door.standard` |
+| `exitDoor`, `exitFrame`, `exitGlow` | `door.exit` |
+| `chest`, `chestTrim` | `chest.standard` |
+| `locker`, `lockerVent` | `locker.standard` |
+| `itemMetal` | `item.key` |
+| `playerBody`, `playerMask` | `player.masked` |
+
+Adding a shared piece that needs a new material means adding it to this table and
+to every pack.
 
 ## 4. VFX and indicators
 
