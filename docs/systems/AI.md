@@ -41,7 +41,8 @@ player's post-processing.
 Target is seen when **all** hold:
 
 1. distance ≤ `range`, scaled by `crouchedTargetRangeMultiplier` if the target is
-   crouching and `darknessRangeMultiplier` if the target is in an unlit area
+   crouching and `darknessRangeMultiplier` if the target is standing in an unlit area
+   (rooms light themselves; players carry no light)
 2. within `fovDegrees` of facing
 3. line of sight is clear (`requiresLineOfSight`) — raycast against the static
    collision set plus closed doors
@@ -62,8 +63,8 @@ loudness × hearing.hearingMultiplier ≥ hearing.threshold
 AND distance ≤ radius × hearing.rangeMultiplier
 ```
 
-with `throughClosedDoorMultiplier` applied per closed door on the shortest room path.
-Voice is special-cased: it is only audible to the enemy within
+**Distance only** — walls and closed doors do not muffle noise. Doors slow the enemy
+down; they do not hide you. Voice is special-cased: it is only audible to the enemy within
 `hearing.voiceRoomLimit` rooms (default 1 = same or adjacent). Players hear each
 other at `net.json → voice.hearingRange`, which is deliberately much further.
 

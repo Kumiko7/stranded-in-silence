@@ -16,18 +16,7 @@
     "injuredSpeedMultiplier": 0.72,
     "acceleration": 28.0,
     "deceleration": 34.0,
-    "airControl": 0.0,
-    "backpedalMultiplier": 0.82,
-    "strafeMultiplier": 0.92
-  },
-
-  "stamina": {
-    "enabled": true,
-    "max": 100,
-    "sprintDrainPerSecond": 18.0,
-    "regenPerSecond": 12.0,
-    "regenDelaySeconds": 1.2,
-    "minToStartSprint": 12.0
+    "$note": "Movement is speed-uniform in every direction on purpose - walking backwards while watching the enemy carries no penalty."
   },
 
   "camera": {

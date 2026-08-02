@@ -42,12 +42,11 @@
       },
 
       "hearing": {
-        "$doc": "A noise event is heard when: loudness * hearingMultiplier >= threshold AND distance <= noise.radius * rangeMultiplier.",
+        "$doc": "A noise event is heard when: loudness * hearingMultiplier >= threshold AND distance <= noise.radius * rangeMultiplier. Distance only - walls and doors do not muffle it.",
         "rangeMultiplier": 1.0,
         "hearingMultiplier": 1.0,
         "threshold": 0.08,
         "voiceRoomLimit": 1,
-        "throughClosedDoorMultiplier": 0.6,
         "positionJitterMetres": 1.5
       },
 

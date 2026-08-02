@@ -10,7 +10,7 @@ generate(mapId, seed, config) → RunLayout
 ```
 
 Pure and deterministic. Same inputs → identical output on every peer, which is why
-the network only ships `(mapId, seed, configHash)` instead of the map.
+the network only ships `(mapId, seed)` instead of the map.
 
 ```ts
 interface RunLayout {
@@ -89,8 +89,8 @@ falls back to a guaranteed-solvable simple layout.
 - One seeded RNG, split into named sub-streams (`layout`, `blueprints`, `loot`,
   `art`) so adding a loot roll cannot shift the maze layout.
 - Never iterate a `Set` or object key order to make a decision; sort first.
-- `configHash` is part of the seed identity — if two peers have different configs
-  they must fail to match rather than silently desync.
+- Peers are assumed to share a build and a `config/`. Detecting a mismatch is a
+  future addition, not something to build now.
 
 ## Changing generation behaviour
 

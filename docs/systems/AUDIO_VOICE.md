@@ -31,9 +31,10 @@ Options-menu sliders write bus volumes into the save profile. Music ducks by
 
 ### Spatialisation
 
-Positional sounds use `PannerNode` with `config/audio.json → spatial`. A closed door
-or wall between listener and source applies `occlusionLowpassHz` and
-`occlusionVolumeMultiplier` — cheap, and it sells the geometry more than reverb would.
+Positional sounds use `PannerNode` with `config/audio.json → spatial`. **Distance
+only** — there is no occlusion modelling. Walls and doors do not muffle sound for
+players or for the enemy. This keeps the audio model, the noise bus and voice all
+obeying one rule, and keeps them cheap.
 
 ### Adding a sound
 
@@ -69,16 +70,17 @@ authoritative over audio.
 
 ### Attenuation
 
-Per remote peer, per frame:
+Per remote peer, per frame — **distance only**:
 
 ```
 gain = falloff(distance, fullVolumeRange, hearingRange)
-     × (throughWallMultiplier      if no line of sight)
-     × (throughClosedDoorMultiplier per closed door on the path)
 ```
 
-Values from `config/net.json → voice`. Default `hearingRange` is **22 m** — generous,
-and deliberately far beyond what the enemy can hear voice at
+Values from `config/net.json → voice`. Walls and doors deliberately do **not** muffle
+voice: players are meant to hear each other generously right across the map, and in a
+room maze any occlusion term would apply almost all the time and quietly destroy that.
+
+Default `hearingRange` is **22 m**, far beyond what the enemy can hear voice at
 (`enemy.json → hearing.voiceRoomLimit`, default same-or-adjacent room). Talking is
 mostly safe. Sprinting is not.
 

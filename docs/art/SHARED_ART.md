@@ -50,7 +50,7 @@ interface BuiltArt {
 }
 ```
 
-`ArtBuildContext` gives you `materials`, `rng`, `quality` — same meanings as in
+`ArtBuildContext` gives you `materials` and `rng` — same meanings as in
 [`ROOM_FORMAT.md §4.1`](ROOM_FORMAT.md).
 
 **Universal rules**
@@ -110,7 +110,6 @@ Read from across a room as "this is the way out" even in the dark.
 | `head` | Pitched with the player's look. |
 | `handLeft` / `handRight` | Item attachment sockets. Held items parent here. |
 | `nameAnchor` | Where the nameplate/voice indicator floats (~`2.1 m` up). |
-| `flashlightAnchor` | Where the flashlight cone originates. |
 
 Also expose `setCrouched(t: number)` on the builder result's optional `api` if the art
 supports a crouch pose; logic falls back to scaling `root` if absent.

@@ -152,7 +152,6 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 | `kit` | `PackKit` | Your pack's shared builders (walls, floors, trim, materials). |
 | `materials` | `MaterialLibrary` | Cached, shared materials. **Always** get materials from here — never `new THREE.MeshStandardMaterial` per room instance or you will blow the draw-call budget on duplicate rooms. |
 | `rng` | `() => number` | Seeded RNG. Use this for any randomness so runs replay identically across peers. **Never use `Math.random()` in art.** |
-| `quality` | `QualityTier` | `'low' \| 'medium' \| 'high' \| 'ultra'`. Skip small greeble and decorative lights on `low`. |
 | `roomIndex` | `number` | This room's index in the map; handy as a variation seed. |
 | `lightBudget` | `number` | Max real (shadow-casting or not) lights you may add. Exceeding it is a validation error. |
 
@@ -198,14 +197,16 @@ Rules:
 - Respect `ctx.lightBudget` (default **2** real lights per room). Use emissive
   materials, baked-look vertex tinting and light-cone meshes for everything else —
   they are free.
-- **Dark but never blind.** A player standing in the middle of the room with the
-  flashlight off must still be able to read the layout. If your room is pitch black
-  without the flashlight, add a weak practical light or raise emissive.
+- **Dark but never blind — and there is no flashlight.** Players carry no light
+  source, so **every room must light itself well enough to navigate.** A player
+  standing anywhere in the room must be able to read the layout and find the doors.
+  If your room is pitch black, it is broken: add a weak practical light, moonlight
+  from a window, or raise emissive on key surfaces.
 - Never set `renderer`, `scene.fog`, tone mapping or exposure from a room.
 
 ---
 
-## 7. Performance budget (per room, `high` tier)
+## 7. Performance budget (per room)
 
 | Metric | Budget |
 | --- | --- |
@@ -232,7 +233,7 @@ scope and instance it.
 - [ ] All randomness uses `ctx.rng`
 - [ ] All materials come from `ctx.materials`
 - [ ] Colliders present for blocking furniture, absent for decoration
-- [ ] ≤ 2 lights, room readable with flashlight off
+- [ ] ≤ 2 lights, and the room is navigable on its own light (there is no flashlight)
 - [ ] Registered in the pack's `pack.ts` room list
 
 Run `npm run validate:art` (step 8) to check most of this automatically.

@@ -15,9 +15,7 @@
     "refDistance": 2.0,
     "rolloffFactor": 1.4,
     "maxDistance": 40.0,
-    "panningModel": "HRTF",
-    "occlusionLowpassHz": 900,
-    "occlusionVolumeMultiplier": 0.45
+    "panningModel": "HRTF"
   },
 
   "sounds": {

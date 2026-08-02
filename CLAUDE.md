@@ -14,6 +14,13 @@ that is what they are for. Do not read the whole codebase to make a scoped chang
    [`docs/LOCALISATION.md`](docs/LOCALISATION.md).
 4. **No `Math.random()`** in `art/` or in map generation — use the seeded RNG, or peers desync.
 5. **Simulation code never touches `THREE` or the DOM.**
+6. **Build what was asked, nothing more.** This project is deliberately kept minimal.
+   Before adding a mechanic, setting or subsystem nobody asked for, check
+   [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) → **"Deliberately NOT built"**.
+   Several plausible-sounding features (player flashlight, stamina, sound occlusion,
+   quality presets, accessibility settings) were removed on purpose. Keep the seams
+   clean for them; do not implement them. If something genuinely seems needed, say so
+   and ask rather than adding it quietly.
 
 ## Working on a plan step
 

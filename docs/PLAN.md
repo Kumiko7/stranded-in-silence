@@ -4,9 +4,13 @@ Each step is sized for **one working session**. They are ordered so the game is
 playable as early as possible: single-player core first, multiplayer second, content
 and polish third.
 
-**To work on this:** say *"do step 7"* or *"change step 4 so the flashlight is
-brighter"*. Update this file at the end of every step — tick the box, set the status,
-and note anything that changed about the design.
+**To work on this:** say *"do step 7"* or *"change step 4 so the fog is thicker"*.
+Update this file at the end of every step — tick the box, set the status, and note
+anything that changed about the design.
+
+**Scope discipline:** build what the step says and nothing more. Check
+[`ARCHITECTURE.md`](ARCHITECTURE.md) → "Deliberately NOT built" before adding
+anything that was not asked for.
 
 **Status key:** ☐ not started · ◐ in progress · ☑ done
 
@@ -23,7 +27,7 @@ and note anything that changed about the design.
 ### ☐ 2. Config + localisation systems
 **Goal:** make `config/` and `config/locales/` actually drive the game.
 **Touches:** `src/config/{index,types,load,merge,validate}.ts`, `src/i18n/`, `src/save/` (stub).
-**Details:** deep-merge layering (base → map → difficulty → quality tier → save profile), `$doc` key stripping, boot-time validation with readable errors, `configHash` for net matching, `t()` with `{placeholder}` substitution and safe fallback.
+**Details:** deep-merge layering (base → map → difficulty → save profile), `$doc`/`$note` key stripping, boot-time validation with readable errors, `t()` with `{placeholder}` substitution and safe fallback. Keep the merge generic so further overlay layers slot in later, but add only these.
 **Done when:** `t('game.title')` renders the title from `en.json`, and changing a value in `config/graphics.json` visibly changes the running dev build.
 
 ### ☐ 3. Core engine services
@@ -35,8 +39,8 @@ and note anything that changed about the design.
 ### ☐ 4. Renderer + lighting rig
 **Goal:** the horror look, fully config-driven.
 **Touches:** `src/render/{Renderer,cameraRig,lighting,postfx,materialCache}.ts`.
-**Details:** WebGLRenderer + tone mapping + fog + ambient from `config/graphics.json`; quality tiers; flashlight spot light attached to the camera; post stack (bloom, vignette, grain, chromatic aberration) with hooks for the alert/heartbeat/damage effects; the `minAmbientFloor` guarantee.
-**Done when:** switching quality tier in config changes the render; the scene is dark but readable.
+**Details:** WebGLRenderer + tone mapping + fog + ambient from `config/graphics.json`; the `minAmbientFloor` guarantee; a minimal effect layer carrying **only** the gameplay feedback the design calls for (enemy alert state, heartbeat proximity, damage flash, injured/downed vignette). No flashlight, no quality tiers, no general post stack — see [`ARCHITECTURE.md`](ARCHITECTURE.md) "Deliberately NOT built".
+**Done when:** the scene is dark but navigable on room lighting alone, with no player-held light.
 
 ### ☐ 5. Input system
 **Goal:** raw devices → action ids, rebindable.
@@ -84,7 +88,7 @@ the simulation is written host-authoritative from the start.*
 ### ☐ 11. Player controller
 **Goal:** first-person movement that feels right.
 **Touches:** `src/entities/player/{controller,movement,camera}.ts`.
-**Details:** WASD + mouse look, walk/sprint/crouch with `player.json` speeds and accelerations, stamina, crouch height lerp, head bob, collision + sliding, footstep timing. Written as a pure `(state, input, dt) → state` step so prediction reuses it verbatim in step 25.
+**Details:** WASD + mouse look, walk/sprint/crouch with `player.json` speeds and accelerations, crouch height lerp, head bob, collision + sliding, footstep timing. Speed is uniform in every direction — no backpedal or strafe penalty. No stamina; sprinting costs noise only. Written as a pure `(state, input, dt) → state` step so prediction reuses it verbatim in step 25.
 **Done when:** you can walk a generated map and the movement feels good with only config changes.
 
 ### ☐ 12. Interaction system
@@ -102,7 +106,7 @@ the simulation is written host-authoritative from the start.*
 ### ☐ 14. Chests, lockers and items
 **Goal:** loot and hiding.
 **Touches:** `src/entities/{chest,locker,item,inventory}.ts`, `art/shared/props/{chest,locker,items/}.ts`.
-**Details:** hold-to-open chest (loud, drives the `lid` part), locker enter/exit with camera move to `insideAnchor`, two-slot inventory with drop-on-replace, pickup/drop, item attachment to `handLeft`/`handRight`.
+**Details:** hold-to-open chest for `world.json → containers.chestOpenHoldSeconds` (loud, drives the `lid` part), locker enter/exit timings from the same block with the camera moving to `insideAnchor`, two-slot inventory with drop-on-replace, pickup/drop, item attachment to `handLeft`/`handRight`.
 **Done when:** you can open a chest, take a key, carry two items, and hide in a locker.
 
 ### ☐ 15. Keys, locked doors and the exit
@@ -144,13 +148,13 @@ the simulation is written host-authoritative from the start.*
 ### ☐ 21. Horror feedback layer
 **Goal:** the player always knows how much trouble they are in.
 **Touches:** `src/render/postfx/effects.ts`, `art/shared/vfx/`, `src/audio/` hooks.
-**Details:** distinct visuals for patrolling / alerted / chasing, heartbeat + distortion ramping between `effects.heartbeatStartDistance` and `heartbeatMaxDistance`, damage flash, injured and downed vignettes. Honours `ui.json → accessibility.reduceFlashing`.
+**Details:** distinct visuals for patrolling / alerted / chasing, heartbeat + distortion ramping between `effects.heartbeatStartDistance` and `heartbeatMaxDistance`, damage flash, injured and downed vignettes. Keep it to exactly these — no general post-processing stack.
 **Done when:** each alert level and proximity band is unmistakable without reading any text.
 
 ### ☐ 22. HUD
 **Goal:** the in-game interface.
 **Touches:** `src/ui/hud/*`.
-**Details:** every element in [`systems/UI.md`](systems/UI.md) — crosshair, hand slots, stamina, health vignette, teammate list, voice indicator, objective hints. Plain DOM, config-toggleable.
+**Details:** every element in [`systems/UI.md`](systems/UI.md) — crosshair, hand slots, health vignette, teammate list, voice indicator, objective hints. Plain DOM, config-toggleable.
 **Done when:** all elements update correctly and each can be disabled from `config/ui.json`.
 
 **Milestone: a complete single-player run is playable end to end.**
@@ -174,7 +178,7 @@ the simulation is written host-authoritative from the start.*
 ### ☐ 25. Host-authoritative simulation + prediction
 **Goal:** everyone sees the same world.
 **Touches:** `src/net/{host,client,prediction,reconciliation,interpolation}.ts`.
-**Details:** input frames up, snapshots down, client prediction reusing the step-11 movement function, reconciliation thresholds, interpolation delay, `(mapId, seed, configHash)` run start.
+**Details:** input frames up, snapshots down, client prediction reusing the step-11 movement function, reconciliation thresholds, interpolation delay, `(mapId, seed)` run start.
 **Done when:** four players walk around one generated map with smooth remote motion under simulated 100 ms latency.
 
 ### ☐ 26. Networked world interactions
@@ -192,7 +196,7 @@ the simulation is written host-authoritative from the start.*
 ### ☐ 28. Proximity voice chat
 **Goal:** the reason the game works.
 **Touches:** `src/voice/{capture,peerAudio,attenuation,modes,vad}.ts`, pause-menu control.
-**Details:** mic capture, per-peer tracks and gain nodes, distance + wall + door attenuation, off / open-mic / push-to-talk switched by one control, voice as a noise emitter, spectator channel separation.
+**Details:** mic capture, per-peer tracks and gain nodes, **distance-only** attenuation (walls and doors never muffle voice), off / open-mic / push-to-talk switched by one control, voice as a noise emitter, spectator channel separation.
 **Done when:** four players hear each other positionally, all three modes work, and the enemy reacts to speech only at close range.
 
 ### ☐ 29. Lobby scene and flow
@@ -222,12 +226,12 @@ the simulation is written host-authoritative from the start.*
 
 ### ☐ 34. Audio system + first sound pass
 **Touches:** `src/audio/`, `assets/audio/`.
-**Details:** buses, spatial SFX with occlusion, music/ambience crossfade, the registry in `config/audio.json` wired to real files.
+**Details:** buses, distance-based spatial SFX (no occlusion), music/ambience crossfade, the registry in `config/audio.json` wired to real files.
 **Done when:** footsteps, doors, chests, the enemy and UI all make appropriate positional sound.
 
 ### ☐ 35. Save system + full options menus
 **Touches:** `src/save/`, `src/ui/screens/Options.tsx`, `src/ui/screens/Controls.tsx`.
-**Details:** `localStorage` adapter behind an interface, options for graphics/audio/gameplay/voice, full key rebinding with conflict display, language selector, `npm run validate:locales`.
+**Details:** `localStorage` adapter behind an interface, options for graphics/audio/gameplay/voice, full key rebinding with conflict display, language selector, `npm run validate:locales`. Graphics options write individual `graphics.json` values — no quality presets.
 **Done when:** every setting persists across reloads and reset-to-defaults works.
 
 ### ☐ 36. Scoreboard
@@ -262,9 +266,15 @@ the simulation is written host-authoritative from the start.*
 ### ☐ 47. Lore, notes and collectables
 ### ☐ 48. Second enemy archetype
 ### ☐ 49. Host migration
-### ☐ 50. Electron packaging + OS save directory
-### ☐ 51. Steam integration — lobbies, friends, achievements
-### ☐ 52. Vertical maps — stacked rooms and stairs *(largest architectural change; deliberately last)*
+### ☐ 50. Reconnect after disconnect (+ config-mismatch detection between peers)
+### ☐ 51. Accessibility settings — UI scale, reduce flashing, colourblind modes
+### ☐ 52. Graphics quality presets (as a merge layer over `graphics.json`)
+### ☐ 53. Electron packaging + OS save directory
+### ☐ 54. Steam integration — lobbies, friends, achievements
+### ☐ 55. Vertical maps — stacked rooms and stairs *(largest architectural change; deliberately last)*
+
+> Nothing in Phase 4 may be built speculatively while working an earlier step. See
+> [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Deliberately NOT built".
 
 ---
 
@@ -273,3 +283,4 @@ the simulation is written host-authoritative from the start.*
 | Date | Change |
 | --- | --- |
 | 2026-08-02 | Plan created. Step 1 complete. |
+| 2026-08-02 | Scope trim to match the original spec: removed the player flashlight, stamina, sound/voice occlusion, backpedal and strafe penalties, graphics quality tiers, the general post-processing stack, accessibility settings, peer config-hash checking and reconnect grace. Added `world.json → containers` hold timings for chests and lockers. |

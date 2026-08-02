@@ -76,10 +76,13 @@ interpolate remote entities
 
 ## The map is not replicated
 
-`(mapId, seed, configHash)` goes over the wire; every peer runs the identical
-generator ([`GENERATION.md`](GENERATION.md)). If `configHash` differs, the join is
-rejected with a clear error rather than desyncing. This is the reason for the
-determinism rules in [`../art/ART_GUIDE.md`](../art/ART_GUIDE.md) §7.
+`(mapId, seed)` goes over the wire; every peer runs the identical generator
+([`GENERATION.md`](GENERATION.md)). This is the reason for the determinism rules in
+[`../art/ART_GUIDE.md`](../art/ART_GUIDE.md) §7.
+
+> Peers are assumed to be running the same build and the same `config/`. Detecting a
+> mismatch (hashing the config and rejecting the join) is a deliberate future
+> addition — do not build it yet.
 
 ## What crosses the wire
 
@@ -87,7 +90,7 @@ determinism rules in [`../art/ART_GUIDE.md`](../art/ART_GUIDE.md) §7.
 | --- | --- | --- | --- |
 | `InputFrame` | state | client → host | tick rate |
 | `Snapshot` | state | host → all | `snapshotRateHz` |
-| `RunStart {mapId, seed, configHash, difficulty}` | events | host → all | once |
+| `RunStart {mapId, seed, difficulty}` | events | host → all | once |
 | `Interaction` result | events | host → all | on event |
 | `PlayerState` change (injured/downed/revived/escaped) | events | host → all | on event |
 | `NoiseEvent` (for local audio only) | events | host → all | on event |
@@ -100,11 +103,10 @@ All shapes live in `src/shared/messages.ts` so client and host cannot drift.
 
 | Failure | Behaviour |
 | --- | --- |
-| Client disconnects | Their player is marked `disconnected`; run continues; `reconnectGraceSeconds` to rejoin |
+| Client disconnects | Their player is marked `disconnected` and the run continues. No rejoin — reconnection is a deliberate future addition |
 | Host disconnects | Run ends, everyone returns to the main menu (`hostMigration.enabled = false` in v1) |
 | Signalling server down | Existing runs are unaffected — it is only needed to join |
 | No ICE path (symmetric NAT) | Join fails with a clear message. `ice.turnServers` is the fix; empty by default |
-| `configHash` mismatch | Join rejected, both sides told why |
 
 ## Adding a networked feature
 
