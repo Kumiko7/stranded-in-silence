@@ -35,9 +35,9 @@ The lighting design is doing the heavy lifting so the geometry does not have to 
 AAA. Lean into that:
 
 - **Silhouette over detail.** A recognisable shape in low light beats a dense mesh.
-- **Contrast, not darkness.** Every room needs at least one readable value range —
-  a dim practical light, moonlight from a window, embers. A player with the
-  flashlight off must be able to navigate.
+- **Contrast, not darkness.** Players carry **no light source**, so every room must
+  light itself: a dim practical, moonlight from a window, embers. If a player cannot
+  navigate your room on its own light, the room is broken.
 - **Warm sources, cold ambient.** Practicals are candle-warm (`#ffe9c8`-ish);
   ambient fill is blue-grey (`#2a2f45`). That split reads as horror instantly.
 - **Fog is a feature.** It hides the far wall and the seams between rooms. Do not
@@ -81,7 +81,7 @@ survive being seen three times:
 
 ## 6. Performance budgets
 
-Per room, at `high` quality — full table in [`ROOM_FORMAT.md §7`](ROOM_FORMAT.md#7-performance-budget-per-room-high-tier).
+Per room — full table in [`ROOM_FORMAT.md §7`](ROOM_FORMAT.md#7-performance-budget-per-room).
 
 | | Budget |
 | --- | --- |
@@ -90,8 +90,9 @@ Per room, at `high` quality — full table in [`ROOM_FORMAT.md §7`](ROOM_FORMAT
 | Real lights | ≤ 2 (≤ 1 casting shadows) |
 | Materials created | 0 |
 
-Honour `ctx.quality`: on `'low'`, skip greeble, decorative lights and instanced
-clutter. On `'ultra'`, you may add a second decorative light.
+There is one quality level. Build to the budget above and do not branch on
+performance settings — quality presets are a deliberate future addition
+(see [`../ARCHITECTURE.md`](../ARCHITECTURE.md) → "Deliberately NOT built").
 
 ## 7. Determinism
 

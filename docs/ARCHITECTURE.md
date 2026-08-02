@@ -133,9 +133,9 @@ world/generation ── reads ──► config/world.json  (grid, doors, content
 The generator is **art-agnostic** and the renderer is **layout-agnostic**. Full
 detail in [`systems/GENERATION.md`](systems/GENERATION.md).
 
-Because layout derives from `(mapId, seed, configHash)`, peers never transmit the
-map — they transmit three values and rebuild it. Every `rng` call in generation and
-in art `build()` draws from that seed, which is why `Math.random()` is banned in `art/`.
+Because layout derives from `(mapId, seed)`, peers never transmit the map — they
+transmit two values and rebuild it. Every `rng` call in generation and in art
+`build()` draws from that seed, which is why `Math.random()` is banned in `art/`.
 
 ---
 
@@ -176,9 +176,13 @@ item drop ──────────────┘      loudness)          
 
 Emitters declare `{ radius, loudness }` in `config/player.json → noise` or
 `config/items.json`. The enemy's `hearing` block in `config/enemy.json` decides what
-gets through. **Voice deliberately carries further for players than for the enemy** —
-players hear each other at `net.json → voice.hearingRange` (22 m), the enemy only
-within `hearing.voiceRoomLimit` rooms. Full detail in [`systems/AI.md`](systems/AI.md).
+gets through. Propagation is **distance only** — walls and doors do not muffle sound
+anywhere in the game, for players or the enemy. Doors cost the enemy *time*, not
+hearing.
+
+**Voice deliberately carries further for players than for the enemy** — players hear
+each other at `net.json → voice.hearingRange` (22 m), the enemy only within
+`hearing.voiceRoomLimit` rooms. Full detail in [`systems/AI.md`](systems/AI.md).
 
 ---
 
@@ -216,15 +220,30 @@ within `hearing.voiceRoomLimit` rooms. Full detail in [`systems/AI.md`](systems/
 | Voice | **Native `RTCPeerConnection` audio tracks** | Proximity attenuation needs per-peer `GainNode` control; a wrapper library would only get in the way. |
 | Physics | **Custom 2D circle-vs-shape** | There is no jumping and no vertical movement. A full physics engine (rapier/cannon) would add a large dependency and a determinism headache to solve a problem that is ~150 lines here. Revisit only if verticality ships. |
 | Pathfinding | **A\* over the room graph + per-room waypoints** | The world is already a graph of rooms; hierarchical pathing on it is cheaper and more controllable than a navmesh, and makes "search a nearby room" trivial to express. |
-| State sync | **Seed + snapshots**, not full world replication | The map is a pure function of `(mapId, seed, configHash)`, so only entity state crosses the wire. |
+| State sync | **Seed + snapshots**, not full world replication | The map is a pure function of `(mapId, seed)`, so only entity state crosses the wire. |
 | Persistence | **`localStorage`**, adapter-swapped for OS save dir when packaged | No backwards-compat requirement yet; the adapter seam is what matters. |
 
-### Known deferred decisions
+### Deliberately NOT built
 
-- **Host migration** — not in v1. If the host drops, the run ends. `net.json → hostMigration.enabled` marks the seam.
-- **Anti-cheat** — a host-authoritative P2P game trusts the host. Acceptable for a co-op game with friends.
-- **Vertical maps** (rooms above rooms) — `world.json → grid.levels` exists but only `1` is supported.
-- **Save format versioning** — deliberately deferred; no migration path is maintained yet.
+Keep the seams clean for these, but **do not implement any of them** until they are
+picked up as plan steps. Adding them speculatively is how a simple codebase stops
+being simple.
+
+| Not built | Seam that keeps it cheap later |
+| --- | --- |
+| **Player flashlight** | Rooms light themselves. Nothing assumes a player-held light, so adding one is additive. |
+| **Stamina** | Sprinting is priced in noise alone. `movement` has no resource coupled to it. |
+| **Sound occlusion** (walls/doors muffling audio, noise or voice) | Propagation is distance-only everywhere. One rule, one place to change. |
+| **Directional movement penalties** | Movement is speed-uniform — backing away from the enemy costs nothing, by design. |
+| **Graphics quality tiers / presets** | `graphics.json` is flat. A tier system is a merge layer over it, and the config loader's merge is already generic. |
+| **Post-processing beyond gameplay feedback** | Only the effects the design calls for exist (alert state, heartbeat proximity, damage). No general bloom/grain/aberration stack. |
+| **Accessibility settings** (UI scale, reduce flashing, colourblind modes) | UI sizes derive from one base; effects are driven through a single feedback module. |
+| **Config-mismatch detection between peers** | Peers ship `(mapId, seed)` and are assumed to share a build. Hashing config is additive. |
+| **Reconnecting after a disconnect** | A dropped player is marked `disconnected` and the run continues. |
+| **Host migration** | If the host drops, the run ends. `net.json → hostMigration.enabled` marks the seam. |
+| **Anti-cheat** | A host-authoritative P2P game trusts the host. Fine for co-op with friends. |
+| **Vertical maps** | `world.json → grid.levels` exists but only `1` is supported. |
+| **Save format versioning** | No migration path is maintained yet, by explicit decision. |
 
 ---
 

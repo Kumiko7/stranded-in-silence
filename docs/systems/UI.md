@@ -8,7 +8,7 @@ Owner: `src/ui/`. Config: `config/ui.json` (theme + layout), `config/locales/`
 | Layer | DOM node | Tech | Updates |
 | --- | --- | --- | --- |
 | **Screens** — main menu, join, lobby, options, pause, scoreboard, spectator chrome | `#screen-root` | **Preact + TSX** | On user interaction |
-| **HUD** — crosshair, interact prompt, hand slots, stamina, teammate list, voice indicator | `#hud-root` | **Plain DOM**, direct node mutation | Every frame |
+| **HUD** — crosshair, interact prompt, hand slots, teammate list, voice indicator | `#hud-root` | **Plain DOM**, direct node mutation | Every frame |
 
 The HUD deliberately bypasses the vdom. It changes 60 times a second and a
 component tree would be pure waste. Screens are real UI — forms, tabs, key
@@ -41,8 +41,8 @@ restyling the whole game is a config edit.
 .button:hover { color: var(--c-accent-hover); }
 ```
 
-`--ui-scale` is driven by `ui.json → accessibility.uiScale` and all layer font sizes
-derive from it.
+Layer font sizes derive from a single base size, so introducing a global UI scale
+later is a one-variable change. Do not build a scale setting now.
 
 ## Screens
 
@@ -67,7 +67,6 @@ a config change.
 | Crosshair | Small dot; size/opacity from config |
 | Interact prompt | Verb + key from `input.json`, hold ring for hold-interactions. Text via `t('hud.interact.*')` |
 | Hand slots | Two slots, left/right, item icon + name |
-| Stamina | Hidden when full (`hideWhenFull`) |
 | Health state | Vignette-driven by default (`mode: 'vignette-only'`) — no health bar |
 | Teammate list | Name, status, speaking indicator |
 | Voice indicator | Current mode, transmitting state |

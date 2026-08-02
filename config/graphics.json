@@ -1,57 +1,30 @@
 {
-  "$doc": "Rendering + lighting. Quality tiers are selectable in the options menu; `default` is the base every tier merges over. Art packs must NOT create their own lights except decorative emissive/point lights declared via the art contract.",
+  "$doc": "Rendering + lighting. There is no player flashlight - every room lights itself, and `minAmbientFloor` is the hard 'dark but never blind' guarantee. Maps override these via config/maps.json.",
 
-  "default": {
-    "pixelRatioCap": 2.0,
-    "antialias": true,
-    "shadows": { "enabled": true, "type": "pcfsoft", "mapSize": 1024, "maxCastingLights": 4 },
-    "toneMapping": "aces",
-    "exposure": 0.95,
-    "ambientIntensity": 0.09,
-    "ambientColor": "#2a2f45",
-    "fog": { "enabled": true, "type": "exp2", "color": "#0a0b12", "density": 0.045, "near": 2.0, "far": 26.0 },
-    "flashlight": {
-      "enabled": true,
-      "intensity": 2.4,
-      "distance": 16.0,
-      "angleDegrees": 26,
-      "penumbra": 0.5,
-      "colour": "#ffe9c8",
-      "followLagSeconds": 0.06
-    },
-    "minAmbientFloor": {
-      "$doc": "Guarantees the scene is never literally unreadable, per design rule 'dark but never blind'.",
-      "value": 0.05
-    },
-    "postfx": {
-      "enabled": true,
-      "bloom": { "enabled": true, "strength": 0.35, "radius": 0.6, "threshold": 0.85 },
-      "vignette": { "enabled": true, "strength": 0.55 },
-      "grain": { "enabled": true, "strength": 0.05 },
-      "chromaticAberration": { "enabled": true, "strength": 0.0015 }
-    },
-    "renderDistanceRooms": 3
+  "pixelRatioCap": 2.0,
+  "antialias": true,
+  "toneMapping": "aces",
+  "exposure": 0.95,
+
+  "ambientIntensity": 0.09,
+  "ambientColor": "#2a2f45",
+  "minAmbientFloor": 0.05,
+
+  "shadows": {
+    "enabled": true,
+    "type": "pcfsoft",
+    "mapSize": 1024,
+    "maxCastingLights": 4
   },
 
-  "tiers": {
-    "low": {
-      "pixelRatioCap": 1.0,
-      "antialias": false,
-      "shadows": { "enabled": false },
-      "postfx": { "enabled": false },
-      "renderDistanceRooms": 2
-    },
-    "medium": {
-      "pixelRatioCap": 1.5,
-      "shadows": { "mapSize": 512, "maxCastingLights": 2 },
-      "postfx": { "bloom": { "enabled": false }, "grain": { "enabled": false } }
-    },
-    "high": {},
-    "ultra": {
-      "shadows": { "mapSize": 2048, "maxCastingLights": 6 },
-      "renderDistanceRooms": 4
-    }
+  "fog": {
+    "enabled": true,
+    "type": "exp2",
+    "color": "#0a0b12",
+    "density": 0.045,
+    "near": 2.0,
+    "far": 26.0
   },
 
-  "defaultTier": "high"
+  "renderDistanceRooms": 3
 }

@@ -19,15 +19,13 @@
       "focusRing": "#b3462f"
     },
     "radius": "2px",
-    "transitionMs": 140,
-    "screenShakeEnabled": true
+    "transitionMs": 140
   },
 
   "hud": {
     "crosshair": { "enabled": true, "size": 4, "colour": "#d8d4c8", "opacity": 0.55 },
     "interactPrompt": { "enabled": true, "showHoldRing": true },
     "handSlots": { "enabled": true, "position": "bottom-center" },
-    "stamina": { "enabled": true, "hideWhenFull": true, "position": "bottom-center" },
     "healthState": { "enabled": true, "mode": "vignette-only" },
     "teammateList": { "enabled": true, "position": "top-left", "showVoiceIndicator": true },
     "voiceIndicator": { "enabled": true, "position": "bottom-left" },
@@ -40,13 +38,5 @@
     "confirmOnQuit": true,
     "showFpsCounter": false,
     "cursorStyle": "game"
-  },
-
-  "accessibility": {
-    "reduceScreenShake": false,
-    "reduceFlashing": false,
-    "uiScale": 1.0,
-    "uiScaleRange": [0.75, 1.5],
-    "colourblindMode": "none"
   }
 }

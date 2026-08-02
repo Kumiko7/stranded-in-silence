@@ -57,6 +57,14 @@
     "startRoomMinDistanceFromExit": 6
   },
 
+  "containers": {
+    "$doc": "Player-side interaction timings. Opening a chest is deliberately slow and loud - see player.json -> noise.chestOpen.",
+    "chestOpenHoldSeconds": 3.0,
+    "chestReopenable": false,
+    "lockerEnterSeconds": 0.8,
+    "lockerExitSeconds": 0.6
+  },
+
   "contents": {
     "$doc": "Per-room content budgets. The generator picks a count in [min,max] then fills the blueprint's declared anchors.",
     "chests": { "min": 0, "max": 2, "mapTotalMin": 6 },

@@ -14,7 +14,6 @@ If you find yourself typing a number into logic, it belongs in a config file ins
 | I want to change… | File | Key |
 | --- | --- | --- |
 | How fast players walk / sprint / crouch | `player.json` | `movement.*` |
-| Sprint stamina | `player.json` | `stamina.*` |
 | FOV, mouse sensitivity, head bob | `player.json` | `camera.*` |
 | Revive time, injured/downed rules | `player.json` | `health.*` |
 | How loud sprinting / chests / voice are | `player.json` | `noise.*` |
@@ -30,11 +29,12 @@ If you find yourself typing a number into logic, it belongs in a config file ins
 | How maze-y vs loopy the map is | `world.json` | `layout.extraDoorChance`, `deadEndTargetRatio` |
 | Number of locked doors and spare keys | `world.json` | `doors.lockedDoorCount`, `doors.keySpareCount` |
 | Chests / lockers / item spawns per room | `world.json` | `contents.*` |
+| How long a chest takes to open, locker enter/exit | `world.json` | `containers.*` |
 | What chests and floors contain | `world.json` | `loot.chestTable`, `loot.floorTable` |
 | Exit door placement and hold time | `world.json` | `exit.*` |
 | Item stats and behaviour params | `items.json` | `items.<id>.params.*` |
 | Which maps exist | `maps.json` | `maps.*` |
-| Lighting, fog, post-processing, quality tiers | `graphics.json` | `default.*`, `tiers.*` |
+| Lighting, fog, shadows, draw distance | `graphics.json` | top level |
 | Volumes, spatial audio, sound registry | `audio.json` | `buses.*`, `spatial.*`, `sounds.*` |
 | Default key bindings | `input.json` | `actions.*` |
 | Voice chat range and modes | `net.json` | `voice.*` |
@@ -49,16 +49,15 @@ If you find yourself typing a number into logic, it belongs in a config file ins
 `src/config/` owns loading. The pipeline is a deep merge, later layers winning:
 
 ```
-1. config/*.json                 base values, checked into git
-2. maps.json → maps.<id>.overrides       applied when a map is chosen
+1. config/*.json                           base values, checked into git
+2. maps.json → maps.<id>.overrides         applied when a map is chosen
 3. difficulty.json → modes.<id>.overrides  applied when a run starts
-4. graphics.json → tiers.<tier>          applied from the player's quality setting
-5. player save profile                   options-menu changes (volume, sensitivity, binds)
-6. ?config= URL param / dev overrides    local experimentation only
+4. player save profile                     options-menu changes (volume, sensitivity, binds)
 ```
 
-Layers 2–4 are **pure data overlays** — this is why adding a difficulty or a map
-requires zero code.
+Layers 2 and 3 are **pure data overlays** — this is why adding a difficulty or a map
+requires zero code. The merge is generic, so further overlay layers can be slotted in
+later without reworking it.
 
 Config is imported at build time (`import.meta.glob`), so in `npm run dev` editing a
 JSON file hot-reloads the running game. Values read once at boot (grid size,

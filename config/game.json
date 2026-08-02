@@ -5,8 +5,7 @@
     "maxPlayers": 4,
     "minPlayersToStart": 1,
     "lobbyCodeLength": 6,
-    "lobbyCodeAlphabet": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
-    "reconnectGraceSeconds": 45
+    "lobbyCodeAlphabet": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   },
 
   "lobby": {
