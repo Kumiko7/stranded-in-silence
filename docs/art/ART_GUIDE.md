@@ -23,9 +23,11 @@ The dependency arrow is one-way:
 ```
 src/  ──reads──►  art/lib/contract (types only)
 src/  ──calls──►  art pack builders (at runtime, via the pack registry)
-art/  ──reads──►  config/  (dimensions only)
-art/  ──✗──────►  src/
+art/  ──✗──────►  src/   and   art/ ──✗──► config/
 ```
+
+Art imports **only** `three` and `art/lib/*`. Even world dimensions arrive through
+`ctx.dims` rather than a config import, so an art pack is a self-contained unit.
 
 ## 2. Visual direction
 
@@ -40,6 +42,10 @@ AAA. Lean into that:
   navigate your room on its own light, the room is broken.
 - **Warm sources, cold ambient.** Practicals are candle-warm (`#ffe9c8`-ish);
   ambient fill is blue-grey (`#2a2f45`). That split reads as horror instantly.
+- **Use mid-grey albedos, not near-blacks.** Colours are converted to *linear*
+  space before lighting, where `#2b2b33` is about `0.025` — effectively black, and
+  no amount of light will recover it. Darkness comes from the lighting and the fog.
+  A wall that looks right in a colour picker is usually far too dark in the engine.
 - **Fog is a feature.** It hides the far wall and the seams between rooms. Do not
   fight it with bright far-field geometry.
 - **Decay and asymmetry.** Nothing is level, nothing is clean, nothing is new.

@@ -3,6 +3,13 @@
 Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 `src/shared/`. Config: `config/net.json`.
 
+> **Current state (slice 1).** Multiplayer runs on **PeerJS** using its public
+> signalling server (`src/net/index.ts`), in a star topology where the host relays.
+> The host is authoritative over the **run seed** only — player transforms and door
+> toggles are broadcast and trusted, which is safe while there is no enemy and no
+> items. The authoritative simulation, prediction and our own signalling server are
+> plan steps 23–27. The rest of this document describes that target design.
+
 ## Model
 
 **Host-authoritative WebRTC peer-to-peer.** One player (the lobby creator) runs the

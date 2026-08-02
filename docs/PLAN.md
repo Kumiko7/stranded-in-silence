@@ -12,7 +12,28 @@ anything that changed about the design.
 [`ARCHITECTURE.md`](ARCHITECTURE.md) → "Deliberately NOT built" before adding
 anything that was not asked for.
 
-**Status key:** ☐ not started · ◐ in progress · ☑ done
+**Status key:** ☐ not started · ◐ partially done · ☑ done
+
+---
+
+## Where it is right now — Slice 1: a walkable map
+
+A deliberately minimal vertical slice through the whole architecture is **playable**:
+
+- Main menu with a lobby code, copy button, join field and start
+- Multiplayer over PeerJS (public signalling), star topology, host relays
+- No lobby — Start drops you straight into a run; joining does the same
+- A 6×6 maze generated from the **test art pack**, doors matched between neighbours
+- First-person movement with collision, sprint and crouch
+- `E` opens and closes doors — the only interaction
+- Hold `E` on the exit door to escape, then back to the main menu
+
+Deliberately not in it yet: enemy, locked doors, keys, chests, lockers, items,
+voice chat, lobby, audio.
+
+Because it is a slice rather than a sequence of finished steps, several steps below
+are `◐` — the part this slice needed is done, the rest is not. Each one lists what
+is still missing.
 
 ---
 
@@ -24,35 +45,40 @@ anything that was not asked for.
 **Done when:** `npm run dev` renders a placeholder scene with no console errors; `npm run typecheck` passes; repo pushed to GitHub.
 **Status:** done. Config files and locale file are written but not yet *loaded* — that is step 2.
 
-### ☐ 2. Config + localisation systems
+### ◐ 2. Config + localisation systems
 **Goal:** make `config/` and `config/locales/` actually drive the game.
 **Touches:** `src/config/{index,types,load,merge,validate}.ts`, `src/i18n/`, `src/save/` (stub).
 **Details:** deep-merge layering (base → map → difficulty → save profile), `$doc`/`$note` key stripping, boot-time validation with readable errors, `t()` with `{placeholder}` substitution and safe fallback. Keep the merge generic so further overlay layers slot in later, but add only these.
 **Done when:** `t('game.title')` renders the title from `en.json`, and changing a value in `config/graphics.json` visibly changes the running dev build.
+**Still missing:** difficulty overlay, save-profile layer, `validate.ts`, locale switching UI.
 
-### ☐ 3. Core engine services
+### ◐ 3. Core engine services
 **Goal:** the plumbing every later step assumes.
 **Touches:** `src/core/{rng,services,gameState,time}.ts`, `src/shared/events.ts`.
 **Details:** seeded RNG with named sub-streams (`splitmix32`/`xoroshiro`), service registry, game state machine (`Boot → MainMenu → Lobby → Loading → InRun → Scoreboard`), typed event catalogue. `Loop` and `EventBus` already exist from step 1.
 **Done when:** state transitions are driven by events and logged; RNG produces identical sequences for identical seeds.
+**Still missing:** the game state machine is ad-hoc in `main.tsx`; `EventBus` exists but nothing uses it; no service registry. Seeded RNG with named streams is done.
 
-### ☐ 4. Renderer + lighting rig
+### ◐ 4. Renderer + lighting rig
 **Goal:** the horror look, fully config-driven.
 **Touches:** `src/render/{Renderer,cameraRig,lighting,postfx,materialCache}.ts`.
 **Details:** WebGLRenderer + tone mapping + fog + ambient from `config/graphics.json`; the `minAmbientFloor` guarantee; a minimal effect layer carrying **only** the gameplay feedback the design calls for (enemy alert state, heartbeat proximity, damage flash, injured/downed vignette). No flashlight, no quality tiers, no general post stack — see [`ARCHITECTURE.md`](ARCHITECTURE.md) "Deliberately NOT built".
 **Done when:** the scene is dark but navigable on room lighting alone, with no player-held light.
+**Still missing:** the gameplay-feedback effect layer (alert state, heartbeat, damage flash). Renderer, ambient/fog from config, nearest-N light activation and distance culling are done. Light values in config are real three.js units — the renderer applies no hidden scaling.
 
-### ☐ 5. Input system
+### ◐ 5. Input system
 **Goal:** raw devices → action ids, rebindable.
 **Touches:** `src/input/{index,bindings,pointerLock,actionState}.ts`.
 **Details:** load defaults from `config/input.json`, overlay save-profile rebinds, `isDown/justPressed/holdProgress` per action, pointer lock lifecycle, `labelFor(action)` for HUD prompts, mouse buttons as bindable keys.
 **Done when:** every action in `input.json` reports correctly, and rebinding one at runtime takes effect immediately.
+**Still missing:** runtime rebinding and its persistence. Action mapping, pointer lock, `labelFor()` and consume-on-read edge/look state are done.
 
-### ☐ 6. UI shell + main menu
+### ◐ 6. UI shell + main menu
 **Goal:** the game has a front end.
 **Touches:** `src/ui/{ScreenManager.ts,theme.ts,components/}`, `src/ui/screens/{MainMenu,Options,Credits}.tsx`.
 **Details:** Preact mount into `#screen-root`, theme from `config/ui.json` → CSS vars, reusable Button/Slider/Select/Tabs/Modal components with keyboard nav and focus states, main menu over the 3D backdrop. Options tabs can be stubs beyond Graphics/Audio.
 **Done when:** menus navigate by keyboard and mouse, look like a game, and all text comes from `en.json`.
+**Still missing:** Options and Credits screens, a reusable component set, and full keyboard navigation. Main menu, pause and escaped overlays plus the minimal HUD are done.
 
 ---
 
@@ -61,47 +87,52 @@ anything that was not asked for.
 *The game becomes playable solo. Multiplayer is layered on afterwards, which is why
 the simulation is written host-authoritative from the start.*
 
-### ☐ 7. Art contract + collision
+### ☑ 7. Art contract + collision
 **Goal:** the types that make art swappable, plus the physics.
 **Touches:** `art/lib/contract.ts`, `art/lib/{geometry,textures,greeble}.ts`, `src/world/{collision,grid}.ts`.
 **Details:** `RoomBlueprint`, `RoomBuildContext`, `BuiltRoom`, `ArtPack`, `Collider`, anchor kinds — exactly as specified in [`art/ROOM_FORMAT.md`](art/ROOM_FORMAT.md). 2D circle-vs-box/circle resolution with sliding, broadphase over the room grid.
 **Done when:** a hand-written test room compiles against the contract and a debug capsule slides along its walls.
+**Note:** world dimensions reach art through `ctx.dims`, so art imports nothing but `three` and the contract — not even config.
 
-### ☐ 8. Greybox art pack + art validation
-**Goal:** an untextured pack so world systems can be built and tested before real art exists.
-**Touches:** `art/packs/greybox/`, `art/shared/materials/`, `scripts/validateArt.ts`, `npm run validate:art`.
-**Details:** kit shell that cuts door openings; ~6 plain rooms with full anchor sets; validator checking the [`ROOM_FORMAT.md §8`](art/ROOM_FORMAT.md#8-authoring-checklist) checklist.
-**Done when:** `npm run validate:art` passes and greybox rooms render.
+### ◐ 8. Test art pack + art validation
+**Goal:** a functional pack so world systems can be built and tested before real art exists.
+**Touches:** `art/packs/test/`, `art/shared/`, `scripts/validateArt.ts`, `npm run validate:art`.
+**Details:** kit shell that cuts door openings; plain rooms with full anchor sets; validator checking the [`ROOM_FORMAT.md §8`](art/ROOM_FORMAT.md#8-authoring-checklist) checklist.
+**Still missing:** the validator script. The pack exists with 8 blueprints (empty, pillars, crates, table, shelves, and one dead-end closet per side), shared door/exit-door/player art, and a shell that cuts openings correctly on all four sides.
 
-### ☐ 9. Map generation
+### ◐ 9. Map generation
 **Goal:** the maze.
 **Touches:** `src/world/generation/{index,slots,connect,assign,lock,contents,validate}.ts`.
 **Details:** the full pipeline in [`systems/GENERATION.md`](systems/GENERATION.md) — 1×1 slots, spanning tree + loops, blueprint assignment by door mask, spawn/exit placement, locked doors + key placement in the still-reachable region, content rolls, validation and re-roll.
 **Done when:** the same seed always produces the same map; 500 generated maps all pass validation; a debug top-down view renders the layout.
+**Still missing:** locked doors, key placement, room contents, the validation/re-roll pass, and the debug map view. Spanning-tree-plus-loops connection, blueprint assignment by door-mask superset, spawn/exit placement and per-seed determinism are done and verified across peers.
 
-### ☐ 10. Room streaming + world assembly
+### ◐ 10. Room streaming + world assembly
 **Goal:** turn a `RunLayout` into a walkable 3D world.
 **Touches:** `src/world/{worldBuilder,roomStreaming}.ts`, `src/render/streaming.ts`.
 **Details:** build art per room on demand within `renderDistanceRooms`, dispose beyond it, place shared art at anchors, register colliders.
 **Done when:** you can fly a debug camera through a generated map with rooms loading and unloading cleanly.
+**Still missing:** actual streaming — all 36 rooms are built up front and only *hidden* beyond `renderDistanceRooms`. Fine at this size; revisit if room cost grows.
 
-### ☐ 11. Player controller
+### ☑ 11. Player controller
 **Goal:** first-person movement that feels right.
 **Touches:** `src/entities/player/{controller,movement,camera}.ts`.
 **Details:** WASD + mouse look, walk/sprint/crouch with `player.json` speeds and accelerations, crouch height lerp, head bob, collision + sliding, footstep timing. Speed is uniform in every direction — no backpedal or strafe penalty. No stamina; sprinting costs noise only. Written as a pure `(state, input, dt) → state` step so prediction reuses it verbatim in step 25.
 **Done when:** you can walk a generated map and the movement feels good with only config changes.
 
-### ☐ 12. Interaction system
+### ☑ 12. Interaction system
 **Goal:** `E` does things.
 **Touches:** `src/entities/interaction/{raycast,interactable,holdProgress}.ts`, `src/ui/hud/interactPrompt.ts`.
 **Details:** forward sphere-cast, `Interactable` interface (`canInteract`, `verbKey`, `mode: press|hold`, `holdSeconds`, `onComplete`), hold progress with the look-away grace from `player.json → interaction`, prompt HUD.
 **Done when:** looking at a test object shows a localised prompt and holding E fills a ring and fires.
+**Note:** the interaction ray is cast during the sim step, so the camera matrix is updated explicitly before casting — otherwise it would use the previous frame's transform.
 
-### ☐ 13. Doors
+### ◐ 13. Doors
 **Goal:** the game's core tactical object.
 **Touches:** `src/entities/door.ts`, `art/shared/props/door.ts`, `art/shared/props/exitDoor.ts`.
 **Details:** open/close on press, swing animation via the `hinge` part, locked state + `lockIndicator`, noise emission on open/slam, collider toggling, exit door with glow and hold-to-escape.
 **Done when:** doors open, close, block movement when closed, and refuse to open when locked.
+**Still missing:** locked state, noise emission. Open/close with swing animation, collider toggling at half-swing, the exit door with glow and hold-to-escape, and network-synced door state are done.
 
 ### ☐ 14. Chests, lockers and items
 **Goal:** loot and hiding.
@@ -163,23 +194,26 @@ the simulation is written host-authoritative from the start.*
 
 ## Phase 2 — Multiplayer
 
-### ☐ 23. Signalling server + lobby codes
+### ◐ 23. Signalling server + lobby codes
 **Goal:** players can find each other.
 **Touches:** `src/server/{index,rooms,codes}.ts`, `src/shared/messages.ts`, `npm run signal`.
 **Details:** `ws` server, 6-digit code allocation from `game.json → session`, code expiry, SDP/ICE relay. No game state.
 **Done when:** two browser tabs exchange a code and complete a WebRTC handshake.
+**Still missing:** our own server. Slice 1 uses **PeerJS's public signalling server** with codes as namespaced peer ids — verified working between two tabs. Self-hosting removes the third-party dependency and is where Steam lobbies plug in.
 
-### ☐ 24. Peer mesh + transport
+### ◐ 24. Peer mesh + transport
 **Goal:** reliable plumbing between peers.
 **Touches:** `src/net/{peerMesh,channels,transport,serialization}.ts`.
 **Details:** full mesh `RTCPeerConnection`s, the two data channels from `config/net.json → channels`, connection lifecycle and error surfaces, compact binary snapshot encoding.
 **Done when:** 4 tabs connect, exchange heartbeats, and disconnects are detected and reported.
+**Still missing:** full mesh (slice 1 is a **star** with the host relaying), the separate unreliable state channel, and binary encoding — messages are JSON on one reliable channel. Connect/join/leave and peer tracking work.
 
-### ☐ 25. Host-authoritative simulation + prediction
+### ◐ 25. Host-authoritative simulation + prediction
 **Goal:** everyone sees the same world.
 **Touches:** `src/net/{host,client,prediction,reconciliation,interpolation}.ts`.
 **Details:** input frames up, snapshots down, client prediction reusing the step-11 movement function, reconciliation thresholds, interpolation delay, `(mapId, seed)` run start.
 **Done when:** four players walk around one generated map with smooth remote motion under simulated 100 ms latency.
+**Still missing:** all of the authority. Slice 1 broadcasts each player's own transform and interpolates remotes — there is no authoritative sim, no input frames, no reconciliation. The host owns only the run seed. `stepPlayer()` is already a pure `(state, input, dt)` function so prediction can reuse it verbatim.
 
 ### ☐ 26. Networked world interactions
 **Goal:** doors, chests, items and the exit work for everyone.
@@ -284,3 +318,4 @@ the simulation is written host-authoritative from the start.*
 | --- | --- |
 | 2026-08-02 | Plan created. Step 1 complete. |
 | 2026-08-02 | Scope trim to match the original spec: removed the player flashlight, stamina, sound/voice occlusion, backpedal and strafe penalties, graphics quality tiers, the general post-processing stack, accessibility settings, peer config-hash checking and reconnect grace. Added `world.json → containers` hold timings for chests and lockers. |
+| 2026-08-02 | **Slice 1 playable**: menu with lobby code / join / start, PeerJS multiplayer, generated 6×6 map from the test art pack, first-person movement with collision, door interaction, exit-door escape. Steps 7, 11, 12 done; 2–6, 8–10, 13, 23–25 partially. Signalling server deferred to step 23 (PeerJS public server for now), so `ws`/`tsx`/`concurrently` deps and the `signal` scripts were removed. |

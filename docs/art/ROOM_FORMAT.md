@@ -25,13 +25,18 @@ counts are gameplay-identical no matter how differently they look.
 A 1×1 room is therefore centred on the origin and spans `-4..+4` on X and Z.
 Multi-cell rooms extend toward `+X` and `+Z`.
 
-**Never read these numbers from a constant you type yourself.** Import them:
+**Never type these numbers yourself, and never import config.** They arrive in the
+build context:
 
 ```ts
-import { grid } from '@config';
+function build(ctx: RoomBuildContext) {
+  const { cellSize, ceilingHeight, doorWidth } = ctx.dims;
+}
 ```
 
-If `cellSize` changes in config, every correctly authored room still fits.
+Art imports nothing but `three` and the contract types — that is what keeps the
+one-way dependency in [`ART_GUIDE.md §1`](ART_GUIDE.md) honest. If `cellSize`
+changes in config, every correctly authored room still fits.
 
 ---
 
@@ -152,6 +157,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 | `kit` | `PackKit` | Your pack's shared builders (walls, floors, trim, materials). |
 | `materials` | `MaterialLibrary` | Cached, shared materials. **Always** get materials from here — never `new THREE.MeshStandardMaterial` per room instance or you will blow the draw-call budget on duplicate rooms. |
 | `rng` | `() => number` | Seeded RNG. Use this for any randomness so runs replay identically across peers. **Never use `Math.random()` in art.** |
+| `dims` | `RoomDims` | `cellSize`, `ceilingHeight`, `wallThickness`, `doorWidth`, `doorHeight`. The only place art learns world dimensions. |
 | `roomIndex` | `number` | This room's index in the map; handy as a variation seed. |
 | `lightBudget` | `number` | Max real (shadow-casting or not) lights you may add. Exceeding it is a validation error. |
 
