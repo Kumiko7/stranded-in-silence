@@ -1,0 +1,65 @@
+{
+  "$doc": "Host-authoritative WebRTC P2P. The signalling server (src/server) only brokers 6-digit codes and SDP/ICE; all gameplay traffic is peer-to-peer. See docs/systems/NETWORKING.md.",
+
+  "signalling": {
+    "url": "ws://localhost:8787",
+    "urlProduction": "wss://signal.stranded.invalid",
+    "connectTimeoutSeconds": 8,
+    "reconnectAttempts": 5,
+    "reconnectBackoffSeconds": [1, 2, 4, 8, 16]
+  },
+
+  "ice": {
+    "stunServers": ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"],
+    "turnServers": [],
+    "iceTransportPolicy": "all",
+    "gatheringTimeoutSeconds": 5
+  },
+
+  "simulation": {
+    "$doc": "Host runs the authoritative sim. Clients predict their own movement and reconcile.",
+    "tickRateHz": 30,
+    "snapshotRateHz": 15,
+    "interpolationDelayMs": 100,
+    "maxExtrapolationMs": 250,
+    "clientPrediction": true,
+    "reconcilePositionThreshold": 0.35,
+    "reconcileSnapThreshold": 3.0
+  },
+
+  "channels": {
+    "state": { "ordered": false, "maxRetransmits": 0 },
+    "events": { "ordered": true, "reliable": true }
+  },
+
+  "hostMigration": {
+    "enabled": false,
+    "$note": "Not implemented in v1. If the host drops, the run ends and everyone returns to the main menu."
+  },
+
+  "voice": {
+    "$doc": "Proximity voice over the same peer connections. Attenuation is computed client-side per remote peer.",
+    "enabled": true,
+    "defaultMode": "voiceActivity",
+    "modes": ["off", "voiceActivity", "pushToTalk"],
+    "hearingRange": 22.0,
+    "fullVolumeRange": 4.0,
+    "falloff": "inverse",
+    "throughWallMultiplier": 0.55,
+    "throughClosedDoorMultiplier": 0.4,
+    "voiceActivityThresholdDb": -45,
+    "voiceActivityHangoverMs": 350,
+    "echoCancellation": true,
+    "noiseSuppression": true,
+    "autoGainControl": true,
+    "bitrateKbps": 24,
+    "spectatorChannelSeparate": true,
+    "emitsNoiseToEnemy": true
+  },
+
+  "steam": {
+    "$doc": "Placeholder for the packaged build. Not used in the browser build.",
+    "enabled": false,
+    "appId": 0
+  }
+}

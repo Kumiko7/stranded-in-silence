@@ -1,0 +1,118 @@
+/*
+ * Global UI shell. Everything themeable is a CSS custom property fed from
+ * config/ui.json at boot (see src/ui/theme.ts, step 6). Do not hardcode colours
+ * in component styles - reference the vars.
+ */
+
+:root {
+  --c-bg: #07080c;
+  --c-bg-panel: #0e1017e6;
+  --c-border: #2a2f45;
+  --c-text: #d8d4c8;
+  --c-text-dim: #8a8677;
+  --c-accent: #b3462f;
+  --c-accent-hover: #d8593c;
+  --c-good: #5f8f5a;
+  --c-warn: #c9a227;
+  --c-bad: #a83232;
+
+  --font-display: 'Cinzel', 'Times New Roman', serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius: 2px;
+  --transition: 140ms;
+  --ui-scale: 1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+#game-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Every UI layer stacks over the canvas. `--passthrough` lets clicks reach the game. */
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  font-size: calc(16px * var(--ui-scale));
+}
+
+.layer--passthrough {
+  pointer-events: none;
+}
+
+.layer--passthrough > * {
+  pointer-events: auto;
+}
+
+#screen-root:empty {
+  pointer-events: none;
+}
+
+/* --- boot / fatal error surface ------------------------------------------ */
+
+.boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background: radial-gradient(circle at 50% 45%, #10121b 0%, #05060a 70%);
+  text-align: center;
+  transition: opacity 400ms;
+}
+
+.boot--scaffold {
+  background: none;
+  justify-content: flex-end;
+  padding-bottom: 3rem;
+  pointer-events: none;
+}
+
+.boot__title {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+  color: var(--c-text);
+  text-shadow: 0 0 30px #000;
+}
+
+.boot--scaffold .boot__title {
+  font-size: 1.5rem;
+  opacity: 0.75;
+}
+
+.boot__status {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+.boot--error .boot__status {
+  color: var(--c-bad);
+  max-width: 40ch;
+  line-height: 1.6;
+}

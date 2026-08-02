@@ -1,0 +1,97 @@
+{
+  "$doc": "Map generation. The generator is art-agnostic: it lays out a grid of room SLOTS, then asks the active art pack for blueprints that fit each slot's footprint + door mask. See docs/systems/GENERATION.md.",
+
+  "grid": {
+    "width": 6,
+    "height": 6,
+    "cellSize": 8.0,
+    "wallThickness": 0.3,
+    "ceilingHeight": 3.4,
+    "levels": 1
+  },
+
+  "layout": {
+    "fillMode": "spanning-tree-plus-loops",
+    "extraDoorChance": 0.28,
+    "allowDuplicateRooms": true,
+    "maxDuplicatesPerRoom": 3,
+    "deadEndTargetRatio": 0.25,
+    "multiCellRooms": {
+      "enabled": false,
+      "footprintWeights": {
+        "1x1": 100,
+        "1x2": 12,
+        "2x1": 12,
+        "1x3": 4,
+        "2x2": 3,
+        "L": 2
+      }
+    }
+  },
+
+  "doors": {
+    "maxPerRoom": 4,
+    "minPerRoom": 1,
+    "openSeconds": 0.55,
+    "closeSeconds": 0.55,
+    "autoCloseSeconds": 0,
+    "lockedDoorCount": 2,
+    "lockedDoorsMustGateExit": true,
+    "lockedDoorMinDepth": 3,
+    "keySpareCount": 1,
+    "keyReusable": false,
+    "boundaryDoorsAllowed": false
+  },
+
+  "exit": {
+    "count": 1,
+    "minGridDistanceFromSpawn": 6,
+    "preferBoundaryWall": true,
+    "holdSeconds": 3.0,
+    "visibleGlow": true
+  },
+
+  "spawn": {
+    "playersShareStartRoom": true,
+    "startRoomPreferBoundary": true,
+    "startRoomMinDistanceFromExit": 6
+  },
+
+  "contents": {
+    "$doc": "Per-room content budgets. The generator picks a count in [min,max] then fills the blueprint's declared anchors.",
+    "chests": { "min": 0, "max": 2, "mapTotalMin": 6 },
+    "lockers": { "min": 0, "max": 3 },
+    "itemSpawns": { "min": 1, "max": 4 },
+    "traps": { "min": 0, "max": 1, "enabled": false },
+    "treasure": { "min": 0, "max": 2, "enabled": false }
+  },
+
+  "loot": {
+    "$doc": "Weighted tables. Ids resolve against config/items.json. Key generation is enforced separately by doors.keySpareCount.",
+    "chestTable": {
+      "key": 55,
+      "medicine": 15,
+      "brick": 10,
+      "coin": 10,
+      "flashGrenade": 5,
+      "empty": 5
+    },
+    "floorTable": {
+      "coin": 30,
+      "brick": 25,
+      "medicine": 15,
+      "key": 10,
+      "flashGrenade": 10,
+      "barricade": 10
+    }
+  },
+
+  "validation": {
+    "$doc": "Generator post-checks. Failing any check re-rolls up to maxAttempts, then falls back to a guaranteed-solvable layout.",
+    "maxAttempts": 40,
+    "requireExitReachable": true,
+    "requireEnoughKeys": true,
+    "requireEnemyPathToPlayers": true,
+    "requireAllRoomsReachable": true
+  }
+}

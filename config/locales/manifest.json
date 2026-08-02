@@ -1,0 +1,8 @@
+{
+  "$doc": "Registry of available languages. Add a language: drop <code>.json next to this file and add an entry here.",
+  "defaultLocale": "en",
+  "fallbackLocale": "en",
+  "locales": {
+    "en": { "nativeName": "English", "file": "en.json", "complete": true }
+  }
+}

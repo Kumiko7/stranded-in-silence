@@ -1,0 +1,51 @@
+{
+  "$doc": "Difficulty modes are pure config overlays: each entry is deep-merged over the base configs at run start. Adding a difficulty requires zero code.",
+
+  "default": "normal",
+
+  "modes": {
+    "easy": {
+      "nameKey": "difficulty.easy.name",
+      "overrides": {
+        "enemy": { "archetypes": { "ghost": {
+          "movement": { "chaseSpeed": 4.8 },
+          "sight": { "range": 15.0 },
+          "hearing": { "rangeMultiplier": 0.8 },
+          "spawn": { "minRoomDistanceFromPlayers": 5 }
+        } } },
+        "world": { "doors": { "lockedDoorCount": 1, "keySpareCount": 2 } }
+      }
+    },
+    "normal": {
+      "nameKey": "difficulty.normal.name",
+      "overrides": {}
+    },
+    "hard": {
+      "nameKey": "difficulty.hard.name",
+      "overrides": {
+        "enemy": { "archetypes": { "ghost": {
+          "movement": { "chaseSpeed": 5.9 },
+          "sight": { "range": 24.0, "timeToLoseSeconds": 4.0 },
+          "hearing": { "rangeMultiplier": 1.25 },
+          "search": { "durationSeconds": 40.0, "lockerSearchChance": 0.6 },
+          "spawn": { "minRoomDistanceFromPlayers": 4 }
+        } } },
+        "world": { "doors": { "lockedDoorCount": 3, "keySpareCount": 0 } }
+      }
+    },
+    "nightmare": {
+      "nameKey": "difficulty.nightmare.name",
+      "overrides": {
+        "enemy": { "archetypes": { "ghost": {
+          "movement": { "chaseSpeed": 6.3 },
+          "doors": { "openSecondsWhenChasing": 0.7 },
+          "sight": { "range": 28.0 },
+          "hearing": { "rangeMultiplier": 1.5, "voiceRoomLimit": 2 },
+          "spawn": { "count": 2, "minRoomDistanceFromPlayers": 4 }
+        } } },
+        "world": { "doors": { "lockedDoorCount": 3, "keySpareCount": 0 } },
+        "player": { "health": { "reviveHoldSeconds": 9.0 } }
+      }
+    }
+  }
+}

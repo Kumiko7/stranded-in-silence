@@ -1,0 +1,95 @@
+{
+  "$doc": "Enemy archetypes. `archetypes` is a dictionary; maps and difficulties reference entries by id.",
+
+  "defaultArchetype": "ghost",
+
+  "archetypes": {
+    "ghost": {
+      "displayNameKey": "enemy.ghost.name",
+      "artId": "enemy.ghost",
+
+      "body": {
+        "radius": 0.42,
+        "height": 1.95,
+        "hoverHeight": 0.25
+      },
+
+      "movement": {
+        "patrolSpeed": 2.2,
+        "searchSpeed": 3.0,
+        "chaseSpeed": 5.4,
+        "turnRateDegreesPerSecond": 220,
+        "acceleration": 16.0,
+        "injuredPlayerSlowdownSeconds": 6.0,
+        "injuredPlayerSlowdownMultiplier": 0.55
+      },
+
+      "doors": {
+        "openSeconds": 1.6,
+        "openSecondsWhenChasing": 1.1,
+        "canOpenLockedDoors": false,
+        "closesDoorsBehind": false
+      },
+
+      "sight": {
+        "range": 20.0,
+        "fovDegrees": 110,
+        "requiresLineOfSight": true,
+        "crouchedTargetRangeMultiplier": 0.65,
+        "darknessRangeMultiplier": 0.8,
+        "timeToAcquireSeconds": 0.35,
+        "timeToLoseSeconds": 2.5
+      },
+
+      "hearing": {
+        "$doc": "A noise event is heard when: loudness * hearingMultiplier >= threshold AND distance <= noise.radius * rangeMultiplier.",
+        "rangeMultiplier": 1.0,
+        "hearingMultiplier": 1.0,
+        "threshold": 0.08,
+        "voiceRoomLimit": 1,
+        "throughClosedDoorMultiplier": 0.6,
+        "positionJitterMetres": 1.5
+      },
+
+      "attack": {
+        "range": 1.5,
+        "cooldownSeconds": 3.0,
+        "windupSeconds": 0.25,
+        "healthyResult": "injured",
+        "injuredResult": "downed",
+        "ignoresDownedPlayers": true
+      },
+
+      "patrol": {
+        "$doc": "Room selection weights. Higher weight = more likely target room.",
+        "preferUnvisitedWeight": 4.0,
+        "recentVisitDecaySeconds": 90,
+        "idleAtWaypointSeconds": [0.5, 2.5],
+        "waypointsPerRoom": 3,
+        "preferRoomsNearLastNoiseWeight": 2.0
+      },
+
+      "search": {
+        "durationSeconds": 25.0,
+        "roomsToSearch": 3,
+        "lockerSearchChance": 0.35,
+        "lockerSearchSeconds": 2.5,
+        "investigateNoiseRadius": 6.0,
+        "giveUpToPatrolSeconds": 12.0
+      },
+
+      "spawn": {
+        "minRoomDistanceFromPlayers": 4,
+        "requiresUnlockedPathToPlayers": true,
+        "count": 1
+      },
+
+      "alert": {
+        "$doc": "Drives the spooky indicator + audio stings. Keys map to i18n + art/shared VFX ids.",
+        "levels": ["calm", "suspicious", "alerted", "chasing"],
+        "suspiciousDecaySeconds": 8.0,
+        "alertedDecaySeconds": 12.0
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "$doc": "UI theme + HUD layout. Colours here feed CSS custom properties at boot, so restyling the whole game is a config edit.",
+
+  "theme": {
+    "fontDisplay": "'Cinzel', 'Times New Roman', serif",
+    "fontBody": "'Inter', system-ui, sans-serif",
+    "fontMono": "'JetBrains Mono', monospace",
+    "colours": {
+      "bg": "#07080c",
+      "bgPanel": "#0e1017e6",
+      "border": "#2a2f45",
+      "text": "#d8d4c8",
+      "textDim": "#8a8677",
+      "accent": "#b3462f",
+      "accentHover": "#d8593c",
+      "good": "#5f8f5a",
+      "warn": "#c9a227",
+      "bad": "#a83232",
+      "focusRing": "#b3462f"
+    },
+    "radius": "2px",
+    "transitionMs": 140,
+    "screenShakeEnabled": true
+  },
+
+  "hud": {
+    "crosshair": { "enabled": true, "size": 4, "colour": "#d8d4c8", "opacity": 0.55 },
+    "interactPrompt": { "enabled": true, "showHoldRing": true },
+    "handSlots": { "enabled": true, "position": "bottom-center" },
+    "stamina": { "enabled": true, "hideWhenFull": true, "position": "bottom-center" },
+    "healthState": { "enabled": true, "mode": "vignette-only" },
+    "teammateList": { "enabled": true, "position": "top-left", "showVoiceIndicator": true },
+    "voiceIndicator": { "enabled": true, "position": "bottom-left" },
+    "objectiveHint": { "enabled": true, "durationSeconds": 5 },
+    "subtitles": { "enabled": false }
+  },
+
+  "menus": {
+    "mainMenuBackground": "lobby-scene",
+    "confirmOnQuit": true,
+    "showFpsCounter": false,
+    "cursorStyle": "game"
+  },
+
+  "accessibility": {
+    "reduceScreenShake": false,
+    "reduceFlashing": false,
+    "uiScale": 1.0,
+    "uiScaleRange": [0.75, 1.5],
+    "colourblindMode": "none"
+  }
+}

@@ -1,0 +1,23 @@
+node_modules/
+dist/
+dist-electron/
+release/
+*.local
+.env
+.env.*
+!.env.example
+
+# editor / os
+.DS_Store
+Thumbs.db
+*.swp
+
+# claude
+.claude/settings.local.json
+
+# logs
+npm-debug.log*
+*.log
+
+# vite
+.vite/

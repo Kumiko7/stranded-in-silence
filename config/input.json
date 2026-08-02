@@ -1,0 +1,43 @@
+{
+  "$doc": "Default action bindings. Logic never reads raw key codes - it reads ACTION ids. Rebinding writes overrides into the save profile; this file is the reset-to-default source.",
+
+  "actions": {
+    "moveForward": { "labelKey": "input.moveForward", "keys": ["KeyW", "ArrowUp"], "category": "movement" },
+    "moveBack": { "labelKey": "input.moveBack", "keys": ["KeyS", "ArrowDown"], "category": "movement" },
+    "moveLeft": { "labelKey": "input.moveLeft", "keys": ["KeyA", "ArrowLeft"], "category": "movement" },
+    "moveRight": { "labelKey": "input.moveRight", "keys": ["KeyD", "ArrowRight"], "category": "movement" },
+    "sprint": { "labelKey": "input.sprint", "keys": ["ShiftLeft"], "category": "movement", "mode": "hold" },
+    "crouch": { "labelKey": "input.crouch", "keys": ["ControlLeft"], "category": "movement", "mode": "hold" },
+
+    "interact": { "labelKey": "input.interact", "keys": ["KeyE"], "category": "interaction", "mode": "pressOrHold" },
+    "useLeft": { "labelKey": "input.useLeft", "keys": ["Mouse0"], "category": "interaction" },
+    "useRight": { "labelKey": "input.useRight", "keys": ["Mouse2"], "category": "interaction" },
+    "dropLeft": { "labelKey": "input.dropLeft", "keys": ["KeyQ"], "category": "interaction" },
+    "dropRight": { "labelKey": "input.dropRight", "keys": ["KeyF"], "category": "interaction" },
+
+    "pushToTalk": { "labelKey": "input.pushToTalk", "keys": ["KeyV"], "category": "voice", "mode": "hold" },
+    "toggleVoiceMute": { "labelKey": "input.toggleVoiceMute", "keys": ["KeyM"], "category": "voice" },
+
+    "pauseMenu": { "labelKey": "input.pauseMenu", "keys": ["Escape"], "category": "system", "rebindable": false },
+    "scoreboard": { "labelKey": "input.scoreboard", "keys": ["Tab"], "category": "system", "mode": "hold" },
+    "spectateNext": { "labelKey": "input.spectateNext", "keys": ["Mouse0"], "category": "system" },
+    "spectatePrev": { "labelKey": "input.spectatePrev", "keys": ["Mouse2"], "category": "system" },
+    "giveUp": { "labelKey": "input.giveUp", "keys": ["KeyG"], "category": "system", "mode": "hold" }
+  },
+
+  "mouse": {
+    "sensitivity": 1.0,
+    "sensitivityRange": [0.1, 5.0],
+    "invertY": false,
+    "smoothing": 0.0
+  },
+
+  "gamepad": {
+    "enabled": false
+  },
+
+  "holdDefaults": {
+    "$doc": "Per-interaction hold times live with the thing being interacted with (world.json / player.json). This is just the input-layer repeat guard.",
+    "repeatDelaySeconds": 0.25
+  }
+}

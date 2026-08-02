@@ -1,0 +1,58 @@
+{
+  "$doc": "Top-level run and session rules. See docs/CONFIG.md.",
+
+  "session": {
+    "maxPlayers": 4,
+    "minPlayersToStart": 1,
+    "lobbyCodeLength": 6,
+    "lobbyCodeAlphabet": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
+    "reconnectGraceSeconds": 45
+  },
+
+  "lobby": {
+    "autoStartSeconds": 30,
+    "allReadyStartSeconds": 5,
+    "mapVoteMode": "highest-votes-random-tiebreak",
+    "allowRandomMap": true
+  },
+
+  "run": {
+    "loadoutSlots": 2,
+    "endRunWhenAllPlayersResolved": true,
+    "resolvedStates": ["escaped", "downed", "dead", "disconnected"],
+    "loseWhenAllDownedOrDead": true,
+    "postRunScoreboardSeconds": 20,
+    "returnToLobbyAfterScoreboard": true
+  },
+
+  "spectate": {
+    "enabled": true,
+    "allowAfterEscape": true,
+    "allowAfterDeath": true,
+    "downedPlayersMayGiveUp": true,
+    "giveUpHoldSeconds": 3.0,
+    "spectatorsHearEachOther": true,
+    "spectatorsHearSpectatedPlayer": true,
+    "livePlayersHearSpectators": false
+  },
+
+  "scoring": {
+    "enabled": true,
+    "categories": [
+      { "id": "doorsOpened", "higherIsBetter": true },
+      { "id": "itemsFound", "higherIsBetter": true },
+      { "id": "chestsOpened", "higherIsBetter": true },
+      { "id": "revivesPerformed", "higherIsBetter": true },
+      { "id": "roomsVisited", "higherIsBetter": true },
+      { "id": "treasureValue", "higherIsBetter": true },
+      { "id": "timesInjured", "higherIsBetter": false },
+      { "id": "distanceTravelled", "higherIsBetter": true }
+    ]
+  },
+
+  "meta": {
+    "enabled": false,
+    "keepTreasureOnlyIfEscaped": true,
+    "xpEnabled": false
+  }
+}

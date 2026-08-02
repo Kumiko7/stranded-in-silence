@@ -1,0 +1,111 @@
+{
+  "$doc": "Item catalogue. `artId` resolves against art/shared/props. Logic only ever reads this file + the item's behaviour id; art is fully swappable. See docs/art/ART_GUIDE.md.",
+
+  "sizeClass": {
+    "$doc": "All world items occupy this bounding box so room art knows how much space to leave on a spawn anchor.",
+    "width": 0.35,
+    "depth": 0.35,
+    "height": 0.4
+  },
+
+  "defaults": {
+    "pickupRange": 2.2,
+    "throwSpeed": 11.0,
+    "dropForwardOffset": 0.6,
+    "carrySlot": "either"
+  },
+
+  "items": {
+    "key": {
+      "nameKey": "item.key.name",
+      "descKey": "item.key.desc",
+      "artId": "item.key",
+      "behaviour": "unlock",
+      "useMode": "hold",
+      "consumedOnUse": true,
+      "params": { "unlockSeconds": 1.2, "range": 2.2 }
+    },
+    "medicine": {
+      "nameKey": "item.medicine.name",
+      "descKey": "item.medicine.desc",
+      "artId": "item.medicine",
+      "behaviour": "heal",
+      "useMode": "hold",
+      "consumedOnUse": true,
+      "params": { "healSeconds": 3.0, "toState": "healthy", "canHealOthers": true, "range": 1.8 }
+    },
+    "brick": {
+      "nameKey": "item.brick.name",
+      "descKey": "item.brick.desc",
+      "artId": "item.brick",
+      "behaviour": "throwable",
+      "useMode": "press",
+      "consumedOnUse": true,
+      "params": { "impactNoise": { "radius": 20.0, "loudness": 0.9 }, "stunSeconds": 0.0 }
+    },
+    "coin": {
+      "nameKey": "item.coin.name",
+      "descKey": "item.coin.desc",
+      "artId": "item.coin",
+      "behaviour": "throwable",
+      "useMode": "press",
+      "consumedOnUse": true,
+      "params": { "impactNoise": { "radius": 26.0, "loudness": 1.0 }, "stunSeconds": 0.0 }
+    },
+    "flashGrenade": {
+      "nameKey": "item.flashGrenade.name",
+      "descKey": "item.flashGrenade.desc",
+      "artId": "item.flashGrenade",
+      "behaviour": "throwable",
+      "useMode": "press",
+      "consumedOnUse": true,
+      "params": { "fuseSeconds": 1.5, "radius": 8.0, "stunSeconds": 4.0, "blindsPlayers": true }
+    },
+    "barricade": {
+      "nameKey": "item.barricade.name",
+      "descKey": "item.barricade.desc",
+      "artId": "item.barricade",
+      "behaviour": "barricadeDoor",
+      "useMode": "hold",
+      "consumedOnUse": true,
+      "params": { "placeSeconds": 2.0, "enemyBreakSeconds": 8.0, "range": 2.2 }
+    },
+    "tarTrap": {
+      "nameKey": "item.tarTrap.name",
+      "descKey": "item.tarTrap.desc",
+      "artId": "item.tarTrap",
+      "behaviour": "placeTrap",
+      "useMode": "press",
+      "consumedOnUse": true,
+      "params": { "radius": 1.6, "slowMultiplier": 0.4, "durationSeconds": 6.0, "affectsEnemy": true }
+    },
+    "xrayGoggles": {
+      "nameKey": "item.xrayGoggles.name",
+      "descKey": "item.xrayGoggles.desc",
+      "artId": "item.xrayGoggles",
+      "behaviour": "revealContainers",
+      "useMode": "toggle",
+      "consumedOnUse": false,
+      "params": { "range": 12.0, "batterySeconds": 30.0 }
+    },
+    "enemySensor": {
+      "nameKey": "item.enemySensor.name",
+      "descKey": "item.enemySensor.desc",
+      "artId": "item.enemySensor",
+      "behaviour": "proximityBeep",
+      "useMode": "toggle",
+      "consumedOnUse": false,
+      "params": { "range": 30.0, "minBeepInterval": 0.15, "maxBeepInterval": 2.0, "beepNoise": { "radius": 3.0, "loudness": 0.15 } }
+    },
+    "treasureSmall": {
+      "nameKey": "item.treasureSmall.name",
+      "descKey": "item.treasureSmall.desc",
+      "artId": "item.treasureSmall",
+      "behaviour": "treasure",
+      "useMode": "none",
+      "consumedOnUse": false,
+      "occupiesSlot": false,
+      "params": { "value": 25 }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stranded in Silence</title>
+    <link rel="stylesheet" href="/src/ui/ui.css" />
+  </head>
+  <body>
+    <!-- The 3D canvas. Owned by src/render/Renderer.ts. -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Per-frame HUD. Owned by src/ui/hud/*. Plain DOM, no framework re-renders. -->
+    <div id="hud-root" class="layer layer--passthrough"></div>
+
+    <!-- Menus / lobby / options. Owned by src/ui/screens/* (Preact). -->
+    <div id="screen-root" class="layer"></div>
+
+    <!-- Boot / fatal-error surface, replaced once the UI layer mounts. -->
+    <div id="boot-root" class="layer boot">
+      <div class="boot__title">STRANDED IN SILENCE</div>
+      <div class="boot__status" id="boot-status">loading</div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

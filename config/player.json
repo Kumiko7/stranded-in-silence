@@ -1,0 +1,97 @@
+{
+  "$doc": "Player movement, health, interaction and noise. Units: metres, seconds, radians.",
+
+  "body": {
+    "radius": 0.32,
+    "standHeight": 1.8,
+    "crouchHeight": 1.05,
+    "eyeHeightOffset": -0.15,
+    "heightLerpSpeed": 9.0
+  },
+
+  "movement": {
+    "walkSpeed": 2.6,
+    "sprintSpeed": 4.6,
+    "crouchSpeed": 1.35,
+    "injuredSpeedMultiplier": 0.72,
+    "acceleration": 28.0,
+    "deceleration": 34.0,
+    "airControl": 0.0,
+    "backpedalMultiplier": 0.82,
+    "strafeMultiplier": 0.92
+  },
+
+  "stamina": {
+    "enabled": true,
+    "max": 100,
+    "sprintDrainPerSecond": 18.0,
+    "regenPerSecond": 12.0,
+    "regenDelaySeconds": 1.2,
+    "minToStartSprint": 12.0
+  },
+
+  "camera": {
+    "fovDegrees": 75,
+    "mouseSensitivity": 0.0022,
+    "invertY": false,
+    "pitchClampDegrees": 88,
+    "headbob": {
+      "enabled": true,
+      "walkAmplitude": 0.028,
+      "walkFrequency": 8.2,
+      "sprintAmplitude": 0.045,
+      "sprintFrequency": 11.0,
+      "crouchAmplitude": 0.014,
+      "crouchFrequency": 5.5
+    }
+  },
+
+  "health": {
+    "states": ["healthy", "injured", "downed", "dead"],
+    "startState": "healthy",
+    "injuredBleedOut": false,
+    "downedBleedOut": false,
+    "reviveHoldSeconds": 6.0,
+    "reviveInterruptedResetsProgress": false,
+    "reviveRange": 1.6,
+    "revivedToState": "injured",
+    "invulnerableSecondsAfterHit": 2.0,
+    "invulnerableSecondsAfterRevive": 3.0
+  },
+
+  "interaction": {
+    "rayLength": 2.6,
+    "rayRadius": 0.12,
+    "highlightWhenLookingAt": true,
+    "holdCancelOnMove": false,
+    "holdCancelOnLookAway": true,
+    "lookAwayGraceSeconds": 0.25
+  },
+
+  "noise": {
+    "$doc": "Emitted noise events. `radius` is the metre radius at which the enemy can perceive it (see enemy.json hearing).",
+    "footstepIntervalWalk": 0.52,
+    "footstepIntervalSprint": 0.34,
+    "footstepIntervalCrouch": 0.85,
+    "walk": { "radius": 7.0, "loudness": 0.35 },
+    "sprint": { "radius": 22.0, "loudness": 1.0 },
+    "crouch": { "radius": 2.0, "loudness": 0.1 },
+    "doorOpen": { "radius": 10.0, "loudness": 0.5 },
+    "doorSlam": { "radius": 18.0, "loudness": 0.9 },
+    "chestOpen": { "radius": 24.0, "loudness": 1.0 },
+    "lockerEnter": { "radius": 6.0, "loudness": 0.3 },
+    "itemDrop": { "radius": 8.0, "loudness": 0.4 },
+    "voice": { "radius": 12.0, "loudness": 0.6 },
+    "injured": { "radius": 14.0, "loudness": 0.7 }
+  },
+
+  "effects": {
+    "$doc": "Screen feedback. Distances in metres, measured enemy -> local player.",
+    "heartbeatStartDistance": 18.0,
+    "heartbeatMaxDistance": 4.0,
+    "vignetteInjuredIntensity": 0.45,
+    "vignetteDownedIntensity": 0.8,
+    "chaseDistortionIntensity": 0.6,
+    "damageFlashSeconds": 0.35
+  }
+}

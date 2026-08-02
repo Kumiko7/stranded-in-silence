@@ -1,0 +1,58 @@
+{
+  "$doc": "Mixer buses, spatial audio and the SFX registry. Every gameplay sound is triggered by a logic `soundId`; assets/audio paths are swappable without code changes.",
+
+  "buses": {
+    "master": { "defaultVolume": 0.8 },
+    "music": { "defaultVolume": 0.5, "parent": "master" },
+    "sfx": { "defaultVolume": 0.9, "parent": "master" },
+    "ambience": { "defaultVolume": 0.6, "parent": "master" },
+    "voice": { "defaultVolume": 1.0, "parent": "master" },
+    "ui": { "defaultVolume": 0.7, "parent": "master" }
+  },
+
+  "spatial": {
+    "distanceModel": "inverse",
+    "refDistance": 2.0,
+    "rolloffFactor": 1.4,
+    "maxDistance": 40.0,
+    "panningModel": "HRTF",
+    "occlusionLowpassHz": 900,
+    "occlusionVolumeMultiplier": 0.45
+  },
+
+  "sounds": {
+    "$doc": "soundId -> { bus, files[], volume, pitchRange, cooldown }. `files` are relative to assets/audio/. Missing files are non-fatal (logged once) so logic can ship ahead of audio.",
+    "ui.hover": { "bus": "ui", "files": ["sfx/ui_hover.ogg"], "volume": 0.5 },
+    "ui.click": { "bus": "ui", "files": ["sfx/ui_click.ogg"], "volume": 0.7 },
+    "ui.back": { "bus": "ui", "files": ["sfx/ui_back.ogg"], "volume": 0.7 },
+    "player.footstep.walk": { "bus": "sfx", "files": [], "volume": 0.5, "pitchRange": [0.92, 1.08] },
+    "player.footstep.sprint": { "bus": "sfx", "files": [], "volume": 0.8, "pitchRange": [0.95, 1.05] },
+    "player.footstep.crouch": { "bus": "sfx", "files": [], "volume": 0.25 },
+    "player.injured": { "bus": "sfx", "files": [], "volume": 1.0 },
+    "player.downed": { "bus": "sfx", "files": [], "volume": 1.0 },
+    "player.revive.loop": { "bus": "sfx", "files": [], "volume": 0.6, "loop": true },
+    "player.heartbeat": { "bus": "sfx", "files": [], "volume": 0.9, "loop": true },
+    "door.open": { "bus": "sfx", "files": [], "volume": 0.7 },
+    "door.close": { "bus": "sfx", "files": [], "volume": 0.7 },
+    "door.locked": { "bus": "sfx", "files": [], "volume": 0.6 },
+    "door.unlock": { "bus": "sfx", "files": [], "volume": 0.8 },
+    "chest.open.loop": { "bus": "sfx", "files": [], "volume": 0.8, "loop": true },
+    "chest.opened": { "bus": "sfx", "files": [], "volume": 0.9 },
+    "locker.enter": { "bus": "sfx", "files": [], "volume": 0.5 },
+    "locker.exit": { "bus": "sfx", "files": [], "volume": 0.5 },
+    "item.pickup": { "bus": "sfx", "files": [], "volume": 0.6 },
+    "item.drop": { "bus": "sfx", "files": [], "volume": 0.6 },
+    "enemy.idle.loop": { "bus": "sfx", "files": [], "volume": 0.7, "loop": true },
+    "enemy.alerted": { "bus": "sfx", "files": [], "volume": 1.0 },
+    "enemy.chase.sting": { "bus": "sfx", "files": [], "volume": 1.0 },
+    "enemy.attack": { "bus": "sfx", "files": [], "volume": 1.0 },
+    "exit.hold.loop": { "bus": "sfx", "files": [], "volume": 0.7, "loop": true },
+    "exit.escaped": { "bus": "sfx", "files": [], "volume": 1.0 }
+  },
+
+  "music": {
+    "crossfadeSeconds": 2.5,
+    "chaseTrackSuffix": "_chase",
+    "duckOnVoiceDb": -4
+  }
+}
