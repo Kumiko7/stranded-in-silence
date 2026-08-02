@@ -34,15 +34,6 @@ export interface PlayerConfig {
     mouseSensitivity: number;
     invertY: boolean;
     pitchClampDegrees: number;
-    headbob: {
-      enabled: boolean;
-      walkAmplitude: number;
-      walkFrequency: number;
-      sprintAmplitude: number;
-      sprintFrequency: number;
-      crouchAmplitude: number;
-      crouchFrequency: number;
-    };
   };
   interaction: {
     rayLength: number;

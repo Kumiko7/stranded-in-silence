@@ -117,7 +117,7 @@ the simulation is written host-authoritative from the start.*
 ### ☑ 11. Player controller
 **Goal:** first-person movement that feels right.
 **Touches:** `src/entities/player/{controller,movement,camera}.ts`.
-**Details:** WASD + mouse look, walk/sprint/crouch with `player.json` speeds and accelerations, crouch height lerp, head bob, collision + sliding, footstep timing. Speed is uniform in every direction — no backpedal or strafe penalty. No stamina; sprinting costs noise only. Written as a pure `(state, input, dt) → state` step so prediction reuses it verbatim in step 25.
+**Details:** WASD + mouse look, walk/sprint/crouch with `player.json` speeds and accelerations, crouch height lerp, collision + sliding, footstep timing. Speed is uniform in every direction — no backpedal or strafe penalty. No stamina; sprinting costs noise only. Written as a pure `(state, input, dt) → state` step so prediction reuses it verbatim in step 25.
 **Done when:** you can walk a generated map and the movement feels good with only config changes.
 
 ### ☑ 12. Interaction system

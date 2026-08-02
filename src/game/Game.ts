@@ -77,7 +77,8 @@ export class Game {
     return this.#player;
   }
 
-  start(mapId: string, seed: number): void {
+  /** `slot` selects this player's spawn point within the shared start room. */
+  start(mapId: string, seed: number, slot = 0): void {
     this.end();
 
     const config = configForMap(mapId);
@@ -101,12 +102,8 @@ export class Game {
     this.#renderer.scene.add(world.root);
     this.#renderer.setRoomLights(world.lights);
 
-    this.#player = createPlayerState(
-      layout.playerSpawn.position[0],
-      layout.playerSpawn.position[2],
-      layout.playerSpawn.yaw,
-      config.player,
-    );
+    const spawn = layout.playerSpawns[slot % layout.playerSpawns.length] ?? layout.playerSpawns[0]!;
+    this.#player = createPlayerState(spawn.position[0], spawn.position[2], spawn.yaw, config.player);
     this.#escaped = false;
     this.#exitHold = 0;
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);

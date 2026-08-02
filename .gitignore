@@ -21,3 +21,6 @@ npm-debug.log*
 
 # vite
 .vite/
+
+# manual test stuff, ignore
+formanualtesting/

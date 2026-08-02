@@ -71,7 +71,7 @@ async function boot(): Promise<void> {
   /* --- net ---------------------------------------------------------------- */
 
   const net = new Net({
-    onRunStart: (mapId, seed) => enterRun(mapId, seed),
+    onRunStart: (mapId, seed, slot) => enterRun(mapId, seed, slot),
     onPeerJoin: (id) => game.addRemote(id),
     onPeerLeave: (id) => game.removeRemote(id),
     onPeerMove: (id, transform) => game.moveRemote(id, transform),
@@ -92,8 +92,8 @@ async function boot(): Promise<void> {
     onPlayerCountChange: (count) => set({ players: count }),
   });
 
-  function enterRun(mapId: string, seed: number): void {
-    game.start(mapId, seed);
+  function enterRun(mapId: string, seed: number, slot = 0): void {
+    game.start(mapId, seed, slot);
     set({ screen: 'run', promptVerbKey: null, exitProgress: 0 });
     input.requestPointerLock();
   }
@@ -108,10 +108,14 @@ async function boot(): Promise<void> {
 
   const callbacks: UiCallbacks = {
     onStart: () => {
+      // A client must never start its own run - it would end up alone in a
+      // different map. It enters when the host does.
+      if (net.role === 'client') return;
+
       const mapId = config.maps.defaultMapId;
       const seed = randomSeed();
       net.hostRun(mapId, seed);
-      enterRun(mapId, seed);
+      enterRun(mapId, seed, 0);
     },
     onJoin: (code) => {
       set({ netStatus: 'connecting', error: null });
@@ -139,6 +143,13 @@ async function boot(): Promise<void> {
   input.onPointerLockChange = (locked) => {
     if (!locked && state.screen === 'run') set({ screen: 'paused' });
   };
+  
+  document.addEventListener('pointerlockerror', () => {
+    if (state.screen === 'run') {
+      console.warn('[input] Pointer lock denied (missing user gesture). Falling back to pause menu.');
+      set({ screen: 'paused' });
+    }
+  });
 
   /* --- connect ------------------------------------------------------------ */
 

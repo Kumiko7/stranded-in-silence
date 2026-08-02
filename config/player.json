@@ -23,16 +23,7 @@
     "fovDegrees": 75,
     "mouseSensitivity": 0.0022,
     "invertY": false,
-    "pitchClampDegrees": 88,
-    "headbob": {
-      "enabled": true,
-      "walkAmplitude": 0.028,
-      "walkFrequency": 8.2,
-      "sprintAmplitude": 0.045,
-      "sprintFrequency": 11.0,
-      "crouchAmplitude": 0.014,
-      "crouchFrequency": 5.5
-    }
+    "pitchClampDegrees": 88
   },
 
   "health": {

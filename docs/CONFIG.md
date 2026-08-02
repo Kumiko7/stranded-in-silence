@@ -14,7 +14,7 @@ If you find yourself typing a number into logic, it belongs in a config file ins
 | I want to change… | File | Key |
 | --- | --- | --- |
 | How fast players walk / sprint / crouch | `player.json` | `movement.*` |
-| FOV, mouse sensitivity, head bob | `player.json` | `camera.*` |
+| FOV, mouse sensitivity | `player.json` | `camera.*` |
 | Revive time, injured/downed rules | `player.json` | `health.*` |
 | How loud sprinting / chests / voice are | `player.json` | `noise.*` |
 | Heartbeat + screen distortion distances | `player.json` | `effects.*` |

@@ -23,7 +23,7 @@ export interface PlayerTransform {
 }
 
 export type NetMessage =
-  | { t: 'welcome'; id: string; host: string; mapId: string; seed: number; peers: string[] }
+  | { t: 'welcome'; id: string; host: string; slot: number; mapId: string; seed: number; peers: string[] }
   | { t: 'join'; id: string }
   | { t: 'leave'; id: string }
   | { t: 'move'; id: string; x: number; z: number; yaw: number; height: number }
@@ -33,7 +33,8 @@ export type NetMessage =
 export type NetRole = 'offline' | 'host' | 'client';
 
 export interface NetEvents {
-  onRunStart(mapId: string, seed: number): void;
+  /** `slot` picks which spawn point in the shared start room this player uses. */
+  onRunStart(mapId: string, seed: number, slot: number): void;
   onPeerJoin(id: string): void;
   onPeerLeave(id: string): void;
   onPeerMove(id: string, transform: PlayerTransform): void;
@@ -50,6 +51,9 @@ export class Net {
 
   /** Set by the host when a run starts, replayed to anyone who joins later. */
   #run: { mapId: string; seed: number } | null = null;
+  /** Host-assigned spawn slots. The host is always 0. */
+  #slots = new Map<string, number>();
+  #nextSlot = 1;
 
   constructor(events: NetEvents) {
     this.#events = events;
@@ -93,10 +97,15 @@ export class Net {
     });
   }
 
-  /** Becomes the host of a run. Late joiners are sent the same seed. */
+  /**
+   * Becomes the host of a run. Anyone already connected is pulled into it, and
+   * late joiners get the same seed - otherwise a peer who connected before the
+   * host pressed Play would end up alone in a different map.
+   */
   hostRun(mapId: string, seed: number): void {
     this.role = 'host';
     this.#run = { mapId, seed };
+    for (const id of this.#connections.keys()) this.#sendWelcome(id);
   }
 
   async join(code: string): Promise<void> {
@@ -130,18 +139,29 @@ export class Net {
       this.#register(connection);
       const id = shortId(connection.peer);
 
-      if (this.role === 'host' && this.#run) {
-        this.#send(connection, {
-          t: 'welcome',
-          id,
-          host: this.#code,
-          mapId: this.#run.mapId,
-          seed: this.#run.seed,
-          peers: this.peerIds.filter((peerId) => peerId !== id),
-        });
-        this.#relay({ t: 'join', id }, id);
-        this.#events.onPeerJoin(id);
-      }
+      if (this.role !== 'host') return;
+      if (!this.#slots.has(id)) this.#slots.set(id, this.#nextSlot++);
+
+      // No run yet? They stay connected and hostRun() will pull them in.
+      if (this.#run) this.#sendWelcome(id);
+      this.#relay({ t: 'join', id }, id);
+      this.#events.onPeerJoin(id);
+    });
+  }
+
+  #sendWelcome(id: string): void {
+    const connection = this.#connections.get(id);
+    if (!connection || !this.#run) return;
+    if (!this.#slots.has(id)) this.#slots.set(id, this.#nextSlot++);
+
+    this.#send(connection, {
+      t: 'welcome',
+      id,
+      host: this.#code,
+      slot: this.#slots.get(id) ?? 0,
+      mapId: this.#run.mapId,
+      seed: this.#run.seed,
+      peers: this.peerIds.filter((peerId) => peerId !== id),
     });
   }
 
@@ -162,7 +182,7 @@ export class Net {
       case 'welcome':
         this.#run = { mapId: message.mapId, seed: message.seed };
         // The run has to exist before remotes can be added to it.
-        this.#events.onRunStart(message.mapId, message.seed);
+        this.#events.onRunStart(message.mapId, message.seed, message.slot);
         // The host is a player too, and it is not in its own peer list.
         this.#events.onPeerJoin(message.host);
         for (const peerId of message.peers) this.#events.onPeerJoin(peerId);

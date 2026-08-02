@@ -21,8 +21,6 @@ export interface PlayerState {
   height: number;
   crouching: boolean;
   sprinting: boolean;
-  /** Accumulated distance, drives head bob phase. */
-  bobPhase: number;
 }
 
 export interface MoveIntent {
@@ -43,7 +41,6 @@ export function createPlayerState(x: number, z: number, yaw: number, config: Pla
     height: config.body.standHeight,
     crouching: false,
     sprinting: false,
-    bobPhase: 0,
   };
 }
 
@@ -106,23 +103,9 @@ export function stepPlayer(
 
   const targetHeight = state.crouching ? config.body.crouchHeight : config.body.standHeight;
   state.height += (targetHeight - state.height) * Math.min(1, config.body.heightLerpSpeed * dt);
-
-  state.bobPhase += Math.hypot(state.velocityX, state.velocityZ) * dt;
 }
 
-/** Camera Y, including head bob. Presentation only - never feeds back into the sim. */
+/** Camera Y. Presentation only - never feeds back into the sim. */
 export function eyeHeight(state: PlayerState, config: PlayerConfig): number {
-  const base = state.height + config.body.eyeHeightOffset;
-  const bob = config.camera.headbob;
-  if (!bob.enabled) return base;
-
-  const [amplitude, frequency] = state.crouching
-    ? [bob.crouchAmplitude, bob.crouchFrequency]
-    : state.sprinting
-      ? [bob.sprintAmplitude, bob.sprintFrequency]
-      : [bob.walkAmplitude, bob.walkFrequency];
-
-  const speed = Math.hypot(state.velocityX, state.velocityZ);
-  const strength = Math.min(1, speed / 2);
-  return base + Math.sin(state.bobPhase * frequency) * amplitude * strength;
+  return state.height + config.body.eyeHeightOffset;
 }

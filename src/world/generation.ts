@@ -35,7 +35,8 @@ export interface RunLayout {
   grid: { width: number; height: number; cellSize: number };
   rooms: PlacedRoom[];
   doors: PlacedDoor[];
-  playerSpawn: { position: readonly [number, number, number]; yaw: number };
+  /** Every spawn point in the shared start room. Players take one each by slot. */
+  playerSpawns: { position: readonly [number, number, number]; yaw: number }[];
   exitCell: readonly [number, number];
 }
 
@@ -187,11 +188,20 @@ export function generate(
     isExit: true,
   });
 
-  // --- 5. spawn transform from the room's own anchors -----------------------
+  // --- 5. spawn transforms from the start room's own anchors ----------------
+  // Every player starts in this one room, on a different anchor, so they begin
+  // together without standing inside each other.
   const spawnRoom = rooms.find((room) => room.cell[0] === spawnCell[0] && room.cell[1] === spawnCell[1]);
   const spawnBlueprint = blueprints.find((bp) => bp.id === spawnRoom?.blueprintId);
-  const anchor = spawnBlueprint?.anchors.playerSpawn?.[0];
   const [sx, sy] = spawnCell;
+
+  const anchors = spawnBlueprint?.anchors.playerSpawn ?? [];
+  const playerSpawns = anchors.length
+    ? anchors.map((anchor) => ({
+        position: [sx * cellSize + anchor.position[0], 0, sy * cellSize + anchor.position[2]] as const,
+        yaw: anchor.rotationY ?? 0,
+      }))
+    : [{ position: [sx * cellSize, 0, sy * cellSize] as const, yaw: 0 }];
 
   return {
     seed,
@@ -199,14 +209,7 @@ export function generate(
     grid: { width, height, cellSize },
     rooms,
     doors,
-    playerSpawn: {
-      position: [
-        sx * cellSize + (anchor?.position[0] ?? 0),
-        0,
-        sy * cellSize + (anchor?.position[2] ?? 0),
-      ],
-      yaw: anchor?.rotationY ?? 0,
-    },
+    playerSpawns,
     exitCell,
   };
 }
