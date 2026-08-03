@@ -202,7 +202,8 @@ each other at `net.json → voice.hearingRange` (22 m), the enemy only within
 | Add a menu / screen | `src/ui/screens/` — [`systems/UI.md`](systems/UI.md) |
 | Add a HUD element | `src/ui/hud/` + `config/ui.json → hud` |
 | Change net sync | `src/net/` + `src/shared/messages.ts` — [`systems/NETWORKING.md`](systems/NETWORKING.md) |
-| Add a sound | `config/audio.json → sounds` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |
+| Add a sound | `config/audio.json → sounds` + a recipe in `src/audio/recipes.ts` or a file in `assets/audio/` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |
+| Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
 | Add a difficulty | `config/difficulty.json` only |
 | Add a save field | `src/save/schema.ts` |
 
@@ -219,6 +220,7 @@ each other at `net.json → voice.hearingRange` (22 m), the enemy only within
 | Netcode | **Host-authoritative WebRTC P2P** | 4 players, low latency, no per-run server cost. One player simulates; peers predict locally. Voice rides the same peer connections. |
 | Signalling | **PeerJS public server now; our own later** | PeerJS gets multiplayer working with zero infrastructure. Codes are namespaced peer ids. Self-hosting a small `ws` signalling server is plan step 23, and the seam where Steam lobbies drop in later. |
 | Voice | **Native `RTCPeerConnection` audio tracks** | Proximity attenuation needs per-peer `GainNode` control; a wrapper library would only get in the way. |
+| Audio | **Tone.js recipes rendered to buffers at boot, played back as raw Web Audio** | Every sound is synthesised, so the game has a full soundtrack with no assets and no licensing. Rendering offline once means playback is a plain buffer source rather than a synth graph per footstep — and a composer's file drops into the *same* `AudioBuffer` slot, so replacing a sound is a file, not a code change. Tone stays live only for the generative score. |
 | Physics | **Custom 2D circle-vs-shape** | There is no jumping and no vertical movement. A full physics engine (rapier/cannon) would add a large dependency and a determinism headache to solve a problem that is ~150 lines here. Revisit only if verticality ships. |
 | Gameplay feedback (alert wash, heartbeat, damage flash, health vignette) | **A DOM compositing layer** (`src/render/feedback.ts`), not an `EffectComposer` post stack | Every effect the design asks for is a full-screen blend. A DOM layer costs no render targets and no extra passes, and there is no *general* post-processing stack to justify one (see "Deliberately NOT built"). `render/` still owns it. If an effect ever needs the depth buffer, that is the moment to introduce a composer. |
 | Pathfinding | **A\* over the room graph + per-room waypoints** | The world is already a graph of rooms; hierarchical pathing on it is cheaper and more controllable than a navmesh, and makes "search a nearby room" trivial to express. |

@@ -34,7 +34,10 @@ run something you have to *solve*. Slice 3 makes it something you can lose:
 - **Wipe** — everyone down ends the run.
 - Enemy transform, alert level, noise, hits, health and revives replicated.
 
-Still missing: item roster beyond the key, voice chat, lobby, audio, scoreboard.
+- **Sound** (step 34) — the whole game is audible: every effect synthesised in
+  Tone.js, positional, and a generative score that tightens as the hunter closes.
+
+Still missing: item roster beyond the key, voice chat, lobby, scoreboard.
 
 Because these are slices rather than a sequence of finished steps, several steps
 below are `◐` — the part the slice needed is done, the rest is not. Each one lists
@@ -185,12 +188,12 @@ the simulation is written host-authoritative from the start.*
 **Details:** healthy → injured → downed ladder, injured speed and noise penalties, downed immobility and camera drop, hold-E revive to injured, invulnerability windows, lose condition.
 **Still missing:** give-up → dead → spectate (step 39). The ladder, penalties, revive, invulnerability and the wipe condition are done.
 
-### ◐ 21. Horror feedback layer
+### ☑ 21. Horror feedback layer
 **Goal:** the player always knows how much trouble they are in.
 **Touches:** `src/render/feedback.ts`, `art/shared/characters/ghost.ts`.
 **Details:** the ghost's own alert colour (eyes, halo and the light it carries) plus a screen layer: alert edge wash, heartbeat ramping between `effects.heartbeatStartDistance` and `heartbeatMaxDistance` with a lens push, damage flash, injured and downed vignettes.
 **Note:** built as a DOM compositing layer, not a three.js post stack — see [`ARCHITECTURE.md §10`](ARCHITECTURE.md). Every effect the design asks for is a full-screen blend.
-**Still missing:** the audio half (step 34). All visuals are done.
+**Still missing:** nothing. The audio half landed with step 34 — the heartbeat, alert stings and score intensity all read `heartbeatCloseness()` from `render/feedback.ts`, so what you hear and what you see cannot drift apart.
 
 ### ◐ 22. HUD
 **Goal:** the in-game interface.
@@ -274,10 +277,12 @@ the simulation is written host-authoritative from the start.*
 **Details:** masked-human player, refined ghost, mansion door/chest/locker variants, item models.
 **Done when:** nothing in a run still looks like greybox.
 
-### ☐ 34. Audio system + first sound pass
-**Touches:** `src/audio/`, `assets/audio/`.
-**Details:** buses, distance-based spatial SFX (no occlusion), music/ambience crossfade, the registry in `config/audio.json` wired to real files.
+### ☑ 34. Audio system + first sound pass
+**Touches:** `src/audio/`, `config/audio.json`, `assets/audio/README.md`, trigger points in `src/game/Game.ts`.
+**Details:** buses, distance-based spatial SFX (no occlusion), a generative four-layer score that cross-fades on the hunter's alert level, and the registry in `config/audio.json`.
 **Done when:** footsteps, doors, chests, the enemy and UI all make appropriate positional sound.
+**Note:** all 27 sounds are **synthesised with Tone.js** (`src/audio/recipes.ts`) and rendered to `AudioBuffer`s once at boot, so the game has a complete soundtrack with no assets and no licences. Each one also declares a file path: **drop a file into `assets/audio/` and it replaces the synthesised version**, no code or config change — see [`assets/audio/README.md`](../assets/audio/README.md). Music is generative too (`explore` / `tension` / `chase` / `menu` layers plus an ambience bed), and any layer can be replaced by a file the same way. Two things worth knowing: `unlock()` must wait for `init()` because `Tone.Offline` swaps the global context mid-render, and doors sound from their replicated **state** rather than from the noise bus so that a door the hunter opens is heard by every peer.
+**Still missing:** the options-menu volume sliders (step 35 — `audio.setBusVolume()` is the seam) and voice ducking (step 28).
 
 ### ☐ 35. Save system + full options menus
 **Touches:** `src/save/`, `src/ui/screens/Options.tsx`, `src/ui/screens/Controls.tsx`.
@@ -336,4 +341,5 @@ the simulation is written host-authoritative from the start.*
 | 2026-08-02 | Scope trim to match the original spec: removed the player flashlight, stamina, sound/voice occlusion, backpedal and strafe penalties, graphics quality tiers, the general post-processing stack, accessibility settings, peer config-hash checking and reconnect grace. Added `world.json → containers` hold timings for chests and lockers. |
 | 2026-08-02 | **Slice 1 playable**: menu with lobby code / join / start, PeerJS multiplayer, generated 6×6 map from the test art pack, first-person movement with collision, door interaction, exit-door escape. Steps 7, 11, 12 done; 2–6, 8–10, 13, 23–25 partially. Signalling server deferred to step 23 (PeerJS public server for now), so `ws`/`tsx`/`concurrently` deps and the `signal` scripts were removed. |
 | 2026-08-03 | **Slice 3 playable**: the hunter. Noise bus, room-graph A\*, sight and hearing, the full patrol/investigate/search/chase/attack FSM, the health ladder with revive, the wipe condition and the horror feedback layer. Steps 17, 18, 19 done; 4 finished; 16, 20, 21, 27 advanced. Two decisions worth knowing: the feedback layer is a **DOM compositing layer**, not an `EffectComposer` post stack (every effect the design asks for is a full-screen blend — see [`ARCHITECTURE.md §10`](ARCHITECTURE.md)), and the FSM lives in one `enemy.ts` rather than a `states/` folder. `generate()` now takes the enemy's `spawn` block as a parameter so generation still reads one config file, and `PlacedRoom` carries world-space patrol points. |
+| 2026-08-03 | **Step 34 done — the game has sound.** All 27 effects are synthesised in Tone.js and rendered to buffers at boot; the score is generative and four-layered. Every sound also declares a file path, so `assets/audio/` is a drop-in override with no code change — that is the seam a sound composer works against. `config/audio.json` gained `cues` (which event fires what) and a rebuilt `music` block; `chaseTrackSuffix` was replaced by the explicit `music.layers` map. `heartbeatCloseness()` moved out of `render/feedback.ts` so the heartbeat you hear and the one you see ride the same curve. Step 21's audio half is now done. |
 | 2026-08-02 | **Slice 2 playable**: locked doors, keys, chests, lockers and the two-hand inventory. Generation now locks doors on the spanning-tree route *before* adding loops and forbids loops across a lock, which makes "always X locked doors, always enough keys" structural rather than checked — see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys". Steps 9, 13, 14, 15, 22, 26 advanced. `loot.chestTable` / `floorTable` were trimmed to `key` + `empty` until the item roster lands in step 37. |

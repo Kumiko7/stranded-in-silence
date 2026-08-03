@@ -27,6 +27,16 @@ export interface FeedbackState {
   downed: boolean;
 }
 
+/**
+ * 0 at the far edge of awareness, 1 when it is on top of you. The heartbeat -
+ * both the visual pulse and the sound - rides on this, so they stay in step.
+ */
+export function heartbeatCloseness(config: PlayerConfig, enemyDistance: number): number {
+  const { heartbeatStartDistance, heartbeatMaxDistance } = config.effects;
+  const span = Math.max(0.01, heartbeatStartDistance - heartbeatMaxDistance);
+  return clamp01((heartbeatStartDistance - enemyDistance) / span);
+}
+
 const ALERT_TINT: Record<AlertLevel, string> = {
   calm: 'transparent',
   suspicious: '#c9a22733',
@@ -81,9 +91,7 @@ export class FeedbackLayer {
     const effects = this.#config.effects;
     this.#root.style.opacity = '1';
 
-    // 0 at the far edge of awareness, 1 when it is on top of you.
-    const span = Math.max(0.01, effects.heartbeatStartDistance - effects.heartbeatMaxDistance);
-    const closeness = clamp01((effects.heartbeatStartDistance - state.enemyDistance) / span);
+    const closeness = heartbeatCloseness(this.#config, state.enemyDistance);
 
     // The beat speeds up as it closes: two per second at the edge, six on top.
     this.#pulse += dt * (2 + closeness * 4);

@@ -81,7 +81,7 @@ export function App({
           <button class="btn btn--primary" onClick={callbacks.onResume}>
             {t('pause.resume')}
           </button>
-          <button class="btn" onClick={callbacks.onLeave}>
+          <button class="btn" data-sfx="back" onClick={callbacks.onLeave}>
             {t('pause.leaveRun')}
           </button>
         </div>

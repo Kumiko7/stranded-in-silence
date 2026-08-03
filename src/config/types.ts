@@ -238,6 +238,60 @@ export interface NetConfig {
   simulation: { snapshotRateHz: number; interpolationDelayMs: number };
 }
 
+/**
+ * One registry entry. `synth` names a recipe in `src/audio/recipes.ts`; `files`
+ * are checked first and win whenever one is actually present under
+ * `assets/audio/`. Neither is required - a soundId with no source is silent.
+ */
+export interface SoundDef {
+  bus: string;
+  synth?: string;
+  files: string[];
+  volume: number;
+  pitchRange?: [number, number];
+  loop?: boolean;
+  /** `false` keeps a sound flat even when logic hands it a world position. */
+  spatial?: boolean;
+  cooldownSeconds?: number;
+}
+
+export interface MusicLayerDef {
+  files: string[];
+  volume: number;
+}
+
+export interface AudioConfig {
+  buses: Record<string, { defaultVolume: number; parent?: string }>;
+  spatial: {
+    distanceModel: DistanceModelType;
+    refDistance: number;
+    rolloffFactor: number;
+    maxDistance: number;
+    panningModel: PanningModelType;
+  };
+  sounds: Record<string, SoundDef>;
+  cues: {
+    noiseSounds: Record<string, string>;
+    selfFlat: { kinds: string[] };
+    alertStings: Record<string, string>;
+    holdLoops: Record<string, string>;
+    /** Playback rate a hold loop reaches as its ring fills. */
+    holdLoopEndRate: number;
+    /** Playback rate the heartbeat reaches when the hunter is on top of you. */
+    heartbeatMaxRate: number;
+  };
+  music: {
+    crossfadeSeconds: number;
+    duckOnVoiceDb: number;
+    bpm: number;
+    rootHz: number;
+    intensityByAlert: Record<string, number>;
+    proximityWeight: number;
+    chaseLayerThreshold: number;
+    layers: Record<string, MusicLayerDef>;
+  };
+}
+
 export interface MapEntry {
   nameKey: string;
   descKey?: string;
@@ -261,6 +315,7 @@ export interface UiConfig {
 }
 
 export interface Config {
+  audio: AudioConfig;
   game: GameConfig;
   player: PlayerConfig;
   world: WorldConfig;
