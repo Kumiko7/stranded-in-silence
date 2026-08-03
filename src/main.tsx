@@ -2,7 +2,7 @@
  * Entry point. Owns the boot sequence, the frame loop and the menu <-> run flow.
  *
  * Boot order (docs/ARCHITECTURE.md section 4):
- *   config -> i18n -> render -> input -> ui -> net -> loop
+ *   config -> i18n -> render -> input -> audio -> ui -> net -> loop
  */
 import * as THREE from 'three';
 import { render } from 'preact';
@@ -12,6 +12,8 @@ import { randomSeed } from './core/rng';
 import { Loop } from './core/Loop';
 import { Renderer } from './render/Renderer';
 import { Input } from './input/index';
+import { Audio } from './audio/index';
+import { attachUiSounds } from './audio/uiSounds';
 import { Net, makeLobbyCode } from './net/index';
 import { Game } from './game/Game';
 import { App, type UiCallbacks, type UiPush, type UiState } from './ui/App';
@@ -45,6 +47,13 @@ async function boot(): Promise<void> {
   const input = new Input(config.input, canvas);
   const detachInput = input.attach();
   addEventListener('resize', () => renderer.resize());
+
+  // Rendering the Tone.js sound recipes needs no user gesture, so it starts now
+  // and finishes long before anything asks to be played.
+  const audio = new Audio(config.audio);
+  void audio.init().catch((error: unknown) => console.warn('[audio] failed to load', error));
+  const detachUiSounds = attachUiSounds(audio, screenRoot);
+  audio.music.setScene('menu');
 
   bootRoot?.remove();
 
@@ -100,7 +109,7 @@ async function boot(): Promise<void> {
 
   /* --- game --------------------------------------------------------------- */
 
-  const game = new Game(config, renderer, input, net, {
+  const game = new Game(config, renderer, input, net, audio, {
     onInteractTargetChange: (target) =>
       set({
         promptVerbKey: target?.verbKey ?? null,
@@ -203,7 +212,7 @@ async function boot(): Promise<void> {
 
   // Dev-only inspection handle. Stripped from production builds.
   if (import.meta.env.DEV) {
-    Object.assign(window, { __stranded: { config, renderer, game, net, input, state, THREE } });
+    Object.assign(window, { __stranded: { config, renderer, game, net, input, audio, state, THREE } });
   }
 
   const loop = new Loop({ tickRateHz: 60, maxSubStepsPerFrame: 5 });
@@ -220,6 +229,7 @@ async function boot(): Promise<void> {
 
   addEventListener('beforeunload', () => {
     detachInput();
+    detachUiSounds();
     void net.close();
   });
 }

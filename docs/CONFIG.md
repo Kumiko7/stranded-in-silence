@@ -9,6 +9,13 @@
 
 If you find yourself typing a number into logic, it belongs in a config file instead.
 
+One deliberate exception: the **sound synthesis recipes** in `src/audio/recipes.ts`
+carry their own oscillator frequencies, envelopes and filter settings. Those numbers
+are the sound's identity — content, exactly like the literals in `art/` — and they
+are the thing an audio file replaces. Everything a designer would tune about a sound
+(bus, volume, pitch spread, cooldown, what triggers it) is in `audio.json`. See
+[`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md).
+
 ## Where to change what
 
 | I want to change… | File | Key |
@@ -39,6 +46,8 @@ If you find yourself typing a number into logic, it belongs in a config file ins
 | Which maps exist | `maps.json` | `maps.*` |
 | Lighting, fog, shadows, draw distance | `graphics.json` | top level |
 | Volumes, spatial audio, sound registry | `audio.json` | `buses.*`, `spatial.*`, `sounds.*` |
+| Which sound a game event fires | `audio.json` | `cues.*` — noise kinds, alert stings, hold loops |
+| How the score reacts to the hunter | `audio.json` | `music.intensityByAlert`, `.proximityWeight`, `.chaseLayerThreshold` |
 | Default key bindings | `input.json` | `actions.*` |
 | Voice chat range and modes | `net.json` | `voice.*` |
 | Tick rate, interpolation, signalling URL | `net.json` | `simulation.*`, `signalling.*` |

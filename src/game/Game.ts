@@ -28,10 +28,11 @@ import { createEnemy, updateEnemy, type EnemyLocker, type EnemyState, type Locke
 import { footstepInterval, footstepKind, noiseSpec, NoiseBus, type NoiseKind } from '@/ai/noiseBus';
 import type { PerceptionTarget } from '@/ai/perception';
 import { RoomGraph } from '@/ai/roomGraph';
+import type { Audio } from '@/audio/index';
 import type { Input } from '@/input/index';
 import type { EnemyTransform, Net } from '@/net/index';
 import type { Renderer } from '@/render/Renderer';
-import type { AlertLevel } from '@/render/feedback';
+import { heartbeatCloseness, type AlertLevel } from '@/render/feedback';
 import { generate, type RunLayout } from '@/world/generation';
 import { toggleDoor, unlockDoor, updateDoors, type Door } from '@/world/doors';
 import { updateChests, updateLockers, type Locker } from '@/world/containers';
@@ -89,6 +90,7 @@ export class Game {
   #renderer: Renderer;
   #input: Input;
   #net: Net;
+  #audio: Audio;
   #hooks: RunHooks;
 
   #world: BuiltWorld | null = null;
@@ -118,6 +120,8 @@ export class Game {
   /** What clients interpolate toward; the host writes it from its own sim. */
   #enemyView: EnemyTransform = { x: 0, z: 0, yaw: 0, alert: 'calm' };
   #enemyAlert = '';
+  /** Tracked separately from the art's, so a sting does not need art to exist. */
+  #audioAlert = '';
   #enemyRng: Rng = stream(0, 'enemy');
   #enemyTimer = 0;
   #footstepTimer = 0;
@@ -130,11 +134,17 @@ export class Game {
   #pulses = new Map<string, { loudness: number; heard: boolean; token: number }>();
   #pulseToken = 0;
 
-  constructor(config: Config, renderer: Renderer, input: Input, net: Net, hooks: RunHooks) {
+  /* --- audio --------------------------------------------------------------- */
+  /** Scratch vectors for the listener orientation; presentation only. */
+  #listenerForward = new THREE.Vector3();
+  #listenerUp = new THREE.Vector3();
+
+  constructor(config: Config, renderer: Renderer, input: Input, net: Net, audio: Audio, hooks: RunHooks) {
     this.#config = config;
     this.#renderer = renderer;
     this.#input = input;
     this.#net = net;
+    this.#audio = audio;
     this.#hooks = hooks;
   }
 
@@ -207,11 +217,17 @@ export class Game {
     this.#enemy = createEnemy(ex, ez);
     this.#enemyView = { x: ex, z: ez, yaw: 0, alert: 'calm' };
     this.#enemyAlert = '';
+    this.#audioAlert = '';
     this.#spawnEnemyArt();
     this.#renderer.feedback.reset();
+
+    this.#audio.stopSustains();
+    this.#audio.music.setScene('run');
   }
 
   end(): void {
+    this.#audio.stopSustains();
+    this.#audio.music.setScene('menu');
     if (this.#world) {
       this.#renderer.scene.remove(this.#world.root);
       this.#world.dispose();
@@ -331,12 +347,25 @@ export class Game {
 
   setDoor(doorId: string, open: boolean): void {
     const door = this.#doorById(doorId);
-    if (door) toggleDoor(door, open);
+    if (!door) return;
+    const was = door.open;
+    toggleDoor(door, open);
+    if (door.open !== was) this.#playDoor(door);
   }
 
   setDoorUnlocked(doorId: string): void {
     const door = this.#doorById(doorId);
-    if (door) unlockDoor(door);
+    if (!door) return;
+    unlockDoor(door);
+    this.#audio.play('door.unlock', { at: { x: door.x, z: door.z } });
+  }
+
+  /**
+   * Doors sound from their state, not from the noise bus, so a door the hunter
+   * opens two rooms away is heard by every peer and not just the host.
+   */
+  #playDoor(door: Door): void {
+    this.#audio.play(door.open ? 'door.open' : 'door.close', { at: { x: door.x, z: door.z } });
   }
 
   openChest(chestId: string): void {
@@ -365,6 +394,11 @@ export class Game {
     const spec = noiseSpec(this.#config.player, kind);
     this.#noise.emit({ x, z, radius: spec.radius, loudness: spec.loudness, kind, sourceId });
 
+    // What the enemy perceives and what players hear are separate systems, but
+    // a replicated noise event is the only signal a peer gets about someone
+    // else moving - so it is where a teammate's footsteps become audible.
+    this.#playNoise(sourceId, kind, x, z);
+
     // Silent by config is silent on the HUD too - a ring for a noise nothing can
     // ever hear would be a lie.
     if (spec.loudness <= 0) return;
@@ -374,6 +408,17 @@ export class Game {
       token: ++this.#pulseToken,
     });
     this.#pushRoster();
+  }
+
+  #playNoise(sourceId: string, kind: NoiseKind, x: number, z: number): void {
+    const { cues } = this.#config.audio;
+    const soundId = cues.noiseSounds[kind];
+    if (!soundId) return;
+
+    // Your own footsteps belong in the middle of your head. Panning them round
+    // it as you turn is the fastest way to make a first-person game feel wrong.
+    const flat = sourceId === this.#net.selfId && cues.selfFlat.kinds.includes(kind);
+    this.#audio.play(soundId, flat ? {} : { at: { x, z } });
   }
 
   /**
@@ -428,14 +473,28 @@ export class Game {
     }
 
     this.#renderer.feedback.flash();
+    // The host plays this from the attack itself; a client only learns of it here.
+    if (this.#net.role === 'client') this.#audio.play('enemy.attack', { at: this.#enemyPosition() });
     this.#announceHealth(state);
   }
 
   setRemoteHealth(id: string, state: HealthState): void {
     const remote = this.#remotes.get(id);
-    if (remote) remote.target.health = state;
+    if (remote) {
+      if (remote.target.health !== state) {
+        this.#playHealth(state, { x: remote.target.x, z: remote.target.z });
+      }
+      remote.target.health = state;
+    }
     this.#run.setHealth(id, state);
     this.#pushRoster();
+  }
+
+  /** Positionless for your own body, positional for a teammate's. */
+  #playHealth(state: HealthState, at?: { x: number; z: number }): void {
+    const options = at ? { at } : {};
+    if (state === 'injured') this.#audio.play('player.injured', options);
+    else if (isDown(state)) this.#audio.play('player.downed', options);
   }
 
   /** Someone finished a revive hold on the local player. */
@@ -452,10 +511,13 @@ export class Game {
   endWiped(): void {
     if (this.#over) return;
     this.#over = true;
+    this.#audio.stopSustains();
+    this.#audio.play('run.wiped');
     this.#hooks.onWiped();
   }
 
   #announceHealth(state: HealthState): void {
+    this.#playHealth(state);
     this.#run.setHealth(this.#net.selfId, state);
     this.#hooks.onHealthChange(state);
     this.#pushRoster();
@@ -640,6 +702,7 @@ export class Game {
     const door = this.#doorsById.get(doorId);
     if (!door || door.open) return;
     toggleDoor(door, true);
+    this.#playDoor(door);
     this.#net.broadcast({ t: 'door', id: door.id, open: true });
   }
 
@@ -655,6 +718,7 @@ export class Game {
   }
 
   #enemyAttacks(targetId: string): void {
+    this.#audio.play('enemy.attack', { at: this.#enemyPosition() });
     if (targetId === this.#net.selfId) {
       this.takeHit();
       return;
@@ -708,6 +772,51 @@ export class Game {
       injured: player.health.state === 'injured',
       downed: isDown(player.health.state),
     });
+    this.#updateAudio(distance);
+  }
+
+  /** Where the hunter actually is on the host, where it was last seen on a client. */
+  #enemyPosition(): { x: number; z: number } {
+    const enemy = this.#enemy;
+    if (enemy && this.#isHost) return { x: enemy.x, z: enemy.z };
+    return { x: this.#enemyView.x, z: this.#enemyView.z };
+  }
+
+  /**
+   * The continuous half of the audio: the heartbeat, the drone the hunter drags
+   * around with it, and where the score sits. All of it rides the same
+   * proximity curve as the screen feedback, so they never disagree.
+   */
+  #updateAudio(enemyDistance: number): void {
+    const { cues } = this.#config.audio;
+    // Out of the run is out of danger: the hunter stops being your problem the
+    // moment you are through the door, and the mix should say so at once.
+    const over = this.#escaped || this.#over;
+    const closeness = over ? 0 : heartbeatCloseness(this.#config.player, enemyDistance);
+    const alert = over ? 'calm' : this.#enemyView.alert;
+
+    this.#audio.sustain('heartbeat', 'player.heartbeat', {
+      on: closeness > 0,
+      level: closeness,
+      rate: 1 + closeness * (cues.heartbeatMaxRate - 1),
+    });
+
+    this.#audio.sustain('enemy', 'enemy.idle.loop', {
+      on: !over && this.#enemyArt !== null,
+      at: this.#enemyPosition(),
+    });
+
+    // Only on the way up. It losing interest is not a moment worth a cue.
+    if (alert !== this.#audioAlert) {
+      const levels = this.#archetype().alert.levels;
+      if (this.#audioAlert && levels.indexOf(alert) > levels.indexOf(this.#audioAlert)) {
+        this.#audio.play(cues.alertStings[alert] ?? '');
+      }
+      this.#audioAlert = alert;
+    }
+
+    const music = this.#audio.music;
+    music.setIntensity(Math.max(music.intensityForAlert(alert), closeness * music.proximityWeight));
   }
 
   #updateCamera(player: PlayerState): void {
@@ -731,6 +840,11 @@ export class Game {
     // otherwise only refreshed by render() afterwards - so without this the ray
     // would be built from last frame's camera transform.
     camera.updateMatrixWorld();
+
+    // The ears follow the camera, which is why hiding in a locker moves them too.
+    camera.getWorldDirection(this.#listenerForward);
+    this.#listenerUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    this.#audio.setListener(camera.position, this.#listenerForward, this.#listenerUp);
   }
 
   /* --- interaction --------------------------------------------------------- */
@@ -750,9 +864,13 @@ export class Game {
     }
 
     const target = this.#target;
-    if (!target) return;
+    if (!target) {
+      this.#updateHoldLoop(null);
+      return;
+    }
 
     if (!target.hold) {
+      this.#updateHoldLoop(null);
       if (this.#input.justPressed('interact')) this.#complete(target, null);
       return;
     }
@@ -760,14 +878,58 @@ export class Game {
     const hand = this.#holdingHand(target);
     if (hand === false) {
       if (this.#hold > 0) this.#resetHold();
+      this.#updateHoldLoop(null);
       return;
     }
 
     this.#hold += dt;
     this.#hooks.onHoldProgress(Math.min(1, this.#hold / target.holdSeconds));
+    this.#updateHoldLoop(target);
     if (this.#hold >= target.holdSeconds && !this.#holdDone) {
       this.#holdDone = true;
       this.#complete(target, hand);
+    }
+  }
+
+  /**
+   * The sound of a hold in progress - a chest being forced, a body being worked
+   * on, the exit charging - rising in pitch as the ring fills.
+   */
+  #updateHoldLoop(target: InteractTarget | null): void {
+    const { cues } = this.#config.audio;
+    const soundId = target && !this.#holdDone ? (cues.holdLoops[target.kind] ?? null) : null;
+    if (!target || !soundId) {
+      this.#audio.sustain('hold', null, { on: false });
+      return;
+    }
+
+    const progress = Math.min(1, this.#hold / Math.max(0.01, target.holdSeconds));
+    const at = this.#targetPosition(target);
+    this.#audio.sustain('hold', soundId, {
+      on: true,
+      ...(at ? { at } : {}),
+      rate: 1 + progress * (cues.holdLoopEndRate - 1),
+    });
+  }
+
+  /** World position of whatever the look-ray is offering, where it has one. */
+  #targetPosition(target: InteractTarget): { x: number; z: number } | null {
+    const world = this.#world;
+    if (!world) return null;
+
+    switch (target.kind) {
+      case 'chest': {
+        const chest = world.chests.find((candidate) => candidate.id === target.id);
+        return chest ? { x: chest.x, z: chest.z } : null;
+      }
+      case 'revive': {
+        const remote = this.#remotes.get(target.id);
+        return remote ? { x: remote.target.x, z: remote.target.z } : null;
+      }
+      default: {
+        const door = this.#doorById(target.id);
+        return door ? { x: door.x, z: door.z } : null;
+      }
     }
   }
 
@@ -805,6 +967,7 @@ export class Game {
         const door = this.#doorById(target.id);
         if (!door) break;
         toggleDoor(door);
+        this.#playDoor(door);
         this.#net.broadcast({ t: 'door', id: door.id, open: door.open });
         // Closing a door behind you is a slam - louder than opening one, and
         // sometimes worth it anyway.
@@ -816,6 +979,7 @@ export class Game {
         const used = hand ?? this.#keyHand();
         if (!door || !used) break;
         unlockDoor(door);
+        this.#audio.play('door.unlock', { at: { x: door.x, z: door.z } });
         dropFrom(this.#inventory, used);
         this.#hooks.onHandsChange({ ...this.#inventory });
         this.#net.broadcast({ t: 'unlock', id: door.id });
@@ -825,6 +989,8 @@ export class Game {
         if (!this.#escaped) {
           this.#escaped = true;
           this.#run.setEscaped(this.#net.selfId);
+          this.#audio.stopSustains();
+          this.#audio.play('exit.escaped');
           this.#net.broadcast({ t: 'escaped', id: this.#net.selfId });
           this.#hooks.onEscaped();
         }
@@ -862,14 +1028,18 @@ export class Game {
         if (!hiding) break;
         hiding.locker.occupied = false;
         hiding.active = false;
+        this.#audio.play('locker.exit', { at: { x: hiding.locker.x, z: hiding.locker.z } });
         // Step out through the front face, which is -Z before the locker's yaw.
         const yaw = hiding.locker.yaw;
         player.x = hiding.locker.x - Math.sin(yaw) * 1.1;
         player.z = hiding.locker.z - Math.cos(yaw) * 1.1;
         break;
       }
-      case 'locked':
+      case 'locked': {
+        const door = this.#doorById(target.id);
+        if (door) this.#audio.play('door.locked', { at: { x: door.x, z: door.z } });
         break;
+      }
     }
     this.#resetHold();
   }
@@ -883,6 +1053,7 @@ export class Game {
     if (!item) return;
 
     world.removeItem(worldItemId);
+    this.#audio.play('item.pickup');
     this.#net.broadcast({ t: 'take', id: worldItemId });
 
     const { displaced } = takeItem(this.#inventory, item.itemId);

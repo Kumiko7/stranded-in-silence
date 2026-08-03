@@ -1,5 +1,7 @@
 {
-  "$doc": "Mixer buses, spatial audio and the SFX registry. Every gameplay sound is triggered by a logic `soundId`; assets/audio paths are swappable without code changes.",
+  "$doc": "Mixer buses, spatial audio, the SFX registry and the music director. Every gameplay sound is triggered by a logic `soundId`; how that id is produced is swappable without touching logic.",
+
+  "$note": "Every sound has BOTH a `synth` recipe (rendered by Tone.js at boot, see src/audio/recipes.ts) and a `files` list. A file wins whenever it is actually present under assets/audio/ - drop one in and it replaces the synthesised version with no code change. An entry with neither is legal: it logs once and plays nothing.",
 
   "buses": {
     "master": { "defaultVolume": 0.8 },
@@ -11,6 +13,7 @@
   },
 
   "spatial": {
+    "$doc": "PannerNode settings for positional sounds. Distance only - nothing in this game occludes sound.",
     "distanceModel": "inverse",
     "refDistance": 2.0,
     "rolloffFactor": 1.4,
@@ -19,38 +22,103 @@
   },
 
   "sounds": {
-    "$doc": "soundId -> { bus, files[], volume, pitchRange, cooldown }. `files` are relative to assets/audio/. Missing files are non-fatal (logged once) so logic can ship ahead of audio.",
-    "ui.hover": { "bus": "ui", "files": ["sfx/ui_hover.ogg"], "volume": 0.5 },
-    "ui.click": { "bus": "ui", "files": ["sfx/ui_click.ogg"], "volume": 0.7 },
-    "ui.back": { "bus": "ui", "files": ["sfx/ui_back.ogg"], "volume": 0.7 },
-    "player.footstep.walk": { "bus": "sfx", "files": [], "volume": 0.5, "pitchRange": [0.92, 1.08] },
-    "player.footstep.sprint": { "bus": "sfx", "files": [], "volume": 0.8, "pitchRange": [0.95, 1.05] },
-    "player.footstep.crouch": { "bus": "sfx", "files": [], "volume": 0.25 },
-    "player.injured": { "bus": "sfx", "files": [], "volume": 1.0 },
-    "player.downed": { "bus": "sfx", "files": [], "volume": 1.0 },
-    "player.revive.loop": { "bus": "sfx", "files": [], "volume": 0.6, "loop": true },
-    "player.heartbeat": { "bus": "sfx", "files": [], "volume": 0.9, "loop": true },
-    "door.open": { "bus": "sfx", "files": [], "volume": 0.7 },
-    "door.close": { "bus": "sfx", "files": [], "volume": 0.7 },
-    "door.locked": { "bus": "sfx", "files": [], "volume": 0.6 },
-    "door.unlock": { "bus": "sfx", "files": [], "volume": 0.8 },
-    "chest.open.loop": { "bus": "sfx", "files": [], "volume": 0.8, "loop": true },
-    "chest.opened": { "bus": "sfx", "files": [], "volume": 0.9 },
-    "locker.enter": { "bus": "sfx", "files": [], "volume": 0.5 },
-    "locker.exit": { "bus": "sfx", "files": [], "volume": 0.5 },
-    "item.pickup": { "bus": "sfx", "files": [], "volume": 0.6 },
-    "item.drop": { "bus": "sfx", "files": [], "volume": 0.6 },
-    "enemy.idle.loop": { "bus": "sfx", "files": [], "volume": 0.7, "loop": true },
-    "enemy.alerted": { "bus": "sfx", "files": [], "volume": 1.0 },
-    "enemy.chase.sting": { "bus": "sfx", "files": [], "volume": 1.0 },
-    "enemy.attack": { "bus": "sfx", "files": [], "volume": 1.0 },
-    "exit.hold.loop": { "bus": "sfx", "files": [], "volume": 0.7, "loop": true },
-    "exit.escaped": { "bus": "sfx", "files": [], "volume": 1.0 }
+    "$doc": "soundId -> { bus, synth, files[], volume, pitchRange, loop, spatial, cooldownSeconds }. `files` are relative to assets/audio/. `spatial: false` forces a sound to stay 2D even when logic gives it a position.",
+
+    "ui.hover": { "bus": "ui", "synth": "ui.hover", "files": ["sfx/ui_hover.ogg"], "volume": 0.35, "cooldownSeconds": 0.04 },
+    "ui.click": { "bus": "ui", "synth": "ui.click", "files": ["sfx/ui_click.ogg"], "volume": 0.7 },
+    "ui.back": { "bus": "ui", "synth": "ui.back", "files": ["sfx/ui_back.ogg"], "volume": 0.7 },
+
+    "player.footstep.walk": { "bus": "sfx", "synth": "footstep.walk", "files": ["sfx/footstep_walk.ogg"], "volume": 0.5, "pitchRange": [0.92, 1.08] },
+    "player.footstep.sprint": { "bus": "sfx", "synth": "footstep.sprint", "files": ["sfx/footstep_sprint.ogg"], "volume": 0.8, "pitchRange": [0.95, 1.05] },
+    "player.footstep.crouch": { "bus": "sfx", "synth": "footstep.crouch", "files": ["sfx/footstep_crouch.ogg"], "volume": 0.3, "pitchRange": [0.94, 1.06] },
+    "player.injured": { "bus": "sfx", "synth": "player.injured", "files": ["sfx/player_injured.ogg"], "volume": 1.0 },
+    "player.downed": { "bus": "sfx", "synth": "player.downed", "files": ["sfx/player_downed.ogg"], "volume": 1.0 },
+    "player.revive.loop": { "bus": "sfx", "synth": "player.revive", "files": ["sfx/player_revive_loop.ogg"], "volume": 0.6, "loop": true },
+    "player.heartbeat": { "bus": "sfx", "synth": "player.heartbeat", "files": ["sfx/player_heartbeat.ogg"], "volume": 0.9, "loop": true, "spatial": false },
+
+    "door.open": { "bus": "sfx", "synth": "door.open", "files": ["sfx/door_open.ogg"], "volume": 0.7, "pitchRange": [0.9, 1.12] },
+    "door.close": { "bus": "sfx", "synth": "door.close", "files": ["sfx/door_close.ogg"], "volume": 0.75, "pitchRange": [0.94, 1.06] },
+    "door.locked": { "bus": "sfx", "synth": "door.locked", "files": ["sfx/door_locked.ogg"], "volume": 0.6, "cooldownSeconds": 0.35 },
+    "door.unlock": { "bus": "sfx", "synth": "door.unlock", "files": ["sfx/door_unlock.ogg"], "volume": 0.8 },
+
+    "chest.open.loop": { "bus": "sfx", "synth": "chest.rummage", "files": ["sfx/chest_open_loop.ogg"], "volume": 0.7, "loop": true },
+    "chest.opened": { "bus": "sfx", "synth": "chest.opened", "files": ["sfx/chest_opened.ogg"], "volume": 0.9 },
+    "locker.enter": { "bus": "sfx", "synth": "locker.enter", "files": ["sfx/locker_enter.ogg"], "volume": 0.6 },
+    "locker.exit": { "bus": "sfx", "synth": "locker.exit", "files": ["sfx/locker_exit.ogg"], "volume": 0.6 },
+    "item.pickup": { "bus": "sfx", "synth": "item.pickup", "files": ["sfx/item_pickup.ogg"], "volume": 0.6 },
+    "item.drop": { "bus": "sfx", "synth": "item.drop", "files": ["sfx/item_drop.ogg"], "volume": 0.6 },
+
+    "enemy.idle.loop": { "bus": "sfx", "synth": "enemy.idle", "files": ["sfx/enemy_idle_loop.ogg"], "volume": 0.7, "loop": true },
+    "enemy.alerted": { "bus": "sfx", "synth": "enemy.alerted", "files": ["sfx/enemy_alerted.ogg"], "volume": 0.9, "spatial": false },
+    "enemy.chase.sting": { "bus": "sfx", "synth": "enemy.sting", "files": ["sfx/enemy_chase_sting.ogg"], "volume": 1.0, "spatial": false },
+    "enemy.attack": { "bus": "sfx", "synth": "enemy.attack", "files": ["sfx/enemy_attack.ogg"], "volume": 1.0 },
+
+    "exit.hold.loop": { "bus": "sfx", "synth": "exit.hold", "files": ["sfx/exit_hold_loop.ogg"], "volume": 0.7, "loop": true },
+    "exit.escaped": { "bus": "sfx", "synth": "exit.escaped", "files": ["sfx/exit_escaped.ogg"], "volume": 1.0, "spatial": false },
+    "run.wiped": { "bus": "sfx", "synth": "run.wiped", "files": ["sfx/run_wiped.ogg"], "volume": 1.0, "spatial": false }
+  },
+
+  "cues": {
+    "$doc": "Which soundId a piece of logic fires. Kept here so retriggering a different sound for an event is a config edit.",
+
+    "noiseSounds": {
+      "$doc": "NoiseKind -> soundId. Every peer broadcasts its noise, so this is what makes teammates audible across the map. An empty string is silent.",
+      "$note": "doorOpen/doorSlam are silent here on purpose: door STATE is replicated, so doors sound from the state change instead - which is also how a door the hunter opens is heard by everyone.",
+      "walk": "player.footstep.walk",
+      "sprint": "player.footstep.sprint",
+      "crouch": "player.footstep.crouch",
+      "doorOpen": "",
+      "doorSlam": "",
+      "chestOpen": "chest.opened",
+      "lockerEnter": "locker.enter",
+      "itemDrop": "item.drop",
+      "injured": "player.injured",
+      "voice": ""
+    },
+    "selfFlat": {
+      "$doc": "Noise kinds that play flat (non-positional) when they are your own. Panning your own footsteps around your head sounds wrong.",
+      "kinds": ["walk", "sprint", "crouch"]
+    },
+    "alertStings": {
+      "$doc": "Fired once when the enemy ENTERS an alert level. Levels come from enemy.json -> alert.levels.",
+      "suspicious": "enemy.alerted",
+      "alerted": "enemy.alerted",
+      "chasing": "enemy.chase.sting"
+    },
+    "holdLoops": {
+      "$doc": "InteractTarget kind -> looping soundId, played at the target while the hold ring is filling.",
+      "chest": "chest.open.loop",
+      "exit": "exit.hold.loop",
+      "revive": "player.revive.loop"
+    },
+    "holdLoopEndRate": 1.25,
+    "heartbeatMaxRate": 2.4
   },
 
   "music": {
+    "$doc": "A generative score. Four layers cross-fade on one intensity value; drop a file in for a layer and it replaces that layer's synthesis wholesale.",
+
     "crossfadeSeconds": 2.5,
-    "chaseTrackSuffix": "_chase",
-    "duckOnVoiceDb": -4
+    "duckOnVoiceDb": -4,
+    "bpm": 96,
+    "rootHz": 55,
+
+    "intensityByAlert": {
+      "$doc": "Where the score sits at each enemy alert level. `proximityWeight` lets nearness alone push it up while the enemy is still calm.",
+      "calm": 0.0,
+      "suspicious": 0.35,
+      "alerted": 0.7,
+      "chasing": 1.0
+    },
+    "proximityWeight": 0.5,
+    "chaseLayerThreshold": 0.5,
+
+    "layers": {
+      "menu": { "files": ["music/menu.ogg"], "volume": 0.85 },
+      "explore": { "files": ["music/explore.ogg"], "volume": 0.5 },
+      "tension": { "files": ["music/tension.ogg"], "volume": 0.65 },
+      "chase": { "files": ["music/chase.ogg"], "volume": 0.9 },
+      "ambience": { "files": ["ambience/room.ogg"], "volume": 0.8 }
+    }
   }
 }
