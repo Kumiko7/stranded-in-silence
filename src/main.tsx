@@ -66,6 +66,7 @@ async function boot(): Promise<void> {
     useLeftKey: input.labelFor('useLeft'),
     useRightKey: input.labelFor('useRight'),
     hint: null,
+    health: 'healthy',
   };
 
   const set = (patch: Partial<UiState>): void => {
@@ -85,6 +86,13 @@ async function boot(): Promise<void> {
     onChestOpened: (chestId) => game.openChest(chestId),
     onItemTaken: (id) => game.takeWorldItem(id),
     onItemDropped: (id, itemId, x, y, z) => game.dropWorldItem(id, itemId, x, y, z),
+    onNoise: (id, kind, x, z) => game.addNoise(id, kind, x, z),
+    onEnemy: (transform) => game.setEnemyTransform(transform),
+    onHit: () => game.takeHit(),
+    onHealth: (id, health) => game.setRemoteHealth(id, health),
+    onRevive: () => game.reviveLocal(),
+    onPeerEscaped: (id) => game.markEscaped(id),
+    onWiped: () => game.endWiped(),
     onStatus: (status) => console.info('[net]', status),
   });
 
@@ -111,18 +119,23 @@ async function boot(): Promise<void> {
       set({ screen: 'escaped' });
     },
     onPlayerCountChange: (count) => set({ players: count }),
+    onHealthChange: (health) => set({ health }),
+    onWiped: () => {
+      input.releasePointerLock();
+      set({ screen: 'wiped' });
+    },
   });
 
   function enterRun(mapId: string, seed: number, slot = 0): void {
     game.start(mapId, seed, slot);
-    set({ screen: 'run', promptVerbKey: null, holdProgress: 0, hint: null });
+    set({ screen: 'run', promptVerbKey: null, holdProgress: 0, hint: null, health: 'healthy' });
     input.requestPointerLock();
   }
 
   function leaveRun(): void {
     game.end();
     input.releasePointerLock();
-    set({ screen: 'menu', promptVerbKey: null, holdProgress: 0, hint: null, players: 1 });
+    set({ screen: 'menu', promptVerbKey: null, holdProgress: 0, hint: null, players: 1, health: 'healthy' });
   }
 
   /* --- screens ------------------------------------------------------------ */

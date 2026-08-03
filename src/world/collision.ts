@@ -74,6 +74,46 @@ export class CollisionWorld {
   }
 
   /**
+   * Line of sight between two points. Walls and CLOSED doors block it - a door
+   * disables its collider as it swings, so an opening door reveals you.
+   *
+   * Sampled rather than swept: at `step` well under the thinnest wall it cannot
+   * miss one, and it stays a handful of point tests per target per tick.
+   */
+  segmentClear(x0: number, z0: number, x1: number, z1: number, step = 0.25): boolean {
+    const distance = Math.hypot(x1 - x0, z1 - z0);
+    const samples = Math.ceil(distance / step);
+    for (let i = 1; i < samples; i++) {
+      const t = i / samples;
+      if (this.contains(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t)) return false;
+    }
+    return true;
+  }
+
+  /** Whether a point is inside any enabled collider. */
+  contains(x: number, z: number): boolean {
+    const cx = Math.floor(x / this.#cellSize);
+    const cz = Math.floor(z / this.#cellSize);
+
+    for (let gz = cz - 1; gz <= cz + 1; gz++) {
+      for (let gx = cx - 1; gx <= cx + 1; gx++) {
+        const bucket = this.#buckets.get(`${gx},${gz}`);
+        if (!bucket) continue;
+        for (const collider of bucket) {
+          if (!collider.enabled) continue;
+          // A hair of radius, because the push-out tests treat "exactly touching"
+          // as clear and a zero radius would never register a hit at all.
+          const hit = collider.kind === 'box'
+            ? pushOutBox(x, z, 1e-3, collider)
+            : pushOutCircle(x, z, 1e-3, collider);
+          if (hit) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
    * Pushes a circle out of anything it overlaps. Called after integration, so
    * sliding along walls falls out naturally rather than needing a special case.
    */

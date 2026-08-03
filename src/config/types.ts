@@ -20,12 +20,15 @@ export interface PlayerConfig {
     standHeight: number;
     crouchHeight: number;
     eyeHeightOffset: number;
+    /** Camera height while downed - you are on the floor, looking up. */
+    downedEyeHeight: number;
     heightLerpSpeed: number;
   };
   movement: {
     walkSpeed: number;
     sprintSpeed: number;
     crouchSpeed: number;
+    injuredSpeedMultiplier: number;
     acceleration: number;
     deceleration: number;
   };
@@ -40,6 +43,109 @@ export interface PlayerConfig {
     holdCancelOnLookAway: boolean;
     lookAwayGraceSeconds: number;
   };
+  health: {
+    reviveHoldSeconds: number;
+    reviveRange: number;
+    revivedToState: HealthState;
+    invulnerableSecondsAfterHit: number;
+    invulnerableSecondsAfterRevive: number;
+  };
+  /** Noise emitters. `radius` is where the enemy may perceive it - see EnemyConfig.hearing. */
+  noise: {
+    footstepIntervalWalk: number;
+    footstepIntervalSprint: number;
+    footstepIntervalCrouch: number;
+  } & Record<string, NoiseSpec | number>;
+  effects: {
+    heartbeatStartDistance: number;
+    heartbeatMaxDistance: number;
+    vignetteInjuredIntensity: number;
+    vignetteDownedIntensity: number;
+    chaseDistortionIntensity: number;
+    damageFlashSeconds: number;
+  };
+}
+
+export type HealthState = 'healthy' | 'injured' | 'downed' | 'dead';
+
+export interface NoiseSpec {
+  radius: number;
+  loudness: number;
+}
+
+export interface EnemyArchetype {
+  displayNameKey: string;
+  artId: string;
+  body: { radius: number; height: number; hoverHeight: number };
+  movement: {
+    patrolSpeed: number;
+    searchSpeed: number;
+    chaseSpeed: number;
+    turnRateDegreesPerSecond: number;
+    acceleration: number;
+    injuredPlayerSlowdownSeconds: number;
+    injuredPlayerSlowdownMultiplier: number;
+  };
+  doors: {
+    openSeconds: number;
+    openSecondsWhenChasing: number;
+    canOpenLockedDoors: boolean;
+    closesDoorsBehind: boolean;
+  };
+  sight: {
+    range: number;
+    fovDegrees: number;
+    requiresLineOfSight: boolean;
+    crouchedTargetRangeMultiplier: number;
+    darknessRangeMultiplier: number;
+    timeToAcquireSeconds: number;
+    timeToLoseSeconds: number;
+  };
+  hearing: {
+    rangeMultiplier: number;
+    hearingMultiplier: number;
+    threshold: number;
+    voiceRoomLimit: number;
+    positionJitterMetres: number;
+  };
+  attack: {
+    range: number;
+    cooldownSeconds: number;
+    windupSeconds: number;
+    healthyResult: HealthState;
+    injuredResult: HealthState;
+    ignoresDownedPlayers: boolean;
+  };
+  patrol: {
+    preferUnvisitedWeight: number;
+    recentVisitDecaySeconds: number;
+    idleAtWaypointSeconds: [number, number];
+    waypointsPerRoom: number;
+    preferRoomsNearLastNoiseWeight: number;
+  };
+  search: {
+    durationSeconds: number;
+    roomsToSearch: number;
+    lockerSearchChance: number;
+    lockerSearchSeconds: number;
+    investigateNoiseRadius: number;
+    giveUpToPatrolSeconds: number;
+  };
+  spawn: {
+    minRoomDistanceFromPlayers: number;
+    requiresUnlockedPathToPlayers: boolean;
+    count: number;
+  };
+  alert: {
+    levels: string[];
+    suspiciousDecaySeconds: number;
+    alertedDecaySeconds: number;
+  };
+}
+
+export interface EnemyConfig {
+  defaultArchetype: string;
+  archetypes: Record<string, EnemyArchetype>;
 }
 
 export interface WorldConfig {
@@ -147,6 +253,7 @@ export interface Config {
   game: GameConfig;
   player: PlayerConfig;
   world: WorldConfig;
+  enemy: EnemyConfig;
   items: ItemsConfig;
   graphics: GraphicsConfig;
   input: InputConfig;

@@ -6,7 +6,7 @@ room blueprint **metadata only** (see [`../art/ROOM_FORMAT.md`](../art/ROOM_FORM
 ## Contract
 
 ```
-generate(mapId, seed, config) → RunLayout
+generate(mapId, seed, world, blueprints, enemySpawn) → RunLayout
 ```
 
 Pure and deterministic. Same inputs → identical output on every peer, which is why
@@ -15,12 +15,13 @@ the network only ships `(mapId, seed)` instead of the map.
 ```ts
 interface RunLayout {
   grid: { width: number; height: number; cellSize: number };
-  rooms: PlacedRoom[];      // blueprintId, origin cell, door mask, lock region
+  rooms: PlacedRoom[];      // blueprintId, origin cell, door mask, lock region, patrol points
   doors: PlacedDoor[];      // between two rooms; locked
   containers: PlacedContainer[];  // chests + lockers, world transforms; chests carry contents
   items: PlacedItem[];      // world items with a rolled (or key-forced) item id
   playerSpawns: Placed[];
   exitCell: [number, number];
+  enemySpawn: { cell: [number, number]; position: [number, number] };
 }
 ```
 
@@ -29,6 +30,10 @@ Keys need no id: one key opens one locked door, whichever it is
 the keys are, which is step 5 below.
 
 Nothing in `RunLayout` is a `THREE` object. `render/` builds geometry lazily from it.
+
+Each `PlacedRoom` also carries its blueprint's `patrolPoint` anchors resolved into
+world space (falling back to the room centre). That is how `src/ai/` gets somewhere
+to walk without ever touching art — see [`AI.md`](AI.md).
 
 ## Pipeline
 
@@ -70,10 +75,16 @@ means the slot stays bare. If the map ends up with fewer than
 `contents.chests.mapTotalMin` chests, unused chest anchors are topped up. Key
 placements (below) override whatever a slot rolled.
 
-**7 — Place the enemy.** *(not built yet — plan step 17)*
-An `enemySpawn` anchor in a room ≥ `enemy.json → spawn.minRoomDistanceFromPlayers`
-rooms from the player spawn, which has a path to the players crossing **no locked
-door** (`spawn.requiresUnlockedPathToPlayers`).
+**7 — Place the enemy.**
+A room chosen from those ≥ `enemy.json → spawn.minRoomDistanceFromPlayers` rooms
+from the player spawn, measured by breadth-first walk over the **final** door set
+with locked edges blocked — so the path back to the players crosses no locked door
+(`spawn.requiresUnlockedPathToPlayers`) by construction. It stands on that room's
+first patrol point. If no room is far enough it takes the furthest one it can
+reach and warns.
+
+The `spawn` block is passed into `generate()` as a parameter rather than read from
+a second config file, so generation still reads exactly one: `world.json`.
 
 **8 — Validate.** *(not built yet)*
 Per `validation.*`. Solvability is currently **structural** rather than checked:
@@ -121,8 +132,8 @@ be stuck**. That is a property of the ordering, not of a post-hoc check.
 ## Determinism rules
 
 - One seeded RNG, split into named sub-streams (`layout`, `placement`,
-  `blueprints`, `contents`, `loot`, `keys`, per-room `art`) so adding a loot roll
-  cannot shift the maze layout.
+  `blueprints`, `contents`, `loot`, `keys`, `enemySpawn`, per-room `art`) so adding
+  a loot roll cannot shift the maze layout.
 - Never iterate a `Set` or object key order to make a decision; sort first.
 - Peers are assumed to share a build and a `config/`. Detecting a mismatch is a
   future addition, not something to build now.

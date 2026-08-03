@@ -359,6 +359,72 @@ body {
   color: var(--c-text-dim);
 }
 
+.hud__status {
+  position: absolute;
+  bottom: 1.6rem;
+  left: 1.6rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+  text-shadow: 0 2px 8px #000;
+}
+
+.hud__status--injured {
+  color: var(--c-warn);
+}
+
+.hud__status--downed {
+  color: var(--c-bad);
+}
+
+.hud__downed {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.18em;
+  color: var(--c-bad);
+  text-shadow: 0 2px 12px #000;
+}
+
+/* --- horror feedback layer ----------------------------------------------- */
+/* Owned by src/render/feedback.ts. Full-screen blends only - see its header. */
+
+.fx {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.fx__alert,
+.fx__vignette,
+.fx__flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+
+/* Edge wash: the alert colour never covers the middle of the screen. */
+.fx__alert {
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 35%, #000 100%);
+  mask-image: radial-gradient(ellipse at center, transparent 35%, #000 100%);
+  transition: background var(--transition);
+}
+
+.fx__vignette {
+  background: radial-gradient(ellipse at center, transparent 25%, #000 105%);
+}
+
+.fx__flash {
+  background: radial-gradient(ellipse at center, #a8323255 0%, #a83232cc 100%);
+}
+
 /* --- boot / fatal error surface ------------------------------------------ */
 
 .boot {

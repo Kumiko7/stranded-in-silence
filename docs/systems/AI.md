@@ -6,6 +6,21 @@ Owner: `src/ai/`. Config: `config/enemy.json` (per archetype). Art contract:
 Runs **on the host only**. Clients receive the enemy's transform and alert level in
 snapshots and interpolate. See [`NETWORKING.md`](NETWORKING.md).
 
+## The files
+
+| File | Owns |
+| --- | --- |
+| `noiseBus.ts` | `NoiseEvent`, the one-tick bus, and the lookup into `player.json → noise` |
+| `roomGraph.ts` | The run's rooms as a graph, A\* over it, `roomsWithin`, `roomDistance` |
+| `perception.ts` | `look()` (sight cone + LOS) and `listen()` (the bus + jitter) |
+| `enemy.ts` | `EnemyState`, the FSM, routing and steering |
+
+`enemy.ts` is plain data in, plain data out — no `THREE`, no DOM — like
+`stepPlayer()`, so it survives the move to an authoritative simulation unchanged.
+It reaches the world only through the `EnemyContext` callbacks it is handed
+(`openDoor`, `attack`, `searchLocker`), which is what keeps replication in
+`src/game/Game.ts` rather than in the AI.
+
 ## State machine
 
 ```
@@ -42,19 +57,31 @@ Target is seen when **all** hold:
 
 1. distance ≤ `range`, scaled by `crouchedTargetRangeMultiplier` if the target is
    crouching and `darknessRangeMultiplier` if the target is standing in an unlit area
-   (rooms light themselves; players carry no light)
+   (rooms light themselves; players carry no light — "unlit" is simply *no room lamp
+   within 0.6 cells*, which is all the lighting information the sim has or needs)
 2. within `fovDegrees` of facing
-3. line of sight is clear (`requiresLineOfSight`) — raycast against the static
-   collision set plus closed doors
+3. line of sight is clear (`requiresLineOfSight`) — `CollisionWorld.segmentClear()`
+   samples the segment against the static collision set plus closed doors. A door
+   drops its collider at half swing, so an opening door reveals you
 4. conditions have held for `timeToAcquireSeconds`
 
 Lost after `timeToLoseSeconds` of failing them. A player inside a locker is never
-seen.
+seen — but see `SEARCH` below, because that is not the same as being safe.
 
 ### Hearing — the noise bus
 
 Every noisy action emits `{ position, radius, loudness, sourcePlayerId, kind }`.
 Emitter values live in `config/player.json → noise` and `config/items.json`.
+
+Emitters (all in `src/game/Game.ts`, which is the only place that knows *when*):
+footsteps at `noise.footstepInterval*` while moving, `doorOpen` on opening a door
+and `doorSlam` on closing one, `chestOpen`, `lockerEnter`, `itemDrop`, and
+`injured` — which **replaces** the footstep of an injured player, so limping is
+both slower and much louder. Voice joins with plan step 28.
+
+Every peer emits its own noise and broadcasts it; the host feeds every peer's
+events into one bus (see [`NETWORKING.md`](NETWORKING.md)). Events live for exactly
+one tick — the enemy reacts or they are gone, so nothing ages or expires.
 
 The enemy hears an event when:
 
@@ -80,16 +107,39 @@ Two levels, matching how the world is built:
 2. **Within a room**, steer between the room's `patrolPoint` anchors and doorway
    centres, with circle-vs-collider avoidance.
 
+A route is expanded into waypoints as `door → room centre → door → … → finish`.
+The room centres matter: without them the enemy cuts straight from one doorway
+toward the next and scrapes along the walls between them. Brushing a wall is
+normal — it slides. Only after being pinned with no progress for 0.7 s does it
+abandon a waypoint and re-plan, which is what stops a doorway corner from
+cancelling every route.
+
 This is cheap, gives fully controllable behaviour ("search a nearby room" is one
 graph query), and needs no navmesh baking. Doors cost
 `doors.openSeconds` (or `openSecondsWhenChasing`) of standing still — the single
-most important balance lever in the game.
+most important balance lever in the game. A locked door is `Infinity` in the graph
+unless `doors.canOpenLockedDoors`, so keys gate the enemy exactly as they gate you.
+
+## Attacking
+
+`ATTACK` fires `EnemyContext.attack(targetId)`. The AI does not own health: the
+named player applies their own ladder (`src/entities/health.ts`) and broadcasts the
+result. Healthy → injured, injured → downed, and a downed player is then ignored
+while `attack.ignoresDownedPlayers` holds. `health.invulnerableSecondsAfterHit`
+stops one catch chaining straight into the next, and
+`movement.injuredPlayerSlowdownSeconds` is the window the design promises you after
+being hit.
+
+Catching someone in a locker is the same call: `SEARCH` rolls
+`search.lockerSearchChance` per locker in the room, walks to it, waits
+`search.lockerSearchSeconds`, throws it open, and attacks whoever is inside.
+Lockers hide you from sight, not from a search.
 
 ## Spawning
 
-See [`GENERATION.md`](GENERATION.md) step 7. Guarantees:
-≥ `spawn.minRoomDistanceFromPlayers` rooms away, and a locked-door-free path to the
-players.
+See [`GENERATION.md`](GENERATION.md). Guarantees, verified over 200 seeds:
+≥ `spawn.minRoomDistanceFromPlayers` rooms away measured over the real door graph,
+and a locked-door-free path to the players.
 
 ## Adding a second enemy archetype
 

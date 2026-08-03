@@ -11,6 +11,8 @@
  * plan steps 25-27 - see docs/systems/NETWORKING.md.
  */
 import Peer, { type DataConnection } from 'peerjs';
+import type { NoiseKind } from '@/ai/noiseBus';
+import type { HealthState } from '@/config/types';
 
 /** Namespaced so a 6-character code cannot collide with another app on the public server. */
 const PEER_PREFIX = 'stranded-in-silence-';
@@ -20,19 +22,38 @@ export interface PlayerTransform {
   z: number;
   yaw: number;
   height: number;
+  /** Hidden players cannot be seen by the enemy - but a searched locker finds them. */
+  hiding: boolean;
+  health: HealthState;
+}
+
+/** The enemy runs on the host; everyone else just receives this. */
+export interface EnemyTransform {
+  x: number;
+  z: number;
+  yaw: number;
+  alert: string;
 }
 
 export type NetMessage =
   | { t: 'welcome'; id: string; host: string; slot: number; mapId: string; seed: number; peers: string[] }
   | { t: 'join'; id: string }
   | { t: 'leave'; id: string }
-  | { t: 'move'; id: string; x: number; z: number; yaw: number; height: number }
+  | { t: 'move'; id: string; x: number; z: number; yaw: number; height: number; hiding: boolean; health: HealthState }
   | { t: 'door'; id: string; open: boolean }
   | { t: 'unlock'; id: string }
   | { t: 'chest'; id: string }
   | { t: 'take'; id: string }
   | { t: 'drop'; id: string; itemId: string; x: number; y: number; z: number }
-  | { t: 'escaped'; id: string };
+  | { t: 'escaped'; id: string }
+  /** Any peer may emit noise; the host feeds it all into one bus. */
+  | { t: 'noise'; id: string; kind: NoiseKind; x: number; z: number }
+  | { t: 'enemy'; x: number; z: number; yaw: number; alert: string }
+  /** Host -> the player it caught. They apply their own health ladder and echo it. */
+  | { t: 'hit'; id: string }
+  | { t: 'health'; id: string; state: HealthState }
+  | { t: 'revive'; id: string }
+  | { t: 'wiped' };
 
 export type NetRole = 'offline' | 'host' | 'client';
 
@@ -47,6 +68,14 @@ export interface NetEvents {
   onChestOpened(chestId: string): void;
   onItemTaken(id: string): void;
   onItemDropped(id: string, itemId: string, x: number, y: number, z: number): void;
+  onNoise(id: string, kind: NoiseKind, x: number, z: number): void;
+  onEnemy(transform: EnemyTransform): void;
+  /** The host caught this browser's player. */
+  onHit(): void;
+  onHealth(id: string, state: HealthState): void;
+  onRevive(id: string): void;
+  onPeerEscaped(id: string): void;
+  onWiped(): void;
   onStatus(status: string): void;
 }
 
@@ -219,7 +248,27 @@ export class Net {
       case 'drop':
         this.#events.onItemDropped(message.id, message.itemId, message.x, message.y, message.z);
         break;
+      case 'noise':
+        this.#events.onNoise(message.id, message.kind, message.x, message.z);
+        break;
+      case 'enemy':
+        this.#events.onEnemy(message);
+        break;
+      case 'hit':
+        // Addressed, not broadcast: only the caught player applies it.
+        if (message.id === this.selfId) this.#events.onHit();
+        break;
+      case 'health':
+        this.#events.onHealth(message.id, message.state);
+        break;
+      case 'revive':
+        if (message.id === this.selfId) this.#events.onRevive(message.id);
+        break;
+      case 'wiped':
+        this.#events.onWiped();
+        break;
       case 'escaped':
+        this.#events.onPeerEscaped(message.id);
         break;
     }
 

@@ -5,10 +5,11 @@
  * No user-visible string here is a literal - every one is a t() key.
  */
 import { useEffect, useState } from 'preact/hooks';
+import type { HealthState } from '@/config/types';
 import { t } from '@/i18n/index';
 import { MainMenu } from './screens/MainMenu';
 
-export type Screen = 'menu' | 'run' | 'paused' | 'escaped';
+export type Screen = 'menu' | 'run' | 'paused' | 'escaped' | 'wiped';
 
 export interface UiState {
   screen: Screen;
@@ -28,6 +29,7 @@ export interface UiState {
   useRightKey: string;
   /** Transient objective line, e.g. "This door needs a key." */
   hint: string | null;
+  health: HealthState;
 }
 
 export interface UiCallbacks {
@@ -83,11 +85,11 @@ export function App({
     );
   }
 
-  if (state.screen === 'escaped') {
+  if (state.screen === 'escaped' || state.screen === 'wiped') {
     return (
       <div class="overlay">
         <div class="overlay__panel">
-          <h2 class="overlay__title">{t('run.escaped')}</h2>
+          <h2 class="overlay__title">{t(state.screen === 'escaped' ? 'run.escaped' : 'run.wiped')}</h2>
           <button class="btn btn--primary" onClick={callbacks.onLeave}>
             {t('scoreboard.continue')}
           </button>
@@ -125,6 +127,12 @@ function Hud({ state }: { state: UiState }) {
       )}
 
       {state.hint && <div class="hud__hint">{t(state.hint)}</div>}
+
+      {state.health === 'downed' && <div class="hud__downed">{t('run.downedHint')}</div>}
+
+      {state.health !== 'healthy' && (
+        <div class={`hud__status hud__status--${state.health}`}>{t(`hud.status.${state.health}`)}</div>
+      )}
 
       <div class="hud__hands">
         <HandSlot nameKey={state.hands.left} useKey={state.useLeftKey} />

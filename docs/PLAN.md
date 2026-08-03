@@ -16,24 +16,25 @@ anything that was not asked for.
 
 ---
 
-## Where it is right now — Slice 2: keys, containers and the inventory
+## Where it is right now — Slice 3: the hunter
 
-Slice 1 gave a walkable, multiplayer, procedurally generated map. Slice 2 makes a
-run something you have to *solve*:
+Slice 1 gave a walkable, multiplayer, procedurally generated map. Slice 2 made a
+run something you have to *solve*. Slice 3 makes it something you can lose:
 
-- **Locked doors** that genuinely gate the exit — `doors.lockedDoorCount` of them,
-  with loops never allowed to run around one
-- **Keys** placed so the key for each lock is always reachable before that lock, so
-  a run can never be unwinnable (verified over 400 seeds)
-- **Chests** — hold `E`, slow, and they hold most of the keys
-- **Lockers** — press `E` to hide inside, `E` again to step out
-- **Two-hand inventory** — pick up with `E`, use with LMB / RMB, drop with `Q` / `F`,
-  and picking up a third item drops one
-- Hand slots, hold ring and a "this door needs a key" hint in the HUD
-- Unlocks, chest openings and item pickup/drop replicated to peers
+- **The noise bus** — footsteps, doors, slams, chests, lockers and drops all emit
+  into one bus, distance-only, one tick long. Every peer emits, the host listens.
+- **The ghost** — patrols by staleness, investigates noise, sweeps rooms, opens
+  lockers, chases on sight and attacks. Waits `doors.openSeconds` at every closed
+  door and cannot pass a locked one at all: doors are the whole tactical layer.
+- **Injury** — healthy → injured → downed, injured is slower and much louder,
+  downed is immobile, hold `E` on a teammate to revive them to injured.
+- **The warning layer** — the ghost burns a different colour per alert level and
+  carries that light with it; the screen answers with an edge wash, a heartbeat
+  that ramps with proximity, a damage flash and health vignettes.
+- **Wipe** — everyone down ends the run.
+- Enemy transform, alert level, noise, hits, health and revives replicated.
 
-Still missing from slice 1's list: enemy, item roster beyond the key, voice chat,
-lobby, audio.
+Still missing: item roster beyond the key, voice chat, lobby, audio, scoreboard.
 
 Because these are slices rather than a sequence of finished steps, several steps
 below are `◐` — the part the slice needed is done, the rest is not. Each one lists
@@ -63,12 +64,12 @@ what is still missing.
 **Done when:** state transitions are driven by events and logged; RNG produces identical sequences for identical seeds.
 **Still missing:** the game state machine is ad-hoc in `main.tsx`; `EventBus` exists but nothing uses it; no service registry. Seeded RNG with named streams is done.
 
-### ◐ 4. Renderer + lighting rig
+### ☑ 4. Renderer + lighting rig
 **Goal:** the horror look, fully config-driven.
 **Touches:** `src/render/{Renderer,cameraRig,lighting,postfx,materialCache}.ts`.
 **Details:** WebGLRenderer + tone mapping + fog + ambient from `config/graphics.json`; the `minAmbientFloor` guarantee; a minimal effect layer carrying **only** the gameplay feedback the design calls for (enemy alert state, heartbeat proximity, damage flash, injured/downed vignette). No flashlight, no quality tiers, no general post stack — see [`ARCHITECTURE.md`](ARCHITECTURE.md) "Deliberately NOT built".
 **Done when:** the scene is dark but navigable on room lighting alone, with no player-held light.
-**Still missing:** the gameplay-feedback effect layer (alert state, heartbeat, damage flash). Renderer, ambient/fog from config, nearest-N light activation and distance culling are done. Light values in config are real three.js units — the renderer applies no hidden scaling.
+**Still missing:** nothing for now. Renderer, ambient/fog from config, nearest-N light activation, distance culling and the gameplay-feedback layer (`renderer.feedback`, step 21) are done. Light values in config are real three.js units — the renderer applies no hidden scaling.
 
 ### ◐ 5. Input system
 **Goal:** raw devices → action ids, rebindable.
@@ -109,7 +110,7 @@ the simulation is written host-authoritative from the start.*
 **Touches:** `src/world/generation.ts`.
 **Details:** the full pipeline in [`systems/GENERATION.md`](systems/GENERATION.md) — 1×1 slots, spanning tree + loops, blueprint assignment by door mask, spawn/exit placement, locked doors + key placement in the still-reachable region, content rolls, validation and re-roll.
 **Done when:** the same seed always produces the same map; 500 generated maps all pass validation; a debug top-down view renders the layout.
-**Still missing:** the validation/re-roll pass, the enemy spawn, and the debug map view. Connection, blueprint assignment, spawn/exit placement, per-seed determinism, locked doors, lock regions, room contents and key placement are done — solvability is structural (see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys") and was checked over 400 seeds.
+**Still missing:** the validation/re-roll pass and the debug map view. Connection, blueprint assignment, spawn/exit placement, per-seed determinism, locked doors, lock regions, room contents, key placement, per-room patrol points and the enemy spawn are done — solvability is structural (see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys") and was checked over 400 seeds; the enemy spawn guarantee was checked over 200.
 
 ### ◐ 10. Room streaming + world assembly
 **Goal:** turn a `RunLayout` into a walkable 3D world.
@@ -150,50 +151,51 @@ the simulation is written host-authoritative from the start.*
 **Touches:** `src/world/generation.ts`, `src/game/Game.ts`.
 **Details:** key item unlocks a door and is consumed, exit door hold completes the run, win/lose evaluation per [`GAMEPLAY.md §6`](GAMEPLAY.md).
 **Done when:** you can play a full solo run from spawn to escape.
-**Still missing:** win/lose evaluation — there is no `runState.ts`, and no enemy to lose to yet. A full solo run from spawn through two locked doors to the exit is playable.
+**Still missing:** the scoreboard (step 36). A full solo run from spawn through two locked doors to the exit is playable, and `src/world/runState.ts` now resolves escape and wipe.
 
-### ☐ 16. Noise bus
+### ◐ 16. Noise bus
 **Goal:** the spine described in [`ARCHITECTURE.md §8`](ARCHITECTURE.md).
-**Touches:** `src/ai/noiseBus.ts`, emitters across `src/entities/`.
-**Details:** `{ position, radius, loudness, kind, sourceId }` events from footsteps, doors, chests, item drops, later voice. Debug visualiser.
-**Done when:** a debug overlay shows noise pulses with correct radii from every emitter.
+**Touches:** `src/ai/noiseBus.ts`, emitters in `src/game/Game.ts`.
+**Details:** `{ x, z, radius, loudness, kind, sourceId }` events from footsteps, doors, slams, chests, lockers and item drops, all replicated so the host hears every peer. Events live one tick.
+**Still missing:** voice (step 28), thrown items (step 37), and the debug visualiser. Emitters, the bus, config lookup and replication are done.
 
-### ☐ 17. Enemy: navigation and patrol
+### ☑ 17. Enemy: navigation and patrol
 **Goal:** something walks the map.
-**Touches:** `src/ai/{navigation,roomGraph,pathfinding}.ts`, `src/ai/states/patrol.ts`, `art/shared/characters/ghost.ts`.
-**Details:** room-graph A\* with door costs, within-room steering between `patrolPoint` anchors, unvisited-room weighting, door opening delays.
-**Done when:** the ghost roams a full map without getting stuck, preferring rooms it has not recently visited.
+**Touches:** `src/ai/{roomGraph,enemy}.ts`, `art/shared/characters/ghost.ts`, `src/world/generation.ts`.
+**Details:** room-graph A\* with door-time costs and locked doors as `Infinity`; routes expand to `door → room centre → … → finish`; patrol rooms weighted by staleness; doors cost real standing-still time.
+**Done when:** the ghost roams a full map without getting stuck, preferring rooms it has not recently visited. *Verified: 20 s of patrol crossed four rooms through two closed doors with no stuck ticks.*
 
-### ☐ 18. Enemy: perception
+### ☑ 18. Enemy: perception
 **Goal:** it notices you.
-**Touches:** `src/ai/perception/{sight,hearing}.ts`.
-**Details:** sight cone + LOS raycast + acquire/lose timers + crouch and darkness modifiers; hearing against the noise bus with door attenuation and position jitter, per [`systems/AI.md`](systems/AI.md).
-**Done when:** a debug overlay shows the sight cone and heard-noise markers, and both respect their config values.
+**Touches:** `src/ai/perception.ts`, `src/world/collision.ts` (`segmentClear`).
+**Details:** sight cone + sampled LOS + acquire/lose timers + crouch and darkness modifiers; hearing off the noise bus with position jitter. Darkness is "no room lamp within 0.6 cells" — the only lighting fact the sim has.
+**Done when:** both senses respect their config values. *Verified: acquires on sight in under 2 s; a `chestOpen` 12 m away flips it to `investigate`.* The debug overlay for the cone is still missing.
 
-### ☐ 19. Enemy: chase, search, attack
+### ☑ 19. Enemy: chase, search, attack
 **Goal:** the full state machine.
-**Touches:** `src/ai/states/{investigate,search,chase,attack}.ts`, `src/ai/enemy.ts`.
-**Details:** the FSM in [`systems/AI.md`](systems/AI.md), including locker searching, the post-attack slowdown window, and ignoring downed players.
-**Done when:** it hunts you, loses you, searches convincingly, and returns to patrol.
+**Touches:** `src/ai/enemy.ts`.
+**Details:** the FSM in [`systems/AI.md`](systems/AI.md), including locker searching, the post-attack slowdown window, and ignoring downed players. States live in one file rather than `states/` — five small functions did not warrant five modules.
+**Done when:** it hunts you, loses you, searches convincingly, and returns to patrol. *Verified end to end: patrol → investigate → search → patrol, and sight → chase → attack.*
 
-### ☐ 20. Health, downing and revive
+### ◐ 20. Health, downing and revive
 **Goal:** stakes.
-**Touches:** `src/entities/player/health.ts`, `src/world/runState.ts`.
-**Details:** healthy → injured → downed ladder, injured speed/noise penalties, downed immobility, hold-E revive to injured, give-up → dead, invulnerability windows, lose condition.
-**Done when:** the enemy can injure and down you, and a second (debug) player can revive you.
+**Touches:** `src/entities/health.ts`, `src/world/runState.ts`.
+**Details:** healthy → injured → downed ladder, injured speed and noise penalties, downed immobility and camera drop, hold-E revive to injured, invulnerability windows, lose condition.
+**Still missing:** give-up → dead → spectate (step 39). The ladder, penalties, revive, invulnerability and the wipe condition are done.
 
-### ☐ 21. Horror feedback layer
+### ◐ 21. Horror feedback layer
 **Goal:** the player always knows how much trouble they are in.
-**Touches:** `src/render/postfx/effects.ts`, `art/shared/vfx/`, `src/audio/` hooks.
-**Details:** distinct visuals for patrolling / alerted / chasing, heartbeat + distortion ramping between `effects.heartbeatStartDistance` and `heartbeatMaxDistance`, damage flash, injured and downed vignettes. Keep it to exactly these — no general post-processing stack.
-**Done when:** each alert level and proximity band is unmistakable without reading any text.
+**Touches:** `src/render/feedback.ts`, `art/shared/characters/ghost.ts`.
+**Details:** the ghost's own alert colour (eyes, halo and the light it carries) plus a screen layer: alert edge wash, heartbeat ramping between `effects.heartbeatStartDistance` and `heartbeatMaxDistance` with a lens push, damage flash, injured and downed vignettes.
+**Note:** built as a DOM compositing layer, not a three.js post stack — see [`ARCHITECTURE.md §10`](ARCHITECTURE.md). Every effect the design asks for is a full-screen blend.
+**Still missing:** the audio half (step 34). All visuals are done.
 
 ### ◐ 22. HUD
 **Goal:** the in-game interface.
 **Touches:** `src/ui/hud/*`.
 **Details:** every element in [`systems/UI.md`](systems/UI.md) — crosshair, hand slots, health vignette, teammate list, voice indicator, objective hints. Plain DOM, config-toggleable.
 **Done when:** all elements update correctly and each can be disabled from `config/ui.json`.
-**Still missing:** health vignette, teammate list, voice indicator, per-element `config/ui.json → hud` toggles, and the move out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots and the objective hint render from `src/ui/App.tsx`.
+**Still missing:** teammate list, voice indicator, per-element `config/ui.json → hud` toggles, and the move out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots, the objective hint and the health state line render from `src/ui/App.tsx`; the health vignette is the feedback layer's (step 21).
 
 **Milestone: a complete single-player run is playable end to end.**
 
@@ -229,11 +231,11 @@ the simulation is written host-authoritative from the start.*
 **Done when:** two players cannot dupe an item, and door state is consistent for all four.
 **Still missing:** all of the authority. Unlocks, chest openings and item pickup/drop are broadcast and trusted, exactly like doors — two players can still take the same item. Deterministic item ids (`item:x,y:i`, `chest:x,y:i:loot`, `drop:<peer>:<n>`) are in place, so adding host arbitration is a change of who decides, not of what is sent.
 
-### ☐ 27. Networked enemy and run state
+### ◐ 27. Networked enemy and run state
 **Goal:** the hunter is shared.
-**Touches:** `src/net/replication/enemy.ts`, `src/world/runState.ts`.
-**Details:** AI on host only, enemy transform + alert level in snapshots, networked injure/down/revive/escape, win and lose resolution, disconnect handling per [`systems/NETWORKING.md`](systems/NETWORKING.md).
-**Done when:** a full 4-player run resolves correctly in win, wipe and partial-escape cases.
+**Touches:** `src/net/index.ts`, `src/world/runState.ts`.
+**Details:** AI on host only, enemy transform + alert level replicated at `snapshotRateHz`, networked noise/injure/down/revive/escape, win and lose resolution.
+**Still missing:** verification with real peers — the enemy, noise, hit, health, revive and wipe messages are implemented and typed but have only been exercised solo (offline counts as host). Disconnect handling beyond removing the peer from `RunState` is not built.
 
 ### ☐ 28. Proximity voice chat
 **Goal:** the reason the game works.
@@ -327,4 +329,5 @@ the simulation is written host-authoritative from the start.*
 | 2026-08-02 | Plan created. Step 1 complete. |
 | 2026-08-02 | Scope trim to match the original spec: removed the player flashlight, stamina, sound/voice occlusion, backpedal and strafe penalties, graphics quality tiers, the general post-processing stack, accessibility settings, peer config-hash checking and reconnect grace. Added `world.json → containers` hold timings for chests and lockers. |
 | 2026-08-02 | **Slice 1 playable**: menu with lobby code / join / start, PeerJS multiplayer, generated 6×6 map from the test art pack, first-person movement with collision, door interaction, exit-door escape. Steps 7, 11, 12 done; 2–6, 8–10, 13, 23–25 partially. Signalling server deferred to step 23 (PeerJS public server for now), so `ws`/`tsx`/`concurrently` deps and the `signal` scripts were removed. |
+| 2026-08-03 | **Slice 3 playable**: the hunter. Noise bus, room-graph A\*, sight and hearing, the full patrol/investigate/search/chase/attack FSM, the health ladder with revive, the wipe condition and the horror feedback layer. Steps 17, 18, 19 done; 4 finished; 16, 20, 21, 27 advanced. Two decisions worth knowing: the feedback layer is a **DOM compositing layer**, not an `EffectComposer` post stack (every effect the design asks for is a full-screen blend — see [`ARCHITECTURE.md §10`](ARCHITECTURE.md)), and the FSM lives in one `enemy.ts` rather than a `states/` folder. `generate()` now takes the enemy's `spawn` block as a parameter so generation still reads one config file, and `PlacedRoom` carries world-space patrol points. |
 | 2026-08-02 | **Slice 2 playable**: locked doors, keys, chests, lockers and the two-hand inventory. Generation now locks doors on the spanning-tree route *before* adding loops and forbids loops across a lock, which makes "always X locked doors, always enough keys" structural rather than checked — see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys". Steps 9, 13, 14, 15, 22, 26 advanced. `loot.chestTable` / `floorTable` were trimmed to `key` + `empty` until the item roster lands in step 37. |

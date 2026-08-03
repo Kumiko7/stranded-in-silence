@@ -45,5 +45,11 @@ export function createMaterials(): MaterialLibrary {
 
     playerBody: standard(0x6f7690),
     playerMask: () => new THREE.MeshStandardMaterial({ color: 0xd8d4c8, roughness: 0.6 }),
+
+    // The ghost clones both of these so it can tint per alert level without
+    // touching the shared cache - see art/shared/characters/ghost.ts.
+    ghostShroud: () =>
+      new THREE.MeshStandardMaterial({ color: 0x2f3648, roughness: 1, transparent: true, opacity: 0.82 }),
+    ghostAlert: () => new THREE.MeshStandardMaterial({ color: 0x39506b, emissive: 0x39506b, emissiveIntensity: 1 }),
   });
 }

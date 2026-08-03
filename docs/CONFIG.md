@@ -16,6 +16,8 @@ If you find yourself typing a number into logic, it belongs in a config file ins
 | How fast players walk / sprint / crouch | `player.json` | `movement.*` |
 | FOV, mouse sensitivity | `player.json` | `camera.*` |
 | Revive time, injured/downed rules | `player.json` | `health.*` |
+| Camera height while downed | `player.json` | `body.downedEyeHeight` |
+| How much slower an injured player is | `player.json` | `movement.injuredSpeedMultiplier` |
 | How loud sprinting / chests / voice are | `player.json` | `noise.*` |
 | Heartbeat + screen distortion distances | `player.json` | `effects.*` |
 | Enemy speed (patrol / search / chase) | `enemy.json` | `archetypes.<id>.movement.*` |

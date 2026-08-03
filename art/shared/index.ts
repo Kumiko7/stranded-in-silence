@@ -10,6 +10,7 @@ import { buildChest } from './props/chest';
 import { buildLocker } from './props/locker';
 import { buildKey } from './props/items/key';
 import { buildPlayer } from './characters/player';
+import { buildGhost } from './characters/ghost';
 
 export const sharedArt: ArtRegistry = {
   'door.standard': buildDoor,
@@ -18,6 +19,7 @@ export const sharedArt: ArtRegistry = {
   'locker.standard': buildLocker,
   'item.key': buildKey,
   'player.masked': buildPlayer,
+  'enemy.ghost': buildGhost,
 };
 
 export function resolveArt(artId: string, overrides?: ArtRegistry): ArtBuilder {
