@@ -67,8 +67,8 @@ a config change.
 | Crosshair | Small dot; size/opacity from config |
 | Interact prompt | Verb + key from `input.json`, hold ring for hold-interactions. Text via `t('hud.interact.*')` |
 | Hand slots | Two slots, left/right, item icon + name |
-| Health state | Vignette-driven by default (`mode: 'vignette-only'`) — no health bar |
-| Teammate list | Name, status, speaking indicator |
+| Health state | Vignette-driven by default (`mode: 'vignette-only'`) — no health bar. Your own state also reads off your line in the roster |
+| Teammate list | The **roster**, bottom left: every player as a heart (healthy / injured / downed, downed gets a flatline) with their name. Noise rings bloom off the heart whenever that player makes a sound — wider with the loudness, and **red** once the hunter is close enough to have heard it. A `loudness: 0` emitter draws nothing, because it genuinely is nothing. Speaking indicator lands with voice (step 28) |
 | Voice indicator | Current mode, transmitting state |
 | Objective hint | Transient line, e.g. "This door needs a key" |
 

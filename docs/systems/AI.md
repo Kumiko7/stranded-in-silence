@@ -75,9 +75,14 @@ Emitter values live in `config/player.json → noise` and `config/items.json`.
 
 Emitters (all in `src/game/Game.ts`, which is the only place that knows *when*):
 footsteps at `noise.footstepInterval*` while moving, `doorOpen` on opening a door
-and `doorSlam` on closing one, `chestOpen`, `lockerEnter`, `itemDrop`, and
-`injured` — which **replaces** the footstep of an injured player, so limping is
-both slower and much louder. Voice joins with plan step 28.
+and `doorSlam` on closing one, `chestOpen`, `lockerEnter` and `itemDrop`. Voice
+joins with plan step 28.
+
+Injury costs **speed, not stealth**: an injured player emits the same walk /
+sprint / crouch noise as a healthy one, so crouching while hurt is still worth
+doing. (`noise.injured` is therefore unused for now; it is kept for an emitter
+that wants it.) An emitter with `loudness: 0` is genuinely silent — it is not
+heard and it draws no ring on the roster HUD.
 
 Every peer emits its own noise and broadcasts it; the host feeds every peer's
 events into one bus (see [`NETWORKING.md`](NETWORKING.md)). Events live for exactly
@@ -105,7 +110,12 @@ Two levels, matching how the world is built:
 1. **Room graph A\*** over `RunLayout.roomGraph`. Edge cost includes a penalty for
    closed doors and infinity for locked ones (unless `doors.canOpenLockedDoors`).
 2. **Within a room**, steer between the room's `patrolPoint` anchors and doorway
-   centres, with circle-vs-collider avoidance.
+   centres, with circle-vs-collider avoidance. When the straight line to the goal
+   is blocked — a table between it and you mid-chase — it builds a tiny visibility
+   graph over that room's `patrolPoint` anchors and takes the cheapest one- or
+   two-hop detour, rather than pushing into the furniture. Those anchors are
+   already authored as "somewhere in this room you can stand", so no extra data is
+   asked of art. Recomputed at most every 0.3 s while a chase stays blocked.
 
 A route is expanded into waypoints as `door → room centre → door → … → finish`.
 The room centres matter: without them the enemy cuts straight from one doorway
@@ -132,8 +142,14 @@ being hit.
 
 Catching someone in a locker is the same call: `SEARCH` rolls
 `search.lockerSearchChance` per locker in the room, walks to it, waits
-`search.lockerSearchSeconds`, throws it open, and attacks whoever is inside.
-Lockers hide you from sight, not from a search.
+`search.lockerSearchSeconds` **after arriving**, throws it open, and attacks
+whoever is inside. Lockers hide you from sight, not from a search.
+
+**A witnessed entry skips the roll entirely.** If the enemy has line of sight at
+the moment someone climbs in, it drops into `SEARCH` targeting that exact locker
+and opens it first — no chance, no sweep. The sight test uses where the player was
+*standing*, not the locker: the locker has a collider, so testing its centre would
+always be blocked by the very object being looked at.
 
 ## Spawning
 

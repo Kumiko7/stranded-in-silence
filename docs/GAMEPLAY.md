@@ -23,7 +23,9 @@ If nobody escaped, the team lost.
 - Two hands = two item slots. Picking up a third item drops the one in that hand.
   Treasure does not use a slot (`items.json → items.treasureSmall.occupiesSlot`).
 - Health is a three-step ladder: **healthy → injured → downed**.
-  - Injured: slower (`player.json → movement.injuredSpeedMultiplier`), noisier, vignetted.
+  - Injured: slower (`player.json → movement.injuredSpeedMultiplier`) and vignetted.
+    **Not** noisier — an injured player's footsteps are exactly a healthy player's,
+    so crouching is still worth doing when you are hurt.
   - Downed: immobile on the floor. Cannot be killed further. Can still talk — which is
     the point: a downed player uses voice to be found.
   - A downed player may choose to give up and become **dead** → spectator.
@@ -75,7 +77,8 @@ distortion that ramp with proximity (`player.json → effects`).
 - **Exit door**: obvious the moment you see it, placed far from the spawn. Hold E for
   `world.json → exit.holdSeconds` to leave.
 - Chests are slow and **loud** to open. That is the trade.
-- Lockers hide you from sight, not from a searching enemy.
+- Lockers hide you from sight, not from a searching enemy — and not at all if it
+  watched you climb in, in which case that locker is the first thing it opens.
 
 ## 5. Voice chat
 

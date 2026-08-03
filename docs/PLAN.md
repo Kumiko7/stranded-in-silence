@@ -195,7 +195,7 @@ the simulation is written host-authoritative from the start.*
 **Touches:** `src/ui/hud/*`.
 **Details:** every element in [`systems/UI.md`](systems/UI.md) — crosshair, hand slots, health vignette, teammate list, voice indicator, objective hints. Plain DOM, config-toggleable.
 **Done when:** all elements update correctly and each can be disabled from `config/ui.json`.
-**Still missing:** teammate list, voice indicator, per-element `config/ui.json → hud` toggles, and the move out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots, the objective hint and the health state line render from `src/ui/App.tsx`; the health vignette is the feedback layer's (step 21).
+**Still missing:** voice indicator, the remaining per-element `config/ui.json → hud` toggles, and the move out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots, the objective hint and the player roster (hearts + noise rings, toggled by `hud.teammateList.enabled`) render from `src/ui/App.tsx`; the health vignette is the feedback layer's (step 21).
 
 **Milestone: a complete single-player run is playable end to end.**
 

@@ -20,8 +20,8 @@
         "chaseSpeed": 5.4,
         "turnRateDegreesPerSecond": 220,
         "acceleration": 16.0,
-        "injuredPlayerSlowdownSeconds": 6.0,
-        "injuredPlayerSlowdownMultiplier": 0.55
+        "injuredPlayerSlowdownSeconds": 10.0,
+        "injuredPlayerSlowdownMultiplier": 0.05
       },
 
       "doors": {
@@ -52,7 +52,7 @@
 
       "attack": {
         "range": 1.5,
-        "cooldownSeconds": 3.0,
+        "cooldownSeconds": 10.0,
         "windupSeconds": 0.25,
         "healthyResult": "injured",
         "injuredResult": "downed",
@@ -69,9 +69,9 @@
       },
 
       "search": {
-        "durationSeconds": 25.0,
+        "durationSeconds": 10.0,
         "roomsToSearch": 3,
-        "lockerSearchChance": 0.35,
+        "lockerSearchChance": 0.25,
         "lockerSearchSeconds": 2.5,
         "investigateNoiseRadius": 6.0,
         "giveUpToPatrolSeconds": 12.0

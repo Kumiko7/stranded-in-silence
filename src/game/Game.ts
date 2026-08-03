@@ -24,7 +24,7 @@ import {
   type Hand,
   type Inventory,
 } from '@/entities/items';
-import { createEnemy, updateEnemy, type EnemyLocker, type EnemyState } from '@/ai/enemy';
+import { createEnemy, updateEnemy, type EnemyLocker, type EnemyState, type LockerEntry } from '@/ai/enemy';
 import { footstepInterval, footstepKind, noiseSpec, NoiseBus, type NoiseKind } from '@/ai/noiseBus';
 import type { PerceptionTarget } from '@/ai/perception';
 import { RoomGraph } from '@/ai/roomGraph';
@@ -49,6 +49,20 @@ export interface InteractTarget {
   holdSeconds: number;
 }
 
+/**
+ * One line of the player roster. `pulse` is the last noise this player made:
+ * `token` changes per noise so the HUD can replay its animation, and `heard` is
+ * whether the enemy was close enough for it to matter.
+ */
+export interface RosterEntry {
+  id: string;
+  /** Placeholder until players have names of their own. */
+  index: number;
+  health: HealthState;
+  self: boolean;
+  pulse: { loudness: number; heard: boolean; token: number } | null;
+}
+
 export interface RunHooks {
   onInteractTargetChange(target: InteractTarget | null): void;
   onHoldProgress(progress: number): void;
@@ -56,6 +70,7 @@ export interface RunHooks {
   onEscaped(): void;
   onPlayerCountChange(count: number): void;
   onHealthChange(state: HealthState): void;
+  onRosterChange(roster: RosterEntry[]): void;
   /** Everyone is on the floor. The run is over and it was not a win. */
   onWiped(): void;
 }
@@ -94,6 +109,8 @@ export class Game {
 
   /* --- the hunter ---------------------------------------------------------- */
   #noise = new NoiseBus();
+  /** Lockers climbed into this tick, local or remote. Cleared with the noise bus. */
+  #lockerEntries: LockerEntry[] = [];
   #graph: RoomGraph | null = null;
   #doorsById = new Map<string, Door>();
   #enemy: EnemyState | null = null;
@@ -106,6 +123,12 @@ export class Game {
   #footstepTimer = 0;
   #run = new RunState();
   #over = false;
+
+  /* --- roster -------------------------------------------------------------- */
+  /** Stable per-peer numbering, so a teammate keeps their line across runs. */
+  #playerIndex = new Map<string, number>();
+  #pulses = new Map<string, { loudness: number; heard: boolean; token: number }>();
+  #pulseToken = 0;
 
   constructor(config: Config, renderer: Renderer, input: Input, net: Net, hooks: RunHooks) {
     this.#config = config;
@@ -166,6 +189,8 @@ export class Game {
     this.#hooks.onHandsChange({ left: null, right: null });
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
     this.#hooks.onHealthChange('healthy');
+    this.#pulses.clear();
+    this.#pushRoster();
 
     // --- the hunter --------------------------------------------------------
     this.#graph = new RoomGraph(layout);
@@ -264,6 +289,7 @@ export class Game {
     });
     this.#run.add(id);
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
+    this.#pushRoster();
   }
 
   removeRemote(id: string): void {
@@ -273,6 +299,7 @@ export class Game {
     this.#remotes.delete(id);
     this.#run.remove(id);
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
+    this.#pushRoster();
   }
 
   moveRemote(id: string, transform: RemotePlayer['target']): void {
@@ -281,8 +308,23 @@ export class Game {
       this.addRemote(id);
       return;
     }
+
+    // A remote who has just started hiding has moved onto the locker they took,
+    // so the host can offer the enemy the same "I watched you do that" chance.
+    // The sight test uses their PREVIOUS position - where they were standing.
+    if (transform.hiding && !remote.target.hiding) {
+      const locker = this.#world?.lockers.find(
+        (candidate) => Math.hypot(candidate.x - transform.x, candidate.z - transform.z) < 0.8,
+      );
+      if (locker) {
+        this.#lockerEntries.push({ lockerId: locker.id, playerId: id, x: remote.target.x, z: remote.target.z });
+      }
+    }
+
+    const healthChanged = remote.target.health !== transform.health;
     remote.target = transform;
     this.#run.setHealth(id, transform.health);
+    if (healthChanged) this.#pushRoster();
   }
 
   /* --- replicated world events -------------------------------------------- */
@@ -322,6 +364,46 @@ export class Game {
   addNoise(sourceId: string, kind: NoiseKind, x: number, z: number): void {
     const spec = noiseSpec(this.#config.player, kind);
     this.#noise.emit({ x, z, radius: spec.radius, loudness: spec.loudness, kind, sourceId });
+
+    // Silent by config is silent on the HUD too - a ring for a noise nothing can
+    // ever hear would be a lie.
+    if (spec.loudness <= 0) return;
+    this.#pulses.set(sourceId, {
+      loudness: Math.min(1, spec.loudness),
+      heard: this.#enemyCanHear(spec.loudness, spec.radius, x, z),
+      token: ++this.#pulseToken,
+    });
+    this.#pushRoster();
+  }
+
+  /**
+   * The same test the enemy's own hearing makes, run locally so every peer can
+   * colour the roster. Clients use the last enemy snapshot, which is close
+   * enough for a warning light.
+   */
+  #enemyCanHear(loudness: number, radius: number, x: number, z: number): boolean {
+    if (!this.#enemy && this.#net.role === 'offline') return false;
+    const { hearing } = this.#archetype();
+    if (loudness * hearing.hearingMultiplier < hearing.threshold) return false;
+    return Math.hypot(this.#enemyView.x - x, this.#enemyView.z - z) <= radius * hearing.rangeMultiplier;
+  }
+
+  #pushRoster(): void {
+    const entry = (id: string, health: HealthState, self: boolean): RosterEntry => {
+      let index = this.#playerIndex.get(id);
+      if (index === undefined) {
+        // Slot 1 is always yours, whichever order peers turned up in.
+        index = self ? 1 : Math.max(2, this.#playerIndex.size + 1);
+        this.#playerIndex.set(id, index);
+      }
+      return { id, index, health, self, pulse: this.#pulses.get(id) ?? null };
+    };
+
+    const roster = [entry(this.#net.selfId, this.#player?.health.state ?? 'healthy', true)];
+    for (const [id, remote] of this.#remotes) roster.push(entry(id, remote.target.health, false));
+    roster.sort((a, b) => a.index - b.index);
+
+    this.#hooks.onRosterChange(roster);
   }
 
   /** Host -> client enemy transform. Clients never simulate the enemy. */
@@ -353,6 +435,7 @@ export class Game {
     const remote = this.#remotes.get(id);
     if (remote) remote.target.health = state;
     this.#run.setHealth(id, state);
+    this.#pushRoster();
   }
 
   /** Someone finished a revive hold on the local player. */
@@ -375,6 +458,7 @@ export class Game {
   #announceHealth(state: HealthState): void {
     this.#run.setHealth(this.#net.selfId, state);
     this.#hooks.onHealthChange(state);
+    this.#pushRoster();
     this.#net.broadcast({ t: 'health', id: this.#net.selfId, state });
   }
 
@@ -424,8 +508,9 @@ export class Game {
     if (this.#hiding && !this.#hiding.active && this.#hiding.locker.progress === 0) this.#hiding = null;
 
     this.#updateEnemy(dt, player);
-    // One tick, one chance to be heard. Nothing here ages.
+    // One tick, one chance to be heard or seen. Nothing here ages.
     this.#noise.clear();
+    this.#lockerEntries.length = 0;
 
     world.updateVisibility(
       player.x,
@@ -455,11 +540,9 @@ export class Game {
 
     this.#footstepTimer = footstepInterval(this.#config.player, player.sprinting, player.crouching);
 
-    // An injured player is audibly injured: the limp replaces the footstep and
-    // carries a great deal further than a walk does.
-    const kind: NoiseKind =
-      player.health.state === 'injured' ? 'injured' : footstepKind(player.sprinting, player.crouching);
-    this.#emitNoise(kind, player.x, player.z);
+    // Injury costs speed, not stealth: an injured player is exactly as loud as a
+    // healthy one, so crouching is still worth doing when you are hurt.
+    this.#emitNoise(footstepKind(player.sprinting, player.crouching), player.x, player.z);
   }
 
   /* --- the hunter ----------------------------------------------------------- */
@@ -474,6 +557,7 @@ export class Game {
       updateEnemy(enemy, dt, {
         targets: this.#perceptionTargets(player),
         noise: this.#noise.events,
+        lockerEntries: this.#lockerEntries,
         graph,
         doors: this.#doorsById,
         lockers: this.#enemyLockers(player),
@@ -764,6 +848,8 @@ export class Game {
         if (!locker || locker.occupied) break;
         locker.occupied = true;
         this.#hiding = { locker, active: true };
+        // Recorded before the move, so it is where the enemy would have seen you.
+        this.#lockerEntries.push({ lockerId: locker.id, playerId: this.#net.selfId, x: player.x, z: player.z });
         player.x = locker.x;
         player.z = locker.z;
         player.velocityX = 0;

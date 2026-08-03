@@ -27,7 +27,7 @@
     "interactPrompt": { "enabled": true, "showHoldRing": true },
     "handSlots": { "enabled": true, "position": "bottom-center" },
     "healthState": { "enabled": true, "mode": "vignette-only" },
-    "teammateList": { "enabled": true, "position": "top-left", "showVoiceIndicator": true },
+    "teammateList": { "enabled": true, "position": "bottom-left", "showVoiceIndicator": true },
     "voiceIndicator": { "enabled": true, "position": "bottom-left" },
     "objectiveHint": { "enabled": true, "durationSeconds": 5 },
     "subtitles": { "enabled": false }

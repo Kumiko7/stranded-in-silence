@@ -48,26 +48,52 @@ export function look(
     if (target.hidden) continue;
     if (target.downed && config.attack.ignoresDownedPlayers) continue;
 
-    const dx = target.x - enemy.x;
-    const dz = target.z - enemy.z;
-    const distance = Math.hypot(dx, dz);
-
     let range = sight.range;
     if (target.crouching) range *= sight.crouchedTargetRangeMultiplier;
     if (target.inDarkness) range *= sight.darknessRangeMultiplier;
-    if (distance > range) continue;
 
-    // Facing is -Z at yaw 0, matching every other transform in the game.
-    const facingX = -Math.sin(enemy.yaw);
-    const facingZ = -Math.cos(enemy.yaw);
-    const dot = (dx * facingX + dz * facingZ) / Math.max(1e-4, distance);
-    if (Math.acos(Math.max(-1, Math.min(1, dot))) > ((sight.fovDegrees / 2) * Math.PI) / 180) continue;
+    if (!inSight(enemy, target.x, target.z, range, config, collision)) continue;
 
-    if (sight.requiresLineOfSight && !collision.segmentClear(enemy.x, enemy.z, target.x, target.z)) continue;
-
+    const distance = Math.hypot(target.x - enemy.x, target.z - enemy.z);
     if (!best || distance < best.distance) best = { target, distance };
   }
   return best;
+}
+
+/**
+ * Whether a bare point is in view at full sight range. Used for things the enemy
+ * watches happen rather than watches move - a locker door closing on someone.
+ */
+export function canSeePoint(
+  enemy: { x: number; z: number; yaw: number },
+  x: number,
+  z: number,
+  config: EnemyArchetype,
+  collision: CollisionWorld,
+): boolean {
+  return inSight(enemy, x, z, config.sight.range, config, collision);
+}
+
+function inSight(
+  enemy: { x: number; z: number; yaw: number },
+  x: number,
+  z: number,
+  range: number,
+  config: EnemyArchetype,
+  collision: CollisionWorld,
+): boolean {
+  const dx = x - enemy.x;
+  const dz = z - enemy.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance > range) return false;
+
+  // Facing is -Z at yaw 0, matching every other transform in the game.
+  const facingX = -Math.sin(enemy.yaw);
+  const facingZ = -Math.cos(enemy.yaw);
+  const dot = (dx * facingX + dz * facingZ) / Math.max(1e-4, distance);
+  if (Math.acos(Math.max(-1, Math.min(1, dot))) > ((config.sight.fovDegrees / 2) * Math.PI) / 180) return false;
+
+  return !config.sight.requiresLineOfSight || collision.segmentClear(enemy.x, enemy.z, x, z);
 }
 
 /**

@@ -6,6 +6,7 @@
  */
 import { useEffect, useState } from 'preact/hooks';
 import type { HealthState } from '@/config/types';
+import type { RosterEntry } from '@/game/Game';
 import { t } from '@/i18n/index';
 import { MainMenu } from './screens/MainMenu';
 
@@ -30,6 +31,9 @@ export interface UiState {
   /** Transient objective line, e.g. "This door needs a key." */
   hint: string | null;
   health: HealthState;
+  /** Everyone in the run: health, and the last noise each of them made. */
+  roster: RosterEntry[];
+  showRoster: boolean;
 }
 
 export interface UiCallbacks {
@@ -130,14 +134,46 @@ function Hud({ state }: { state: UiState }) {
 
       {state.health === 'downed' && <div class="hud__downed">{t('run.downedHint')}</div>}
 
-      {state.health !== 'healthy' && (
-        <div class={`hud__status hud__status--${state.health}`}>{t(`hud.status.${state.health}`)}</div>
-      )}
+      {state.showRoster && <Roster entries={state.roster} />}
 
       <div class="hud__hands">
         <HandSlot nameKey={state.hands.left} useKey={state.useLeftKey} />
         <HandSlot nameKey={state.hands.right} useKey={state.useRightKey} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * The team, bottom left. One line each: a heart that says how they are, their
+ * name, and rings that bloom off the heart whenever they make a noise - larger
+ * with the loudness, and red once the hunter is close enough to hear it.
+ */
+function Roster({ entries }: { entries: RosterEntry[] }) {
+  return (
+    <div class="roster">
+      {entries.map((entry) => (
+        <div key={entry.id} class={entry.self ? 'roster__row roster__row--self' : 'roster__row'}>
+          <div class={`roster__heart roster__heart--${entry.health}`}>
+            {entry.pulse && (
+              <div
+                key={entry.pulse.token}
+                class={entry.pulse.heard ? 'roster__noise roster__noise--heard' : 'roster__noise'}
+                style={{ '--loudness': entry.pulse.loudness }}
+              >
+                <span />
+                <span />
+                <span />
+              </div>
+            )}
+            <svg class="roster__heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 21s-8-5.1-8-10.4A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 3.6C20 15.9 12 21 12 21z" />
+            </svg>
+            {entry.health === 'downed' && <span class="roster__flatline" />}
+          </div>
+          <span class="roster__name">{t('hud.player.name', { n: entry.index })}</span>
+        </div>
+      ))}
     </div>
   );
 }
