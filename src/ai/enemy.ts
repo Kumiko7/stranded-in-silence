@@ -14,7 +14,7 @@ import { pickWeighted, type Rng } from '@/core/rng';
 import type { EnemyArchetype } from '@/config/types';
 import type { CollisionWorld } from '@/world/collision';
 import type { Door } from '@/world/doors';
-import { listen, look, type PerceptionTarget } from './perception';
+import { canSeePoint, listen, look, type PerceptionTarget } from './perception';
 import type { NoiseEvent } from './noiseBus';
 import type { CellKey, RoomGraph } from './roomGraph';
 
@@ -57,6 +57,10 @@ export interface EnemyState {
   slowdown: number;
   /** How long it has been scraping against something without getting anywhere. */
   stuckFor: number;
+  /** A locker it WATCHED someone climb into. Searched first, and never rolled for. */
+  witnessedLocker: string | null;
+  /** Throttles the in-room detour search while a chase is blocked by furniture. */
+  repathIn: number;
   searchedLockers: Set<string>;
 }
 
@@ -69,9 +73,23 @@ export interface EnemyLocker {
   occupantId: string | null;
 }
 
+/** Someone climbed into a locker this tick. If the enemy saw it, hiding is over. */
+export interface LockerEntry {
+  lockerId: string;
+  playerId: string;
+  /**
+   * Where they were STANDING as they climbed in, not the locker itself - the
+   * locker has a collider, so a sight test against its centre is always blocked
+   * by the very thing being looked at.
+   */
+  x: number;
+  z: number;
+}
+
 export interface EnemyContext {
   targets: readonly PerceptionTarget[];
   noise: readonly NoiseEvent[];
+  lockerEntries: readonly LockerEntry[];
   graph: RoomGraph;
   doors: ReadonlyMap<string, Door>;
   lockers: readonly EnemyLocker[];
@@ -115,6 +133,8 @@ export function createEnemy(x: number, z: number): EnemyState {
     windup: 0,
     slowdown: 0,
     stuckFor: 0,
+    witnessedLocker: null,
+    repathIn: 0,
     searchedLockers: new Set(),
   };
 }
@@ -140,7 +160,7 @@ export function updateEnemy(enemy: EnemyState, dt: number, ctx: EnemyContext): v
       search(enemy, dt, ctx);
       break;
     case 'chase':
-      chase(enemy, ctx);
+      chase(enemy, dt, ctx);
       break;
     case 'attack':
       attack(enemy, dt, ctx);
@@ -171,6 +191,8 @@ export function updateEnemy(enemy: EnemyState, dt: number, ctx: EnemyContext): v
 
 function perceive(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
   const { sight } = ctx.config;
+  if (witnessLockerEntry(enemy, ctx)) return;
+
   const seen = look(enemy, ctx.targets, ctx.config, ctx.collision);
 
   if (seen) {
@@ -203,6 +225,24 @@ function perceive(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
   enemy.destination = null;
   enemy.waypoints = [];
   enemy.idleFor = 0;
+}
+
+/**
+ * Climbing into a locker in full view of the hunter is not hiding, it is
+ * cornering yourself. The moment it sees you do it, that locker is the only
+ * thing it is going to search - no roll, no sweep.
+ */
+function witnessLockerEntry(enemy: EnemyState, ctx: EnemyContext): boolean {
+  for (const entry of ctx.lockerEntries) {
+    if (!canSeePoint(enemy, entry.x, entry.z, ctx.config, ctx.collision)) continue;
+
+    enemy.targetId = entry.playerId;
+    enemy.lastKnown = { x: entry.x, z: entry.z };
+    beginSearch(enemy, ctx);
+    enemy.witnessedLocker = entry.lockerId;
+    return true;
+  }
+  return false;
 }
 
 /* --- states --------------------------------------------------------------- */
@@ -265,16 +305,25 @@ function search(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
     enemy.destination = null;
     enemy.waypoints = [];
     enemy.targetId = null;
+    enemy.witnessedLocker = null;
+    enemy.lockerId = null;
+    enemy.lockerWait = 0;
     enemy.searchedLockers.clear();
     return;
   }
 
-  if (enemy.lockerWait > 0) {
+  // Committed to a locker: walk to it, then stand there and go through it. The
+  // timer only starts on arrival - it must not run down on the way over.
+  if (enemy.lockerId) {
+    if (enemy.waypoints.length) return;
+    if (enemy.lockerWait <= 0) enemy.lockerWait = ctx.config.search.lockerSearchSeconds;
+
     enemy.lockerWait -= dt;
     if (enemy.lockerWait > 0) return;
 
     const locker = ctx.lockers.find((candidate) => candidate.id === enemy.lockerId);
     enemy.lockerId = null;
+    enemy.lockerWait = 0;
     if (!locker) return;
 
     ctx.searchLocker(locker.id);
@@ -289,20 +338,28 @@ function search(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
 
   if (enemy.waypoints.length) return;
 
-  // Anything unsearched in this room first, then the next room over.
+  // A locker it watched someone climb into first, then anything unsearched in
+  // this room, then the next room over.
   const here = ctx.graph.cellAt(enemy.x, enemy.z);
-  const locker = ctx.lockers.find(
-    (candidate) =>
-      !enemy.searchedLockers.has(candidate.id) &&
-      ctx.graph.cellAt(candidate.x, candidate.z) === here &&
-      ctx.rng() < ctx.config.search.lockerSearchChance,
-  );
+  const witnessed = enemy.witnessedLocker
+    ? ctx.lockers.find((candidate) => candidate.id === enemy.witnessedLocker)
+    : undefined;
+
+  const locker =
+    witnessed ??
+    ctx.lockers.find(
+      (candidate) =>
+        !enemy.searchedLockers.has(candidate.id) &&
+        ctx.graph.cellAt(candidate.x, candidate.z) === here &&
+        ctx.rng() < ctx.config.search.lockerSearchChance,
+    );
 
   if (locker) {
+    enemy.witnessedLocker = null;
     enemy.searchedLockers.add(locker.id);
     enemy.lockerId = locker.id;
-    enemy.lockerWait = ctx.config.search.lockerSearchSeconds;
-    enemy.waypoints = [{ x: locker.x, z: locker.z }];
+    enemy.lockerWait = 0;
+    enemy.waypoints = routeTo(enemy, ctx, ctx.graph.cellAt(locker.x, locker.z), { x: locker.x, z: locker.z });
     return;
   }
 
@@ -314,7 +371,7 @@ function search(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
   enemy.waypoints = routeTo(enemy, ctx, room, pointInRoom(ctx, room, ctx.rng));
 }
 
-function chase(enemy: EnemyState, ctx: EnemyContext): void {
+function chase(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
   const target = ctx.targets.find((candidate) => candidate.id === enemy.targetId);
   if (!target || (target.downed && ctx.config.attack.ignoresDownedPlayers)) {
     beginSearch(enemy, ctx);
@@ -332,13 +389,27 @@ function chase(enemy: EnemyState, ctx: EnemyContext): void {
   }
 
   const cell = ctx.graph.cellAt(target.x, target.z);
-  // In the same room it beelines; otherwise it re-plans only when the target
-  // changes room, which is what keeps chases readable instead of jittery.
+  // In the same room it beelines - unless a table is in the way, in which case
+  // it goes around rather than standing there pushing into the furniture.
   if (cell === ctx.graph.cellAt(enemy.x, enemy.z)) {
-    enemy.waypoints = [{ x: target.x, z: target.z }];
     enemy.destination = cell;
+
+    if (ctx.collision.segmentClear(enemy.x, enemy.z, target.x, target.z)) {
+      enemy.waypoints = [{ x: target.x, z: target.z }];
+      enemy.repathIn = 0;
+      return;
+    }
+
+    enemy.repathIn -= dt;
+    if (enemy.repathIn <= 0 || !enemy.waypoints.length) {
+      enemy.repathIn = 0.3;
+      enemy.waypoints = routeInRoom(enemy, ctx, { x: target.x, z: target.z });
+    }
     return;
   }
+
+  // Otherwise it re-plans only when the target changes room, which is what
+  // keeps chases readable instead of jittery.
   if (enemy.destination !== cell || !enemy.waypoints.length) {
     enemy.destination = cell;
     enemy.waypoints = routeTo(enemy, ctx, cell, { x: target.x, z: target.z });
@@ -403,6 +474,8 @@ function afterAttack(enemy: EnemyState, ctx: EnemyContext, landed: boolean): voi
 /** Room-graph route turned into points, with the doors on the way marked. */
 function routeTo(enemy: EnemyState, ctx: EnemyContext, cell: CellKey, finish: { x: number; z: number }): Waypoint[] {
   const from = ctx.graph.cellAt(enemy.x, enemy.z);
+  if (from === cell) return routeInRoom(enemy, ctx, finish);
+
   const rooms = ctx.graph.path(from, cell, ctx.doors, {
     doorSeconds: doorSeconds(enemy, ctx),
     canOpenLockedDoors: ctx.config.doors.canOpenLockedDoors,
@@ -427,6 +500,55 @@ function routeTo(enemy: EnemyState, ctx: EnemyContext, cell: CellKey, finish: { 
 
   waypoints.push({ x: finish.x, z: finish.z });
   return waypoints;
+}
+
+/**
+ * Getting across ONE room when the straight line is blocked.
+ *
+ * The room graph is too coarse for this - both ends are the same node - so it
+ * builds a tiny visibility graph over the room's own `patrolPoint` anchors and
+ * takes the cheapest one- or two-hop detour. Those anchors are already authored
+ * as "somewhere in this room you can stand", which is exactly what a corner to
+ * cut around needs to be, so no extra data is asked of art.
+ *
+ * At most four anchors per room, so this is a couple of dozen segment tests and
+ * it is throttled by `repathIn` on top of that.
+ */
+function routeInRoom(from: { x: number; z: number }, ctx: EnemyContext, goal: { x: number; z: number }): Waypoint[] {
+  const clear = (a: { x: number; z: number }, b: { x: number; z: number }) =>
+    ctx.collision.segmentClear(a.x, a.z, b.x, b.z);
+
+  if (clear(from, goal)) return [{ x: goal.x, z: goal.z }];
+
+  const node = ctx.graph.node(ctx.graph.cellAt(from.x, from.z));
+  const points = (node?.patrolPoints ?? []).map(([x, z]) => ({ x, z }));
+  const reachable = points.filter((point) => clear(from, point));
+
+  let bestCost = Infinity;
+  let bestHops: { x: number; z: number }[] = [];
+  const consider = (cost: number, hops: { x: number; z: number }[]): void => {
+    if (cost >= bestCost) return;
+    bestCost = cost;
+    bestHops = hops;
+  };
+
+  for (const first of reachable) {
+    const legOne = distance(from, first);
+    if (clear(first, goal)) consider(legOne + distance(first, goal), [first]);
+
+    for (const second of points) {
+      if (second === first || !clear(first, second) || !clear(second, goal)) continue;
+      consider(legOne + distance(first, second) + distance(second, goal), [first, second]);
+    }
+  }
+
+  // Nothing visible gets there: head straight at it anyway and let the stuck
+  // timer shake it loose. Standing still would be worse than shuffling.
+  return [...bestHops, { x: goal.x, z: goal.z }].map((point) => ({ x: point.x, z: point.z }));
+}
+
+function distance(a: { x: number; z: number }, b: { x: number; z: number }): number {
+  return Math.hypot(a.x - b.x, a.z - b.z);
 }
 
 function doorSeconds(enemy: EnemyState, ctx: EnemyContext): number {

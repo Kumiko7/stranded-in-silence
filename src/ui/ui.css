@@ -359,26 +359,6 @@ body {
   color: var(--c-text-dim);
 }
 
-.hud__status {
-  position: absolute;
-  bottom: 1.6rem;
-  left: 1.6rem;
-  font-family: var(--font-display);
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--c-text-dim);
-  text-shadow: 0 2px 8px #000;
-}
-
-.hud__status--injured {
-  color: var(--c-warn);
-}
-
-.hud__status--downed {
-  color: var(--c-bad);
-}
-
 .hud__downed {
   position: absolute;
   top: 42%;
@@ -389,6 +369,140 @@ body {
   letter-spacing: 0.18em;
   color: var(--c-bad);
   text-shadow: 0 2px 12px #000;
+}
+
+/* --- player roster -------------------------------------------------------- */
+/* Bottom left: who is with you, how they are, and what they just gave away. */
+
+.roster {
+  position: absolute;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.roster__row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 9.5rem;
+  padding: 0.32rem 0.9rem 0.32rem 0.42rem;
+  background: #0a0c12a0;
+  border: 1px solid var(--c-border);
+  border-left: 2px solid var(--c-border);
+  border-radius: var(--radius);
+}
+
+.roster__row--self {
+  border-left-color: var(--c-accent);
+}
+
+.roster__heart {
+  position: relative;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.roster__heart-icon {
+  width: 100%;
+  height: 100%;
+  fill: var(--c-good);
+  filter: drop-shadow(0 0 5px #0009);
+  transition: fill var(--transition), opacity var(--transition);
+}
+
+.roster__heart--injured .roster__heart-icon {
+  fill: var(--c-warn);
+  animation: roster-hurt 1.6s ease-in-out infinite;
+}
+
+.roster__heart--downed .roster__heart-icon,
+.roster__heart--dead .roster__heart-icon {
+  fill: var(--c-bad);
+  opacity: 0.45;
+}
+
+/* The flatline across a downed heart reads at a glance, even in peripheral vision. */
+.roster__flatline {
+  position: absolute;
+  width: 130%;
+  height: 1px;
+  background: var(--c-bad);
+  transform: rotate(-20deg);
+}
+
+.roster__name {
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+  text-shadow: 0 2px 8px #000;
+}
+
+.roster__row--self .roster__name {
+  color: var(--c-text);
+}
+
+/*
+ * Noise rings. `--loudness` (0..1) scales how far they travel, so a sprint
+ * blooms much wider than a footstep. The element is re-keyed per noise, which
+ * is what restarts the animation.
+ */
+.roster__noise {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.roster__noise span {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--c-text-dim);
+  border-radius: 50%;
+  opacity: 0;
+  animation: roster-noise 900ms ease-out forwards;
+  --spread: calc(1.4 + var(--loudness, 0.5) * 2.6);
+}
+
+.roster__noise span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.roster__noise span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+/* Red the moment the hunter is close enough for that noise to have carried. */
+.roster__noise--heard span {
+  border-color: var(--c-bad);
+  box-shadow: 0 0 6px #a8323288;
+}
+
+@keyframes roster-noise {
+  0% {
+    transform: scale(0.55);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(var(--spread));
+    opacity: 0;
+  }
+}
+
+@keyframes roster-hurt {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
 }
 
 /* --- horror feedback layer ----------------------------------------------- */

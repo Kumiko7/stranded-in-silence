@@ -14,7 +14,7 @@
     "walkSpeed": 2.6,
     "sprintSpeed": 4.6,
     "crouchSpeed": 1.35,
-    "injuredSpeedMultiplier": 0.72,
+    "injuredSpeedMultiplier": 1,
     "acceleration": 28.0,
     "deceleration": 34.0,
     "$note": "Movement is speed-uniform in every direction on purpose - walking backwards while watching the enemy carries no penalty."
@@ -36,7 +36,7 @@
     "reviveInterruptedResetsProgress": false,
     "reviveRange": 1.6,
     "revivedToState": "injured",
-    "invulnerableSecondsAfterHit": 2.0,
+    "invulnerableSecondsAfterHit": 5.0,
     "invulnerableSecondsAfterRevive": 3.0
   },
 
@@ -50,25 +50,26 @@
   },
 
   "noise": {
-    "$doc": "Emitted noise events. `radius` is the metre radius at which the enemy can perceive it (see enemy.json hearing).",
+    "$doc": "Emitted noise events. `radius` is the metre radius at which the enemy can perceive it (see enemy.json hearing). A loudness of 0 is genuinely silent - never heard, and no ring on the roster HUD.",
+    "$note": "`injured` is currently unused: injury costs speed, not stealth, so an injured player emits the same walk/sprint/crouch noise as a healthy one.",
     "footstepIntervalWalk": 0.52,
     "footstepIntervalSprint": 0.34,
     "footstepIntervalCrouch": 0.85,
     "walk": { "radius": 7.0, "loudness": 0.35 },
     "sprint": { "radius": 22.0, "loudness": 1.0 },
-    "crouch": { "radius": 2.0, "loudness": 0.1 },
-    "doorOpen": { "radius": 10.0, "loudness": 0.5 },
-    "doorSlam": { "radius": 18.0, "loudness": 0.9 },
+    "crouch": { "radius": 2.0, "loudness": 0.0 },
+    "doorOpen": { "radius": 10.0, "loudness": 0.0 },
+    "doorSlam": { "radius": 18.0, "loudness": 0.0 },
     "chestOpen": { "radius": 24.0, "loudness": 1.0 },
-    "lockerEnter": { "radius": 6.0, "loudness": 0.3 },
-    "itemDrop": { "radius": 8.0, "loudness": 0.4 },
+    "lockerEnter": { "radius": 6.0, "loudness": 0.0 },
+    "itemDrop": { "radius": 8.0, "loudness": 0.0 },
     "voice": { "radius": 12.0, "loudness": 0.6 },
-    "injured": { "radius": 14.0, "loudness": 0.7 }
+    "injured": { "radius": 14.0, "loudness": 1.0 }
   },
 
   "effects": {
     "$doc": "Screen feedback. Distances in metres, measured enemy -> local player.",
-    "heartbeatStartDistance": 18.0,
+    "heartbeatStartDistance": 22.0,
     "heartbeatMaxDistance": 4.0,
     "vignetteInjuredIntensity": 0.45,
     "vignetteDownedIntensity": 0.8,

@@ -67,6 +67,8 @@ async function boot(): Promise<void> {
     useRightKey: input.labelFor('useRight'),
     hint: null,
     health: 'healthy',
+    roster: [],
+    showRoster: config.ui.hud.teammateList.enabled,
   };
 
   const set = (patch: Partial<UiState>): void => {
@@ -120,6 +122,7 @@ async function boot(): Promise<void> {
     },
     onPlayerCountChange: (count) => set({ players: count }),
     onHealthChange: (health) => set({ health }),
+    onRosterChange: (roster) => set({ roster }),
     onWiped: () => {
       input.releasePointerLock();
       set({ screen: 'wiped' });

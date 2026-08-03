@@ -246,7 +246,11 @@ export interface MapsConfig {
 
 export interface UiConfig {
   theme: { colours: Record<string, string> };
-  hud: { crosshair: { enabled: boolean; size: number; colour: string; opacity: number } };
+  hud: {
+    crosshair: { enabled: boolean; size: number; colour: string; opacity: number };
+    /** The bottom-left player roster: hearts, names and noise rings. */
+    teammateList: { enabled: boolean };
+  };
 }
 
 export interface Config {

@@ -73,6 +73,7 @@
   "hud.interact.pressHint": "Press {key}",
   "hud.slot.empty": "Empty",
   "hud.player.teammate": "teammate",
+  "hud.player.name": "Player {n}",
   "hud.status.healthy": "Healthy",
   "hud.status.injured": "Injured",
   "hud.status.downed": "Downed",
