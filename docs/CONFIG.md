@@ -29,6 +29,7 @@ If you find yourself typing a number into logic, it belongs in a config file ins
 | Map size (6×6 → anything) | `world.json` | `grid.width`, `grid.height` |
 | Room / cell dimensions | `world.json` | `grid.cellSize`, `ceilingHeight` |
 | How maze-y vs loopy the map is | `world.json` | `layout.extraDoorChance`, `deadEndTargetRatio` |
+| How many oversized set-piece rooms a map gets | `world.json` | `layout.multiCellRooms.enabled`, `.maxSlots`, `.footprintWeights` — each multi-cell blueprint is used at most once per map |
 | Number of locked doors and spare keys | `world.json` | `doors.lockedDoorCount`, `doors.keySpareCount` |
 | Chests / lockers / item spawns per room | `world.json` | `contents.*` |
 | How long a chest takes to open, locker enter/exit | `world.json` | `containers.*` |

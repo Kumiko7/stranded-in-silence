@@ -29,7 +29,14 @@ function makeCloset(side: Side): RoomBlueprint {
       patrolPoint: [{ position: [backX * 0.4, 0, backZ * 0.4] }, { position: [backX * 0.8, 0, backZ * 0.8] }],
       // On the bench top, and in the corner beside it - both clear of the junk pile.
       itemSpawn: [{ position: [backX * 1.25, 0.9, backZ * 1.25] }],
-      chest: [{ position: alongZ ? [2.6, 0, backZ * 0.85] : [backX * 0.85, 0, 2.6], rotationY: 0 }],
+      // The chest stands against the wall OPPOSITE the door and faces the room.
+      // Facing is -Z by default, so only the south variant has to turn round.
+      chest: [
+        {
+          position: alongZ ? [2.6, 0, backZ * 0.85] : [backX * 0.85, 0, 2.6],
+          rotationY: alongZ && inward < 0 ? Math.PI : 0,
+        },
+      ],
     },
     build(ctx: RoomBuildContext): BuiltRoom {
       const shell = ctx.kit.shell(ctx, [[0, 0]]);
@@ -49,7 +56,9 @@ function makeCloset(side: Side): RoomBlueprint {
       const junk = ctx.materials.get('stone');
       for (let i = 0; i < 3; i++) {
         const s = range(ctx.rng, 0.2, 0.35);
-        const spread = range(ctx.rng, -1.4, 1.4);
+        // Away from the mid-lane (it used to sit on top of a patrol point) and
+        // always on the opposite side to the chest, so it never blocks the lid.
+        const spread = -range(ctx.rng, 1.5, 2.8);
         const piece = solid(
           junk,
           [s, s, s],

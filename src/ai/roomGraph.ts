@@ -17,10 +17,13 @@ export type CellKey = string;
 export interface RoomNode {
   cell: readonly [number, number];
   key: CellKey;
+  /** Index into `RunLayout.rooms`. Several cells of a big room share one. */
+  room: number;
   /** World-space centre of the cell. */
   x: number;
   z: number;
   patrolPoints: readonly (readonly [number, number])[];
+  /** `doorId` is `''` for an interior link - two cells of one room. */
   links: { key: CellKey; doorId: string; side: Side }[];
 }
 
@@ -39,29 +42,37 @@ export class RoomGraph {
   constructor(layout: RunLayout) {
     this.#cellSize = layout.grid.cellSize;
 
-    for (const room of layout.rooms) {
-      this.#nodes.set(cellKey(room.cell[0], room.cell[1]), {
-        cell: room.cell,
-        key: cellKey(room.cell[0], room.cell[1]),
-        x: room.cell[0] * layout.grid.cellSize,
-        z: room.cell[1] * layout.grid.cellSize,
-        patrolPoints: room.patrolPoints,
+    // One node per CELL, not per room: a 2x2 ballroom is four nodes joined by
+    // interior links, which keeps `cellAt()` a rounding operation and keeps the
+    // enemy's "search the next room" query meaning something inside a big room.
+    for (const placed of layout.cells) {
+      this.#nodes.set(cellKey(placed.cell[0], placed.cell[1]), {
+        cell: placed.cell,
+        key: cellKey(placed.cell[0], placed.cell[1]),
+        room: placed.room,
+        x: placed.cell[0] * layout.grid.cellSize,
+        z: placed.cell[1] * layout.grid.cellSize,
+        patrolPoints: placed.patrolPoints,
         links: [],
       });
     }
 
-    // A room lists the sides it opens on; the door on that side is named the
+    // A cell lists the sides it opens on; the door on that side is named the
     // same by both cells, which is what makes the link two-way for free.
-    for (const room of layout.rooms) {
-      const node = this.#nodes.get(cellKey(room.cell[0], room.cell[1]));
+    for (const placed of layout.cells) {
+      const node = this.#nodes.get(cellKey(placed.cell[0], placed.cell[1]));
       if (!node) continue;
 
-      for (const side of room.doors as readonly Side[]) {
+      const link = (side: Side, doorId: string): void => {
         const [dx, dy] = sideStep(side);
-        const neighbour = this.#nodes.get(cellKey(room.cell[0] + dx, room.cell[1] + dy));
-        if (!neighbour) continue; // the exit door leads out of the grid
-        node.links.push({ key: neighbour.key, doorId: doorIdBetween(room.cell[0], room.cell[1], side), side });
-      }
+        const neighbour = this.#nodes.get(cellKey(placed.cell[0] + dx, placed.cell[1] + dy));
+        if (!neighbour) return; // the exit door leads out of the grid
+        node.links.push({ key: neighbour.key, doorId, side });
+      };
+
+      for (const side of placed.doors) link(side, doorIdBetween(placed.cell[0], placed.cell[1], side));
+      // Two halves of the same room: open floor, no door, nothing to unlock.
+      for (const side of placed.interior) link(side, '');
     }
   }
 

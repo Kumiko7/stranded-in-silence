@@ -16,8 +16,10 @@
     "allowDuplicateRooms": true,
     "maxDuplicatesPerRoom": 3,
     "deadEndTargetRatio": 0.25,
+    "$multiCell": "Larger rooms are packed into the grid BEFORE the spanning tree, and each multi-cell blueprint is used at most once per map. `maxSlots` caps how many are packed at all; `footprintWeights` is the order they are tried in, so a 2x1 gets a look in long before an L. Set `enabled: false` to fall back to a grid of 1x1 rooms.",
     "multiCellRooms": {
-      "enabled": false,
+      "enabled": true,
+      "maxSlots": 2,
       "footprintWeights": {
         "1x1": 100,
         "1x2": 12,

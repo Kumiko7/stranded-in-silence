@@ -42,13 +42,17 @@ export const pack: ArtPack = {
     // optional themed replacements for shared art, same contract as the defaults
     'door.standard': buildCellDoor,
   },
-  palette: {
-    ambient: '#1b2430',
-    fog: '#080a0e',
-    practical: '#ffd9a0',
-  },
 };
 ```
+
+That is the whole of `ArtPack`; there is no palette field. **Ambient colour, fog
+and exposure belong to the map, not the pack**, and live in the `graphics` block of
+its `config/maps.json` entry (§5). Register the pack in `art/packs/index.ts`.
+
+A pack must also supply every material name shared art asks for
+([`SHARED_ART.md`](SHARED_ART.md) §3.1) — `door`, `chest`, `locker`, `itemMetal`,
+`playerBody`, `ghostShroud` and the rest. Miss one and the first door in the map
+throws.
 
 ## 3. The kit
 
@@ -89,6 +93,13 @@ one-line room identities so the set has spread. For a prison, e.g.:
 
 Aim for a mix of open (good sightlines, safer) and cluttered (blind corners, scary)
 rooms — that variance is where the tension lives.
+
+Rooms are rotated in 90° steps to fit their slot, so count shapes, not
+orientations: one `2x1` corridor, not a `2x1` and a `1x2`; one one-door dead end,
+not one per compass point. A multi-cell room is placed **at most once per map**,
+so treat each as a set piece rather than filler, and give it a generous set of
+`doorWalls` — a big room that offers only two edges is a big room the generator
+usually cannot place.
 
 ## 5. Register the map
 
@@ -137,6 +148,12 @@ poster to vote. The poster should read as a movie poster for the map's theme.
 - [ ] At least 6 rooms declare a `chest` anchor
 - [ ] Every room declares ≥ 2 `patrolPoint`s
 - [ ] Pack entry added to `config/maps.json`, strings added to `en.json`
-- [ ] A lobby poster exists
+- [ ] A lobby poster exists *(only once the lobby scene lands — plan step 29)*
 - [ ] `npm run validate:art` passes
 - [ ] Played a full run start to exit without getting stuck
+
+`validate:art` enforces most of this list for you, including the parts that are
+easy to lie to yourself about: the 1x1 share, the playerSpawn and chest counts, and
+whether the pack has a room that fits a slot needing all four walls. Per room it
+also proves that no combination of doors can strand a player — see
+[`ROOM_FORMAT.md`](ROOM_FORMAT.md) §8.

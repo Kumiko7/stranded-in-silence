@@ -31,6 +31,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   const wood = ctx.materials.get('wood');
 
   for (const [qx, qz] of QUADRANTS) {
+    // The south-east corner is the locker's: a stack there opens into its door.
+    if (qx > 0 && qz < 0) continue;
     const stackHeight = pick(ctx.rng, [1, 1, 2]);
     let y = 0;
     for (let i = 0; i < stackHeight; i++) {

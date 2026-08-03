@@ -48,7 +48,8 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
   const items = new Map<string, WorldItem>();
   const raycastTargets: THREE.Object3D[] = [];
   const lights: BuiltWorld['lights'] = [];
-  const cullable: { object: THREE.Object3D; x: number; z: number }[] = [];
+  /** Objects hidden beyond the render distance, tested against every cell they cover. */
+  const cullable: { object: THREE.Object3D; points: { x: number; z: number }[] }[] = [];
 
   const materials = pack.createMaterials();
   const kit = pack.createKit();
@@ -81,7 +82,7 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
     art.object.updateMatrixWorld(true);
     root.add(art.object);
     raycastTargets.push(art.object);
-    cullable.push({ object: art.object, x, z });
+    cullable.push({ object: art.object, points: [{ x, z }] });
     collision.add(art.colliders.map((collider) => rotate(collider, rotationY)), x, z);
 
     art.object.traverse((child) => {
@@ -116,8 +117,10 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
     const blueprint = blueprints.get(placed.blueprintId);
     if (!blueprint) throw new Error(`world: pack "${pack.id}" has no room "${placed.blueprintId}"`);
 
+    // The generator hands the openings back in the blueprint's OWN frame, so a
+    // rotated room cuts its doors in exactly the walls it thinks it is cutting.
     const doorStates: Record<string, 'open'> = {};
-    for (const side of placed.doors) doorStates[doorKey([0, 0], side)] = 'open';
+    for (const { cell, side } of placed.doors) doorStates[doorKey(cell, side)] = 'open';
 
     const ctx: RoomBuildContext = {
       doors: doorStates,
@@ -134,12 +137,29 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
     const originZ = placed.cell[1] * dims.cellSize;
 
     built.object.position.set(originX, 0, originZ);
+    built.object.rotation.y = placed.rotationY;
+    built.object.updateMatrixWorld(true);
     root.add(built.object);
     raycastTargets.push(built.object);
-    cullable.push({ object: built.object, x: originX, z: originZ });
+    // A 1x3 hall is 24 m long: culled on its origin alone it would vanish while
+    // you stood at the far end of it, so it is tested against all of its cells.
+    cullable.push({
+      object: built.object,
+      points: placed.cells.map((cell) => ({ x: cell[0] * dims.cellSize, z: cell[1] * dims.cellSize })),
+    });
 
-    collision.add(built.colliders, originX, originZ);
-    for (const light of built.lights ?? []) lights.push({ light, x: originX, z: originZ });
+    // Colliders come back in room-local space; placing the room rotates them too.
+    collision.add(
+      built.colliders.map((collider) => rotate(collider, placed.rotationY)),
+      originX,
+      originZ,
+    );
+    // Real world positions, so the renderer's "nearest few lights" ranking is
+    // right for a room whose lamps are twenty metres from its origin cell.
+    for (const light of built.lights ?? []) {
+      const at = light.getWorldPosition(new THREE.Vector3());
+      lights.push({ light, x: at.x, z: at.z });
+    }
     if (built.dispose) disposers.push(built.dispose);
   });
 
@@ -276,7 +296,7 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
     updateVisibility(x: number, z: number, radius: number): void {
       const limit = radius * radius;
       for (const entry of cullable) {
-        entry.object.visible = (entry.x - x) ** 2 + (entry.z - z) ** 2 <= limit;
+        entry.object.visible = entry.points.some((point) => (point.x - x) ** 2 + (point.z - z) ** 2 <= limit);
       }
     },
     dispose(): void {

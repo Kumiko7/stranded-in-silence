@@ -193,7 +193,7 @@ each other at `net.json → voice.hearingRange` (22 m), the enemy only within
 | --- | --- |
 | Tune anything numeric | `config/` only — [`CONFIG.md`](CONFIG.md) |
 | Change on-screen text | `config/locales/` — [`LOCALISATION.md`](LOCALISATION.md) |
-| Add a room | `art/packs/<pack>/rooms/` — [`art/ROOM_FORMAT.md`](art/ROOM_FORMAT.md) |
+| Add a room | `art/packs/<pack>/rooms/`, then `npm run validate:art` — [`art/ROOM_FORMAT.md`](art/ROOM_FORMAT.md) |
 | Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md) |
 | Restyle a door / chest / enemy | `art/shared/` — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
 | Add an item | `config/items.json` + a behaviour in `src/entities/items/behaviours/` + art in `art/shared/props/items/` + locale keys |

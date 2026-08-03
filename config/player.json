@@ -55,7 +55,7 @@
     "footstepIntervalWalk": 0.52,
     "footstepIntervalSprint": 0.34,
     "footstepIntervalCrouch": 0.85,
-    "walk": { "radius": 7.0, "loudness": 0.35 },
+    "walk": { "radius": 5.0, "loudness": 0.15 },
     "sprint": { "radius": 22.0, "loudness": 1.0 },
     "crouch": { "radius": 2.0, "loudness": 0.0 },
     "doorOpen": { "radius": 10.0, "loudness": 0.0 },

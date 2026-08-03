@@ -159,6 +159,13 @@ export interface WorldConfig {
   layout: {
     extraDoorChance: number;
     maxDuplicatesPerRoom: number;
+    multiCellRooms: {
+      enabled: boolean;
+      /** How many multi-cell footprints may be packed into one map. */
+      maxSlots: number;
+      /** Relative order footprints are tried in, keyed `1x2`, `2x2`, `L`, ... */
+      footprintWeights: Record<string, number>;
+    };
   };
   doors: {
     width: number;

@@ -85,10 +85,28 @@ export const library: RoomBlueprint = {
 | `maxPerMap` | | Cap on duplicates. Default from `config/world.json → layout.maxDuplicatesPerRoom`. |
 | `build` | ✅ | The function that makes the geometry. See §4. |
 
-### 2.2 Footprint shapes
+### 2.2 Rotation
+
+Rooms are placed at any 90° rotation that makes their `doorWalls` cover the slot,
+so **you never need a mirrored twin**: one `2x1` covers `1x2`, and one north-facing
+dead end serves dead ends facing all four ways. Rotation transforms the footprint,
+the door walls, every anchor (position *and* `rotationY`) and every collider
+together, so you author in one frame and never think about it again.
+
+Two things follow:
+
+- A room offering all four walls will be placed at a random one of the four
+  rotations, so **do not rely on a particular wall facing a particular way**
+  relative to anything outside the room.
+- Restricting `doorWalls` restricts *how many* walls may open, not *which* — a
+  three-wall room fits every slot needing three or fewer, at whichever angle
+  works.
+
+### 2.3 Footprint shapes
 
 `1x1` is the default and should be **at least 80 %** of any pack. Other shapes are
-supported once `config/world.json → layout.multiCellRooms.enabled` is true:
+packed into the grid before the maze is grown, at most one of each per map, while
+`config/world.json → layout.multiCellRooms.enabled` is true:
 
 ```
 1x1  [[0,0]]
@@ -119,6 +137,14 @@ An anchor is `{ position: [x, y, z], rotationY?: number }` in room-local space.
 
 **Rules**
 
+0. **Facing is load-bearing for `chest` and `locker`.** Shared art faces `-Z`, and
+   `rotationY` turns it (see [`SHARED_ART.md`](SHARED_ART.md) §2), so a container
+   backed against the **west** wall faces `-PI/2`, **east** `+PI/2`, **south** `0`
+   and **north** `PI`. A quarter turn out and the container opens into the
+   plaster, which looks perfectly fine in the room and is unusable in the run. The
+   floor in front of it must be clear and walkable — `1.6 m` for a chest, `1.2 m`
+   for a locker — and `npm run validate:art` checks both the clearance and, by
+   implication, the facing.
 1. Anchors must be reachable — no anchor inside a collider, none behind furniture.
 2. Anchors must not block a doorway. Keep `1.2 m` clear in front of every entry in `doorWalls`.
 3. `itemSpawn` anchors want to read as *intentional* spots: a table edge, a shelf, a
@@ -138,8 +164,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   const group = new THREE.Group();
   const colliders = [];
 
-  // The kit builds shell geometry that already respects ctx.doors.
-  const shell = ctx.kit.shell(ctx);   // floor, ceiling, 4 walls with door holes cut
+  // The kit builds shell geometry that already respects ctx.doors. It needs the
+  // footprint: a 2x1 room has walls on six outer edges, not four.
+  const shell = ctx.kit.shell(ctx, blueprint.footprint);
   group.add(shell.object);
   colliders.push(...shell.colliders);
 
@@ -148,6 +175,14 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   return { object: group, colliders };
 }
 ```
+
+A pack's kit may expose more than `shell()`. The mansion pack's rooms call
+`addShell(batch, ctx, footprint, styleOptions)` from its own `kit/shell.ts`
+directly, so they can choose a floor, a wallpaper and a ceiling treatment and
+share one geometry batch with their furniture; `PackKit.shell()` remains the
+contract anything holding only a `PackKit` can rely on. Keeping the door-cutting
+logic in **one** function per pack is the part that matters - how rooms reach it
+is the pack's business.
 
 ### 4.1 `RoomBuildContext`
 
@@ -194,6 +229,11 @@ Rules:
   those already.
 - Chests, lockers and doors bring their own colliders. Items deliberately have none.
   Either way, do not add colliders for anchors.
+- **The generator places containers after your room is built**, so nothing in
+  `build()` can see them. Leave room for them yourself: keep other anchors clear
+  of a `chest` or `locker` anchor, remembering a chest is `1.0 x 0.7 m` and a
+  locker `0.9 x 0.7 m` (see [`SHARED_ART.md`](SHARED_ART.md)). `npm run validate:art`
+  checks the spacing.
 
 ---
 
@@ -210,6 +250,15 @@ Rules:
   If your room is pitch black, it is broken: add a weak practical light, moonlight
   from a window, or raise emissive on key surfaces.
 - Never set `renderer`, `scene.fog`, tone mapping or exposure from a room.
+- **Shadows are the room's own decision.** The renderer enables the shadow map but
+  sets `castShadow` on nothing, so a room that wants shadows sets it on at most one
+  of its own lights - the budget below. Rooms are static, so set
+  `light.shadow.autoUpdate = false` and `shadow.needsUpdate = true` once: the map
+  renders on the first visible frame and costs nothing afterwards.
+- **A window may only go on a wall you left out of `doorWalls`.** The generator
+  decides doors at run time, so the only walls guaranteed solid for a whole run are
+  the ones you never offered. A window on an offered wall is a window in a doorway
+  the day the generator picks that edge.
 
 ---
 
@@ -223,9 +272,23 @@ Rules:
 | Shadow-casting lights | ≤ 1 |
 | Unique materials created | 0 (use `ctx.materials`) |
 
+These numbers are **guidance**. `npm run validate:art` reports draw calls,
+triangles and collider counts as warnings, not errors: going over for a set piece
+is a conversation with whoever is profiling, not a reason to make a room worse.
+The light budget *is* enforced — a room that quietly adds a third light degrades
+every other room on screen, because three.js compiles every visible light into the
+shader.
+
 Up to 36 rooms exist at once; only `renderDistanceRooms` are rendered, but all are
 resident in memory. Reuse geometry aggressively — build a geometry once at module
 scope and instance it.
+
+**Batch rather than fight the budget.** One mesh per box spends 40 draw calls on
+the skirting alone. `art/lib/merge.ts` (`MeshBatcher`) collects posed geometry,
+groups it by material and merges each group into a single mesh, which is how a
+mansion room built from three hundred boxes costs about twenty draws. Merged
+geometry is allocated per room instance, so a room that batches **must** return the
+batcher's `dispose` as `BuiltRoom.dispose`.
 
 ---
 
@@ -242,8 +305,27 @@ scope and instance it.
 - [ ] Colliders present for blocking furniture, absent for decoration
 - [ ] ≤ 2 lights, and the room is navigable on its own light (there is no flashlight)
 - [ ] Registered in the pack's `pack.ts` room list
+- [ ] Nothing in `build()` touches the DOM (see [`ART_GUIDE.md`](ART_GUIDE.md))
+- [ ] Merged geometry is freed in `dispose()`
 
-Run `npm run validate:art` (step 8) to check most of this automatically.
+`npm run validate:art` checks all of the above automatically, plus several things
+you cannot check by eye. It builds every room **headless, in Node**, once per legal
+combination of doors and once per seed, and then:
+
+- voxelises the room against its own colliders at the player's radius and floods
+  from every doorway. **Every doorway must reach every other doorway, and every
+  anchor must be reachable.** This is the "you cannot get stuck in a room" test,
+  and it is the reason nothing in `art/` may touch the DOM or a GL context;
+- checks that a side the generator closed is really walled, and a side it opened is
+  really walkable;
+- checks anchors are not buried in furniture, not in a doorway, and not on top of
+  each other;
+- rebuilds with the same seed and compares the geometry, catching anything reading
+  outside `ctx.rng`;
+- reports draw calls, triangles, lights and colliders per room.
+
+Run it after every room. It is far faster than launching the game, and it catches
+the class of bug a playtest otherwise finds at 2 a.m.
 
 ---
 

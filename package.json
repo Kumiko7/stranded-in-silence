@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate:art": "node scripts/validateArt.mjs",
+    "validate:gen": "node scripts/validateGeneration.mjs"
   },
   "dependencies": {
     "peerjs": "^1.5.5",

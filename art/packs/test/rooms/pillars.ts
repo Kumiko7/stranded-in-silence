@@ -13,7 +13,8 @@ export const pillars: RoomBlueprint = {
   anchors: {
     patrolPoint: [{ position: [0, 0, 2.6] }, { position: [0, 0, -2.6] }, { position: [2.6, 0, 0] }],
     itemSpawn: [{ position: [3.2, 0, 0] }, { position: [-3.2, 0, 0] }],
-    chest: [{ position: [-3.0, 0, 3.0], rotationY: -Math.PI / 4 }],
+    // Against the south wall between the pillars, facing north into the room.
+    chest: [{ position: [3.1, 0, 3.15], rotationY: 0 }],
   },
   build,
 };

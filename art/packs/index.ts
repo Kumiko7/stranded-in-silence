@@ -4,9 +4,11 @@
  */
 import type { ArtPack } from '../lib/contract';
 import { pack as test } from './test/pack';
+import { pack as mansion } from './mansion/pack';
 
 export const artPacks: Readonly<Record<string, ArtPack>> = {
   test,
+  mansion,
 };
 
 export function getArtPack(id: string): ArtPack {

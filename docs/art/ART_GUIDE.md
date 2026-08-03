@@ -71,8 +71,15 @@ survive being seen three times:
   is the fastest way to tank the frame rate with duplicate rooms.
 - Prefer `MeshStandardMaterial` with high roughness. Metalness is almost always `0`
   except for actual metal.
-- Procedural textures (canvas-generated noise, gradients) are preferred over image
-  files — they ship as code, scale free, and keep `assets/` small.
+- Procedural textures are preferred over image files — they ship as code, scale
+  free, and keep `assets/` small. Generate them as a **`THREE.DataTexture` from a
+  typed array, never from a `<canvas>`**: art has to build headless in Node for
+  `npm run validate:art` (§7), and `document.createElement('canvas')` would work in
+  a browser and throw there. `art/lib/textures.ts` has the seeded noise, the colour
+  helpers and the cache; `art/packs/mansion/textures.ts` is a worked example.
+- Cache textures at **module scope**, like the geometry cache in `art/lib/build.ts`.
+  `MaterialLibrary.dispose()` deliberately leaves them alone so the next run reuses
+  them.
 - Vertex colours are cheap and great for grime, water lines and soot.
 
 ## 5. Geometry
@@ -82,7 +89,13 @@ survive being seen three times:
   const PLANK = new THREE.BoxGeometry(0.14, 0.04, 2.2);   // module scope: good
   ```
 - Use `InstancedMesh` for anything appearing >20 times (books, bottles, tiles).
-- Merge static geometry that shares a material with `BufferGeometryUtils.mergeGeometries`.
+- Merge static geometry that shares a material. `art/lib/merge.ts` (`MeshBatcher`)
+  does it for you: add posed geometry, get back one mesh per material. That is the
+  difference between a detailed room costing 300 draw calls and costing 20. It can
+  also re-project UVs onto world axes, so texel density stays consistent whether a
+  texture lands on a 0.4 m skirting board or an 8 m ballroom floor.
+- Anything the batcher allocated must be freed: return its `dispose` as
+  `BuiltRoom.dispose`.
 - Never generate geometry in a render loop.
 
 ## 6. Performance budgets
@@ -108,6 +121,10 @@ Multiplayer peers must build **identical** worlds. Therefore:
 - Never read `Date`, `performance.now()` or any device state during `build()`.
 - Never branch on screen size, device pixel ratio or platform inside `build()`.
   (Animation and shader work in the render loop may, since it is cosmetic only.)
+- **Never touch the DOM anywhere in `art/`** — no `document`, no `<canvas>`, no
+  `window`. Beyond determinism, `npm run validate:art` builds every room in Node
+  with no DOM and no GL context, which is what lets it prove, before anybody
+  launches the game, that no combination of doors and seeds can strand a player.
 
 ## 8. Animation
 
@@ -116,6 +133,9 @@ open. That is nearly all of it.
 
 - Logic owns state; art owns appearance. Logic sets `hinge.rotation.y`; art decides
   what the hinge looks like.
+- Cosmetic self-driven motion belongs on a mesh's `onBeforeRender`, where reading
+  the clock is fine and the work stops the moment the room is culled. `BuiltRoom`
+  has no `update()` and nothing calls one.
 - Anything purely cosmetic and self-driven (a flickering candle, a swaying chandelier,
   drifting dust) can be animated by art via an optional `update(dt)` on the build result.
   It must never affect collision or gameplay.
@@ -131,7 +151,10 @@ sound is positioned correctly (e.g. `handle` on a door).
 ```
 art/
 ├─ lib/            Contract types + helper builders shared by ALL art
-│                  (geometry utils, procedural textures, noise, greeble, kit base)
+│  ├─ contract.ts  the art/logic contract - the only thing src/ may import
+│  ├─ build.ts     cached box geometry, colliders, the material library
+│  ├─ merge.ts     MeshBatcher: merge by material, world-space UV baking
+│  └─ textures.ts  seeded noise + DataTexture builders (no canvas, ever)
 ├─ shared/         Gameplay art used by every map
 │  ├─ characters/  player, enemy
 │  ├─ props/       doors, exit doors, chests, lockers, items, traps

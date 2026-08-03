@@ -99,18 +99,20 @@ the simulation is written host-authoritative from the start.*
 **Done when:** a hand-written test room compiles against the contract and a debug capsule slides along its walls.
 **Note:** world dimensions reach art through `ctx.dims`, so art imports nothing but `three` and the contract — not even config.
 
-### ◐ 8. Test art pack + art validation
+### ☑ 8. Test art pack + art validation
 **Goal:** a functional pack so world systems can be built and tested before real art exists.
-**Touches:** `art/packs/test/`, `art/shared/`, `scripts/validateArt.ts`, `npm run validate:art`.
+**Touches:** `art/packs/test/`, `art/shared/`, `scripts/validateArt.mjs`, `npm run validate:art`.
 **Details:** kit shell that cuts door openings; plain rooms with full anchor sets; validator checking the [`ROOM_FORMAT.md §8`](art/ROOM_FORMAT.md#8-authoring-checklist) checklist.
-**Still missing:** the validator script. The pack exists with 8 blueprints (empty, pillars, crates, table, shelves, and one dead-end closet per side), shared door/exit-door/player art, and a shell that cuts openings correctly on all four sides.
+**Done when:** the pack exists with 8 blueprints (empty, pillars, crates, table, shelves, and one dead-end closet per side), shared door/exit-door/player art, a shell that cuts openings correctly on all four sides, and `npm run validate:art` passes.
+**Note:** the validator builds every room of every pack headless in Node (through Vite's SSR loader, so aliases and TypeScript resolve as in the game), once per legal door combination and per seed. Beyond the authoring checklist it flood-fills each room at the player's radius to prove **no combination of doors can strand anyone**, checks doors are respected, checks anchors are reachable and not stacked, and re-checks determinism. Budgets are warnings; the light budget is an error. The `test` pack is exempt from the pack-completeness counts — it is scaffolding, not a map.
 
 ### ◐ 9. Map generation
 **Goal:** the maze.
-**Touches:** `src/world/generation.ts`.
-**Details:** the full pipeline in [`systems/GENERATION.md`](systems/GENERATION.md) — 1×1 slots, spanning tree + loops, blueprint assignment by door mask, spawn/exit placement, locked doors + key placement in the still-reachable region, content rolls, validation and re-roll.
+**Touches:** `src/world/generation.ts`, `scripts/validateGeneration.mjs`, `npm run validate:gen`.
+**Details:** the full pipeline in [`systems/GENERATION.md`](systems/GENERATION.md) — slot packing (1×1 plus multi-cell footprints, one of each per map), spanning tree + loops over slots, blueprint assignment by door mask **at any 90° rotation**, spawn/exit placement, locked doors + key placement in the still-reachable region, content rolls, validation and re-roll.
 **Done when:** the same seed always produces the same map; 500 generated maps all pass validation; a debug top-down view renders the layout.
-**Still missing:** the validation/re-roll pass and the debug map view. Connection, blueprint assignment, spawn/exit placement, per-seed determinism, locked doors, lock regions, room contents, key placement, per-room patrol points and the enemy spawn are done — solvability is structural (see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys") and was checked over 400 seeds; the enemy spawn guarantee was checked over 200.
+**Still missing:** the debug top-down map view. Everything else is in: `npm run validate:gen` generates every enabled map over hundreds of seeds and asserts determinism, cell ownership, footprint-vs-rotation, openings landing on real doors, full connectivity, greedy-key-hunt solvability, an unlocked enemy path, and the multi-cell caps. Solvability is structural (see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys"); the script proves it rather than assuming it.
+**Note:** the validator re-derives the rotation maths instead of importing it, so breaking rotation in `generation.ts` makes the two disagree. Four deliberate mutations (identity `rotateSide`, identity `rotateCell`, unrotated anchors, ignored `maxSlots`) were each caught.
 
 ### ◐ 10. Room streaming + world assembly
 **Goal:** turn a `RunLayout` into a walkable 3D world.
@@ -255,13 +257,17 @@ the simulation is written host-authoritative from the start.*
 
 ## Phase 3 — Content and polish
 
-### ☐ 30. Mansion art pack I — kit, materials and 5 rooms
-**Touches:** `art/packs/mansion/{pack,materials,kit/}`, 5 rooms.
-**Done when:** the mansion kit cuts doors correctly and 5 rooms pass validation and look properly haunted.
+### ☑ 30. Mansion art pack I — kit, materials and 5 rooms
+**Touches:** `art/packs/mansion/{pack,materials,textures,kit/}`, `art/lib/{merge,textures}.ts`.
+**Done when:** the mansion kit cuts doors correctly and rooms pass validation and look properly haunted.
+**Details:** procedural `DataTexture` surfaces (parquet, marble chequer, damask wallpaper, brick, ashlar, tile, walnut, portraits, stained glass); a shell with per-room floor/wall/ceiling/wainscot styles, trim, cornice and cut-in windows; `kit/props.ts` with ~30 reusable pieces. Geometry goes through `MeshBatcher`, which is what keeps a three-hundred-box room at ~20 draw calls.
 
-### ☐ 31. Mansion art pack II — 5 more rooms
-### ☐ 32. Mansion art pack III — 5+ more rooms, plus the poster
+### ☑ 31. Mansion art pack II — 5 more rooms
+### ☑ 32. Mansion art pack III — 5+ more rooms, plus the poster
 **Done when:** ≥ 15 mansion rooms exist, meeting [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md).
+**Details:** 23 blueprints — 19 of them 1x1 (foyer, library, dining, kitchen, conservatory, nursery, study, music room, bathroom, bedroom, chapel, boiler, wine cellar, trophy, billiards, clock room, laundry, séance parlour, and a one-door linen store per side) plus a 2x1 gallery, 2x2 ballroom, 1x3 stair hall and L-shaped attic. All pass `npm run validate:art`.
+**Still missing:** the lobby poster. `poster.mansion` has no builder and no contract in [`art/SHARED_ART.md`](art/SHARED_ART.md) yet, and nothing renders one until the lobby scene lands — it belongs with **step 29**, not here.
+**Note:** the four multi-cell set pieces are live — `layout.multiCellRooms` is on with `maxSlots: 2`, and over 400 seeds the gallery lands in ~83 % of maps, the stair hall ~49 %, the ballroom ~46 % and the attic ~23 %. Rotation is in too, so the linen store is one blueprint rather than four.
 
 ### ☐ 33. Themed shared art
 **Touches:** `art/shared/{characters,props}/`, mansion overrides.
