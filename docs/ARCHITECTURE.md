@@ -176,7 +176,8 @@ item drop ──────────────┘      loudness)          
 
 Emitters declare `{ radius, loudness }` in `config/player.json → noise` or
 `config/items.json`. The enemy's `hearing` block in `config/enemy.json` decides what
-gets through. Propagation is **distance only** — walls and doors do not muffle sound
+gets through. Every peer emits its own noise and broadcasts it; the host feeds all
+of it into the one bus its enemy listens to. Events live for a single tick. Propagation is **distance only** — walls and doors do not muffle sound
 anywhere in the game, for players or the enemy. Doors cost the enemy *time*, not
 hearing.
 
@@ -219,6 +220,7 @@ each other at `net.json → voice.hearingRange` (22 m), the enemy only within
 | Signalling | **PeerJS public server now; our own later** | PeerJS gets multiplayer working with zero infrastructure. Codes are namespaced peer ids. Self-hosting a small `ws` signalling server is plan step 23, and the seam where Steam lobbies drop in later. |
 | Voice | **Native `RTCPeerConnection` audio tracks** | Proximity attenuation needs per-peer `GainNode` control; a wrapper library would only get in the way. |
 | Physics | **Custom 2D circle-vs-shape** | There is no jumping and no vertical movement. A full physics engine (rapier/cannon) would add a large dependency and a determinism headache to solve a problem that is ~150 lines here. Revisit only if verticality ships. |
+| Gameplay feedback (alert wash, heartbeat, damage flash, health vignette) | **A DOM compositing layer** (`src/render/feedback.ts`), not an `EffectComposer` post stack | Every effect the design asks for is a full-screen blend. A DOM layer costs no render targets and no extra passes, and there is no *general* post-processing stack to justify one (see "Deliberately NOT built"). `render/` still owns it. If an effect ever needs the depth buffer, that is the moment to introduce a composer. |
 | Pathfinding | **A\* over the room graph + per-room waypoints** | The world is already a graph of rooms; hierarchical pathing on it is cheaper and more controllable than a navmesh, and makes "search a nearby room" trivial to express. |
 | State sync | **Seed + snapshots**, not full world replication | The map is a pure function of `(mapId, seed)`, so only entity state crosses the wire. |
 | Persistence | **`localStorage`**, adapter-swapped for OS save dir when packaged | No backwards-compat requirement yet; the adapter seam is what matters. |

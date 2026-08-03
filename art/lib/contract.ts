@@ -109,9 +109,21 @@ export interface ArtBuildContext {
   readonly dims: RoomDims;
 }
 
+/**
+ * Optional hooks a piece may expose so logic can drive it more richly than by
+ * moving parts. Logic must always work without them - see docs/art/SHARED_ART.md.
+ */
+export interface ArtApi {
+  /** `enemy.*`: one of `enemy.json -> alert.levels`. */
+  setAlert?(level: string): void;
+  /** `player.masked`: 0 = standing, 1 = fully crouched. */
+  setCrouched?(t: number): void;
+}
+
 export interface BuiltArt extends BuiltPiece {
   /** Named parts logic drives. Required parts per artId are in docs/art/SHARED_ART.md. */
   parts: Record<string, THREE.Object3D>;
+  api?: ArtApi;
   dispose?(): void;
 }
 

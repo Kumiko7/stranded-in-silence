@@ -3,17 +3,28 @@
 Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 `src/shared/`. Config: `config/net.json`.
 
-> **Current state (slice 2).** Multiplayer runs on **PeerJS** using its public
+> **Current state (slice 3).** Multiplayer runs on **PeerJS** using its public
 > signalling server (`src/net/index.ts`), in a star topology where the host relays.
-> The host is authoritative over the **run seed** only — everything else is
-> broadcast and trusted: player transforms (`move`), door toggles (`door`), door
-> unlocks (`unlock`), chest openings (`chest`) and item pickup/drop (`take` /
-> `drop`). World items are named deterministically from the seed (`item:x,y:i`,
-> `chest:x,y:i:loot`), so a `take` needs only an id; dropped items are namespaced
-> by peer (`drop:<peer>:<n>`). Nothing stops two peers taking the same item at
-> once — that is step 26. The authoritative simulation, prediction and our own
-> signalling server are plan steps 23–27. The rest of this document describes that
-> target design.
+> The host is authoritative over the **run seed** and the **enemy** — everything
+> else is broadcast and trusted: player transforms (`move`, which now also carries
+> `hiding` and `health`), door toggles (`door`), door unlocks (`unlock`), chest
+> openings (`chest`) and item pickup/drop (`take` / `drop`). World items are named
+> deterministically from the seed (`item:x,y:i`, `chest:x,y:i:loot`), so a `take`
+> needs only an id; dropped items are namespaced by peer (`drop:<peer>:<n>`).
+> Nothing stops two peers taking the same item at once — that is step 26. The
+> authoritative simulation, prediction and our own signalling server are plan steps
+> 23–27. The rest of this document describes that target design.
+>
+> **The enemy is already host-only**, which is the shape step 27 wants:
+>
+> | Message | Direction | Purpose |
+> | --- | --- | --- |
+> | `noise {id, kind, x, z}` | any peer → all | Every peer emits its own footsteps, doors, chests and drops; the host feeds them all into one `NoiseBus`. `kind` indexes `player.json → noise`, so only four numbers cross the wire. |
+> | `enemy {x, z, yaw, alert}` | host → all | At `snapshotRateHz`. Clients never simulate the enemy, they interpolate this. |
+> | `hit {id}` | host → all | Addressed: only the named player applies it. The victim owns their own health ladder. |
+> | `health {id, state}` | owner → all | The result, so every peer can draw a downed teammate and count the wipe condition. |
+> | `revive {id}` | reviver → all | Applied by the named player, who then echoes `health`. |
+> | `escaped {id}` / `wiped` | any → all / host → all | Run outcome. |
 
 ## Model
 

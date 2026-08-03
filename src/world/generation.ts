@@ -20,6 +20,11 @@ export interface PlacedRoom {
   doors: readonly Side[];
   /** How many locked doors sit between the spawn room and this one. */
   region: number;
+  /**
+   * World-space points the enemy walks while patrolling this room, from the
+   * blueprint's `patrolPoint` anchors. Always at least one (the room centre).
+   */
+  patrolPoints: readonly (readonly [number, number])[];
 }
 
 export interface PlacedDoor {
@@ -58,6 +63,8 @@ export interface RunLayout {
   /** Every spawn point in the shared start room. Players take one each by slot. */
   playerSpawns: { position: readonly [number, number, number]; yaw: number }[];
   exitCell: readonly [number, number];
+  /** Where the hunter starts: far from the players, and behind no locked door. */
+  enemySpawn: { cell: readonly [number, number]; position: readonly [number, number] };
 }
 
 const STEP: Record<Side, readonly [number, number]> = {
@@ -70,6 +77,15 @@ const STEP: Record<Side, readonly [number, number]> = {
 const key = (x: number, y: number) => `${x},${y}`;
 const edgeKey = (x: number, y: number, side: Side) =>
   side === 'north' ? `h:${x},${y}` : side === 'south' ? `h:${x},${y + 1}` : side === 'west' ? `v:${x},${y}` : `v:${x + 1},${y}`;
+
+/**
+ * The door id shared by a cell and its neighbour across `side`. Both cells name
+ * the same door, which is what lets the room graph walk from doors alone.
+ */
+export const doorIdBetween = edgeKey;
+
+/** Cell step for a side, so consumers do not re-derive the grid convention. */
+export const sideStep = (side: Side): readonly [number, number] => STEP[side];
 
 /** A key slot the generator can fill: either a chest's contents or a floor spawn. */
 interface Slot {
@@ -84,6 +100,8 @@ export function generate(
   seed: number,
   world: WorldConfig,
   blueprints: readonly RoomBlueprint[],
+  /** `enemy.json -> archetypes.<id>.spawn`. Kept as a parameter so generation reads one config file. */
+  enemySpawn: { minRoomDistanceFromPlayers: number },
 ): RunLayout {
   const { width, height, cellSize } = world.grid;
   const inBounds = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height;
@@ -219,6 +237,7 @@ export function generate(
   const roomRng = stream(seed, 'blueprints');
   const usage = new Map<string, number>();
   const rooms: PlacedRoom[] = [];
+  const byId = new Map(blueprints.map((bp) => [bp.id, bp]));
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -230,11 +249,19 @@ export function generate(
       const isSpawn = same([x, y], spawnCell);
       const prefer = isSpawn ? (bp: RoomBlueprint) => (bp.anchors.playerSpawn?.length ?? 0) > 0 : undefined;
 
+      const blueprintId = chooseBlueprint(blueprints, required, usage, world.layout.maxDuplicatesPerRoom, roomRng, prefer);
+      const anchors = byId.get(blueprintId)?.anchors.patrolPoint ?? [];
+
       rooms.push({
         cell: [x, y],
-        blueprintId: chooseBlueprint(blueprints, required, usage, world.layout.maxDuplicatesPerRoom, roomRng, prefer),
+        blueprintId,
         doors: required,
         region: regionOf(x, y),
+        // A room that declares no patrol anchors still has to be walkable to,
+        // so it falls back to its own centre.
+        patrolPoints: anchors.length
+          ? anchors.map((anchor) => [x * cellSize + anchor.position[0], y * cellSize + anchor.position[2]] as const)
+          : [[x * cellSize, y * cellSize] as const],
       });
     }
   }
@@ -268,7 +295,6 @@ export function generate(
   });
 
   // --- 7. contents, then keys ------------------------------------------------
-  const byId = new Map(blueprints.map((bp) => [bp.id, bp]));
   const { containers, items, slots } = fillContents(rooms, byId, world, seed, cellSize);
   placeKeys(slots, locks.length, world, seed);
 
@@ -287,6 +313,29 @@ export function generate(
       }))
     : [{ position: [sx * cellSize, 0, sy * cellSize] as const, yaw: 0 }];
 
+  // --- 9. the hunter's start room --------------------------------------------
+  // Measured over the OPEN edge set with locks blocked, so the enemy can always
+  // walk to the players without a key, and starts far enough away that nobody is
+  // ambushed on the spawn tile. Falls back to the furthest room it can reach.
+  const enemyWalk = walk(spawnCell, open, stepsFrom, lockedEdges);
+  const reachable = rooms
+    .filter((room) => enemyWalk.distance.has(key(room.cell[0], room.cell[1])))
+    .map((room) => ({ room, distance: enemyWalk.distance.get(key(room.cell[0], room.cell[1])) ?? 0 }));
+
+  const farEnough = reachable.filter((entry) => entry.distance >= enemySpawn.minRoomDistanceFromPlayers);
+  const enemyRng = stream(seed, 'enemySpawn');
+  const chosen =
+    farEnough.length > 0
+      ? shuffle(enemyRng, farEnough)[0]
+      : reachable.sort((a, b) => b.distance - a.distance)[0];
+
+  if (!farEnough.length) {
+    console.warn(`[generation] no room ${enemySpawn.minRoomDistanceFromPlayers}+ from spawn for the enemy`);
+  }
+
+  const enemyRoom = chosen?.room ?? rooms[0];
+  const enemyPoint = enemyRoom?.patrolPoints[0] ?? ([0, 0] as const);
+
   return {
     seed,
     mapId,
@@ -297,6 +346,7 @@ export function generate(
     items: items.filter((item) => item.itemId !== ''),
     playerSpawns,
     exitCell,
+    enemySpawn: { cell: enemyRoom?.cell ?? [0, 0], position: enemyPoint },
   };
 }
 

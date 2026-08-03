@@ -10,8 +10,10 @@ import { getArtPack } from '@art/packs/index';
 import { resolveArt } from '@art/shared/index';
 import type { RoomDims } from '@art/lib/contract';
 import { configForMap, type Config } from '@/config/index';
-import { stream } from '@/core/rng';
+import { stream, type Rng } from '@/core/rng';
+import type { EnemyArchetype, HealthState } from '@/config/types';
 import { createPlayerState, applyLook, eyeHeight, stepPlayer, type PlayerState } from '@/entities/player';
+import { applyHit, applyRevive, isDown, tickHealth } from '@/entities/health';
 import {
   createInventory,
   dropFrom,
@@ -22,17 +24,23 @@ import {
   type Hand,
   type Inventory,
 } from '@/entities/items';
+import { createEnemy, updateEnemy, type EnemyLocker, type EnemyState } from '@/ai/enemy';
+import { footstepInterval, footstepKind, noiseSpec, NoiseBus, type NoiseKind } from '@/ai/noiseBus';
+import type { PerceptionTarget } from '@/ai/perception';
+import { RoomGraph } from '@/ai/roomGraph';
 import type { Input } from '@/input/index';
-import type { Net } from '@/net/index';
+import type { EnemyTransform, Net } from '@/net/index';
 import type { Renderer } from '@/render/Renderer';
+import type { AlertLevel } from '@/render/feedback';
 import { generate, type RunLayout } from '@/world/generation';
 import { toggleDoor, unlockDoor, updateDoors, type Door } from '@/world/doors';
 import { updateChests, updateLockers, type Locker } from '@/world/containers';
+import { RunState } from '@/world/runState';
 import { buildWorld, type BuiltWorld } from '@/world/worldBuilder';
 
 /** What the look-ray is currently offering. `hold` targets fill a ring first. */
 export interface InteractTarget {
-  kind: 'door' | 'exit' | 'unlock' | 'locked' | 'chest' | 'lockerEnter' | 'lockerExit' | 'item';
+  kind: 'door' | 'exit' | 'unlock' | 'locked' | 'chest' | 'lockerEnter' | 'lockerExit' | 'item' | 'revive';
   id: string;
   verbKey: string;
   /** Locale key of the item's name, for prompts that name what you are taking. */
@@ -47,12 +55,15 @@ export interface RunHooks {
   onHandsChange(hands: { left: string | null; right: string | null }): void;
   onEscaped(): void;
   onPlayerCountChange(count: number): void;
+  onHealthChange(state: HealthState): void;
+  /** Everyone is on the floor. The run is over and it was not a win. */
+  onWiped(): void;
 }
 
 interface RemotePlayer {
   object: THREE.Object3D;
   root: THREE.Object3D;
-  target: { x: number; z: number; yaw: number; height: number };
+  target: { x: number; z: number; yaw: number; height: number; hiding: boolean; health: HealthState };
 }
 
 /** The unlock behaviour is the only item behaviour this slice implements. */
@@ -81,6 +92,21 @@ export class Game {
   #dropCount = 0;
   #dims: RoomDims | null = null;
 
+  /* --- the hunter ---------------------------------------------------------- */
+  #noise = new NoiseBus();
+  #graph: RoomGraph | null = null;
+  #doorsById = new Map<string, Door>();
+  #enemy: EnemyState | null = null;
+  #enemyArt: { object: THREE.Object3D; root: THREE.Object3D; setAlert?: (level: string) => void } | null = null;
+  /** What clients interpolate toward; the host writes it from its own sim. */
+  #enemyView: EnemyTransform = { x: 0, z: 0, yaw: 0, alert: 'calm' };
+  #enemyAlert = '';
+  #enemyRng: Rng = stream(0, 'enemy');
+  #enemyTimer = 0;
+  #footstepTimer = 0;
+  #run = new RunState();
+  #over = false;
+
   constructor(config: Config, renderer: Renderer, input: Input, net: Net, hooks: RunHooks) {
     this.#config = config;
     this.#renderer = renderer;
@@ -101,6 +127,11 @@ export class Game {
     return this.#player;
   }
 
+  /** Read-only view of the hunter, for the dev handle and later a debug overlay. */
+  get enemy(): EnemyState | null {
+    return this.#enemy;
+  }
+
   /** `slot` selects this player's spawn point within the shared start room. */
   start(mapId: string, seed: number, slot = 0): void {
     this.end();
@@ -110,7 +141,7 @@ export class Game {
     this.#renderer.applyGraphics(config.graphics);
 
     const pack = getArtPack(config.maps.maps[mapId]?.artPack ?? mapId);
-    const layout = generate(mapId, seed, config.world, pack.rooms);
+    const layout = generate(mapId, seed, config.world, pack.rooms, this.#archetype(config).spawn);
     const world = buildWorld(layout, pack, config.world, config.items);
 
     this.#layout = layout;
@@ -130,9 +161,29 @@ export class Game {
     this.#player = createPlayerState(spawn.position[0], spawn.position[2], spawn.yaw, config.player);
     this.#inventory = createInventory();
     this.#escaped = false;
+    this.#over = false;
     this.#resetHold();
     this.#hooks.onHandsChange({ left: null, right: null });
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
+    this.#hooks.onHealthChange('healthy');
+
+    // --- the hunter --------------------------------------------------------
+    this.#graph = new RoomGraph(layout);
+    this.#doorsById = new Map(world.doors.map((door) => [door.id, door]));
+    this.#noise.clear();
+    this.#footstepTimer = 0;
+    this.#enemyRng = stream(seed, 'enemy');
+
+    this.#run.clear();
+    this.#run.add(this.#net.selfId);
+    for (const id of this.#remotes.keys()) this.#run.add(id);
+
+    const [ex, ez] = layout.enemySpawn.position;
+    this.#enemy = createEnemy(ex, ez);
+    this.#enemyView = { x: ex, z: ez, yaw: 0, alert: 'calm' };
+    this.#enemyAlert = '';
+    this.#spawnEnemyArt();
+    this.#renderer.feedback.reset();
   }
 
   end(): void {
@@ -142,12 +193,51 @@ export class Game {
     }
     for (const remote of this.#remotes.values()) this.#renderer.scene.remove(remote.object);
     this.#remotes.clear();
+    this.#removeEnemyArt();
     this.#renderer.setRoomLights([]);
+    this.#renderer.feedback.reset();
     this.#world = null;
     this.#layout = null;
     this.#player = null;
     this.#target = null;
     this.#hiding = null;
+    this.#enemy = null;
+    this.#graph = null;
+    this.#doorsById.clear();
+    this.#run.clear();
+  }
+
+  /** The archetype this map's enemy uses. One for now; `maps.json` picks later. */
+  #archetype(config: Config = this.#config): EnemyArchetype {
+    const { enemy } = config;
+    const archetype = enemy.archetypes[enemy.defaultArchetype];
+    if (!archetype) throw new Error(`config: no enemy archetype "${enemy.defaultArchetype}"`);
+    return archetype;
+  }
+
+  #spawnEnemyArt(): void {
+    const world = this.#world;
+    const layout = this.#layout;
+    if (!world || !layout || !this.#dims) return;
+
+    const art = resolveArt(this.#archetype().artId)({
+      materials: world.materials,
+      rng: stream(layout.seed, 'enemyArt'),
+      dims: this.#dims,
+    });
+
+    this.#renderer.scene.add(art.object);
+    this.#enemyArt = {
+      object: art.object,
+      root: art.parts['root'] ?? art.object,
+      setAlert: art.api?.setAlert?.bind(art.api),
+    };
+  }
+
+  #removeEnemyArt(): void {
+    if (!this.#enemyArt) return;
+    this.#renderer.scene.remove(this.#enemyArt.object);
+    this.#enemyArt = null;
   }
 
   /* --- remote players ----------------------------------------------------- */
@@ -161,9 +251,18 @@ export class Game {
       dims: this.#dims,
     });
     const root = art.parts['root'] ?? art.object;
+    // Tagged so the look-ray can offer "revive" on a downed teammate.
+    art.object.traverse((child) => {
+      child.userData['playerId'] = id;
+    });
 
     this.#renderer.scene.add(art.object);
-    this.#remotes.set(id, { object: art.object, root, target: { x: 0, z: 0, yaw: 0, height: 1.8 } });
+    this.#remotes.set(id, {
+      object: art.object,
+      root,
+      target: { x: 0, z: 0, yaw: 0, height: 1.8, hiding: false, health: 'healthy' },
+    });
+    this.#run.add(id);
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
   }
 
@@ -172,16 +271,18 @@ export class Game {
     if (!remote) return;
     this.#renderer.scene.remove(remote.object);
     this.#remotes.delete(id);
+    this.#run.remove(id);
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
   }
 
-  moveRemote(id: string, transform: { x: number; z: number; yaw: number; height: number }): void {
+  moveRemote(id: string, transform: RemotePlayer['target']): void {
     const remote = this.#remotes.get(id);
     if (!remote) {
       this.addRemote(id);
       return;
     }
     remote.target = transform;
+    this.#run.setHealth(id, transform.health);
   }
 
   /* --- replicated world events -------------------------------------------- */
@@ -217,6 +318,71 @@ export class Game {
     this.#world?.spawnItem(id, itemId, x, y, z);
   }
 
+  /** A peer made a noise. Only the host's enemy listens, but every peer collects. */
+  addNoise(sourceId: string, kind: NoiseKind, x: number, z: number): void {
+    const spec = noiseSpec(this.#config.player, kind);
+    this.#noise.emit({ x, z, radius: spec.radius, loudness: spec.loudness, kind, sourceId });
+  }
+
+  /** Host -> client enemy transform. Clients never simulate the enemy. */
+  setEnemyTransform(transform: EnemyTransform): void {
+    this.#enemyView = transform;
+  }
+
+  /** The enemy caught the local player. */
+  takeHit(): void {
+    const player = this.#player;
+    if (!player) return;
+
+    const { attack } = this.#archetype();
+    const state = applyHit(player.health, attack, this.#config.player);
+    if (!state) return;
+
+    // Being caught in a locker throws you out of it - hiding is not a state you
+    // get to keep once it has found you.
+    if (this.#hiding) {
+      this.#hiding.locker.occupied = false;
+      this.#hiding.active = false;
+    }
+
+    this.#renderer.feedback.flash();
+    this.#announceHealth(state);
+  }
+
+  setRemoteHealth(id: string, state: HealthState): void {
+    const remote = this.#remotes.get(id);
+    if (remote) remote.target.health = state;
+    this.#run.setHealth(id, state);
+  }
+
+  /** Someone finished a revive hold on the local player. */
+  reviveLocal(): void {
+    const player = this.#player;
+    if (!player || !isDown(player.health.state)) return;
+    this.#announceHealth(applyRevive(player.health, this.#config.player));
+  }
+
+  markEscaped(id: string): void {
+    this.#run.setEscaped(id);
+  }
+
+  endWiped(): void {
+    if (this.#over) return;
+    this.#over = true;
+    this.#hooks.onWiped();
+  }
+
+  #announceHealth(state: HealthState): void {
+    this.#run.setHealth(this.#net.selfId, state);
+    this.#hooks.onHealthChange(state);
+    this.#net.broadcast({ t: 'health', id: this.#net.selfId, state });
+  }
+
+  #emitNoise(kind: NoiseKind, x: number, z: number): void {
+    this.addNoise(this.#net.selfId, kind, x, z);
+    this.#net.broadcast({ t: 'noise', id: this.#net.selfId, kind, x, z });
+  }
+
   /* --- frame -------------------------------------------------------------- */
 
   update(dt: number, controlsEnabled: boolean): void {
@@ -245,15 +411,21 @@ export class Game {
       }
     }
 
+    tickHealth(player.health, dt);
     this.#updateCamera(player);
     this.#updateInteraction(dt, controlsEnabled);
     if (controlsEnabled) this.#updateHands(player);
+    this.#updateFootsteps(dt, player);
 
     const { doors, containers } = this.#config.world;
     updateDoors(world.doors, dt, doors.openSeconds, doors.closeSeconds);
     updateChests(world.chests, dt, containers.chestOpenHoldSeconds);
     updateLockers(world.lockers, dt, containers.lockerEnterSeconds, containers.lockerExitSeconds);
     if (this.#hiding && !this.#hiding.active && this.#hiding.locker.progress === 0) this.#hiding = null;
+
+    this.#updateEnemy(dt, player);
+    // One tick, one chance to be heard. Nothing here ages.
+    this.#noise.clear();
 
     world.updateVisibility(
       player.x,
@@ -263,6 +435,195 @@ export class Game {
     this.#renderer.updateLights(dt, player.x, player.z);
     this.#interpolateRemotes(dt);
     this.#sendTransform(dt, player);
+  }
+
+  /* --- noise --------------------------------------------------------------- */
+
+  /**
+   * Footsteps are the noise you make without meaning to. Sprinting is the
+   * loudest thing a player does short of opening a chest.
+   */
+  #updateFootsteps(dt: number, player: PlayerState): void {
+    const moving = Math.hypot(player.velocityX, player.velocityZ) > 0.3;
+    if (!moving || this.#hiding?.active) {
+      this.#footstepTimer = 0;
+      return;
+    }
+
+    this.#footstepTimer -= dt;
+    if (this.#footstepTimer > 0) return;
+
+    this.#footstepTimer = footstepInterval(this.#config.player, player.sprinting, player.crouching);
+
+    // An injured player is audibly injured: the limp replaces the footstep and
+    // carries a great deal further than a walk does.
+    const kind: NoiseKind =
+      player.health.state === 'injured' ? 'injured' : footstepKind(player.sprinting, player.crouching);
+    this.#emitNoise(kind, player.x, player.z);
+  }
+
+  /* --- the hunter ----------------------------------------------------------- */
+
+  #updateEnemy(dt: number, player: PlayerState): void {
+    const world = this.#world;
+    const enemy = this.#enemy;
+    const graph = this.#graph;
+    if (!world || !enemy || !graph) return;
+
+    if (this.#isHost) {
+      updateEnemy(enemy, dt, {
+        targets: this.#perceptionTargets(player),
+        noise: this.#noise.events,
+        graph,
+        doors: this.#doorsById,
+        lockers: this.#enemyLockers(player),
+        collision: world.collision,
+        config: this.#archetype(),
+        rng: this.#enemyRng,
+        openDoor: (doorId) => this.#enemyOpensDoor(doorId),
+        attack: (targetId) => this.#enemyAttacks(targetId),
+        searchLocker: (lockerId) => this.#enemySearchesLocker(lockerId),
+      });
+
+      this.#enemyView = { x: enemy.x, z: enemy.z, yaw: enemy.yaw, alert: enemy.alert };
+      this.#sendEnemy(dt);
+      this.#checkRunOver();
+    }
+
+    this.#drawEnemy(dt);
+    this.#updateFeedback(dt, player);
+  }
+
+  /** Offline counts as host: there is nobody else to run the simulation. */
+  get #isHost(): boolean {
+    return this.#net.role !== 'client';
+  }
+
+  #perceptionTargets(player: PlayerState): PerceptionTarget[] {
+    const targets: PerceptionTarget[] = [
+      {
+        id: this.#net.selfId,
+        x: player.x,
+        z: player.z,
+        crouching: player.crouching,
+        hidden: this.#hiding?.active === true,
+        downed: isDown(player.health.state) || this.#escaped,
+        inDarkness: this.#inDarkness(player.x, player.z),
+      },
+    ];
+
+    for (const [id, remote] of this.#remotes) {
+      targets.push({
+        id,
+        x: remote.target.x,
+        z: remote.target.z,
+        crouching: remote.target.height < this.#config.player.body.standHeight - 0.2,
+        hidden: remote.target.hiding,
+        downed: isDown(remote.target.health),
+        inDarkness: this.#inDarkness(remote.target.x, remote.target.z),
+      });
+    }
+    return targets;
+  }
+
+  /**
+   * Rooms light themselves and players carry no light, so "in darkness" is
+   * simply: no room lamp near enough to be standing in.
+   */
+  #inDarkness(x: number, z: number): boolean {
+    const world = this.#world;
+    if (!world) return false;
+    const reach = this.#config.world.grid.cellSize * 0.6;
+    return !world.lights.some((entry) => Math.hypot(entry.x - x, entry.z - z) <= reach);
+  }
+
+  /** Lockers, with whoever is hiding in each one. Hiding beats sight, not a search. */
+  #enemyLockers(player: PlayerState): EnemyLocker[] {
+    return (this.#world?.lockers ?? []).map((locker) => {
+      let occupantId: string | null = null;
+      if (this.#hiding?.active && this.#hiding.locker.id === locker.id) occupantId = this.#net.selfId;
+      else {
+        for (const [id, remote] of this.#remotes) {
+          if (!remote.target.hiding) continue;
+          if (Math.hypot(remote.target.x - locker.x, remote.target.z - locker.z) < 0.8) occupantId = id;
+        }
+      }
+      return { id: locker.id, x: locker.x, z: locker.z, occupantId };
+    });
+  }
+
+  #enemyOpensDoor(doorId: string): void {
+    const door = this.#doorsById.get(doorId);
+    if (!door || door.open) return;
+    toggleDoor(door, true);
+    this.#net.broadcast({ t: 'door', id: door.id, open: true });
+  }
+
+  #enemySearchesLocker(lockerId: string): void {
+    const locker = this.#world?.lockers.find((candidate) => candidate.id === lockerId);
+    if (!locker) return;
+    // Throwing the doors open is the same animation as a player leaving it.
+    locker.progress = 1;
+    if (this.#hiding?.active && this.#hiding.locker.id === lockerId) {
+      this.#hiding.locker.occupied = false;
+      this.#hiding.active = false;
+    }
+  }
+
+  #enemyAttacks(targetId: string): void {
+    if (targetId === this.#net.selfId) {
+      this.takeHit();
+      return;
+    }
+    // The victim owns their own health ladder and echoes the result back.
+    this.#net.broadcast({ t: 'hit', id: targetId });
+  }
+
+  #checkRunOver(): void {
+    if (this.#over || this.#run.evaluate() !== 'wiped') return;
+    this.#net.broadcast({ t: 'wiped' });
+    this.endWiped();
+  }
+
+  #sendEnemy(dt: number): void {
+    if (this.#net.role === 'offline') return;
+
+    this.#enemyTimer -= dt;
+    if (this.#enemyTimer > 0) return;
+    this.#enemyTimer = 1 / this.#config.net.simulation.snapshotRateHz;
+    this.#net.broadcast({ t: 'enemy', ...this.#enemyView });
+  }
+
+  /** Presentation only: the sim never reads back from the art. */
+  #drawEnemy(dt: number): void {
+    const art = this.#enemyArt;
+    if (!art) return;
+
+    // The host owns the sim, so it draws exactly where the enemy is; clients
+    // only ever have snapshots, so they interpolate toward the last one.
+    const blend = this.#isHost ? 1 : Math.min(1, dt * 12);
+    art.object.position.x += (this.#enemyView.x - art.object.position.x) * blend;
+    art.object.position.z += (this.#enemyView.z - art.object.position.z) * blend;
+
+    let delta = this.#enemyView.yaw - art.root.rotation.y;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    art.root.rotation.y += delta * blend;
+
+    if (this.#enemyAlert !== this.#enemyView.alert) {
+      this.#enemyAlert = this.#enemyView.alert;
+      art.setAlert?.(this.#enemyAlert);
+    }
+  }
+
+  #updateFeedback(dt: number, player: PlayerState): void {
+    const distance = Math.hypot(this.#enemyView.x - player.x, this.#enemyView.z - player.z);
+    this.#renderer.feedback.update(dt, {
+      alert: this.#enemyView.alert as AlertLevel,
+      enemyDistance: distance,
+      injured: player.health.state === 'injured',
+      downed: isDown(player.health.state),
+    });
   }
 
   #updateCamera(player: PlayerState): void {
@@ -361,6 +722,9 @@ export class Game {
         if (!door) break;
         toggleDoor(door);
         this.#net.broadcast({ t: 'door', id: door.id, open: door.open });
+        // Closing a door behind you is a slam - louder than opening one, and
+        // sometimes worth it anyway.
+        this.#emitNoise(door.open ? 'doorOpen' : 'doorSlam', door.x, door.z);
         break;
       }
       case 'unlock': {
@@ -376,15 +740,24 @@ export class Game {
       case 'exit':
         if (!this.#escaped) {
           this.#escaped = true;
+          this.#run.setEscaped(this.#net.selfId);
+          this.#net.broadcast({ t: 'escaped', id: this.#net.selfId });
           this.#hooks.onEscaped();
         }
         break;
-      case 'chest':
+      case 'chest': {
+        const chest = world.chests.find((candidate) => candidate.id === target.id);
         this.openChest(target.id);
         this.#net.broadcast({ t: 'chest', id: target.id });
+        // The loudest thing in the game, and where most of the keys are.
+        if (chest) this.#emitNoise('chestOpen', chest.x, chest.z);
         break;
+      }
       case 'item':
         this.#pickUp(target.id);
+        break;
+      case 'revive':
+        this.#net.broadcast({ t: 'revive', id: target.id });
         break;
       case 'lockerEnter': {
         const locker = world.lockers.find((candidate) => candidate.id === target.id);
@@ -395,6 +768,7 @@ export class Game {
         player.z = locker.z;
         player.velocityX = 0;
         player.velocityZ = 0;
+        this.#emitNoise('lockerEnter', locker.x, locker.z);
         break;
       }
       case 'lockerExit': {
@@ -452,6 +826,7 @@ export class Game {
 
     world.spawnItem(id, itemId, x, 0, z);
     this.#net.broadcast({ t: 'drop', id, itemId, x, y: 0, z });
+    this.#emitNoise('itemDrop', x, z);
   }
 
   /**
@@ -459,6 +834,9 @@ export class Game {
    * through the wall next to it.
    */
   #findTarget(world: BuiltWorld): InteractTarget | null {
+    // On the floor you can do nothing but wait for someone to come back for you.
+    if (this.#player && isDown(this.#player.health.state)) return null;
+
     // Hiding replaces every other option: you can only get back out.
     if (this.#hiding?.active) {
       return {
@@ -474,13 +852,27 @@ export class Game {
     this.#raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
     this.#raycaster.far = this.#config.player.interaction.rayLength;
 
-    const hit = this.#raycaster.intersectObjects(world.raycastTargets, true)[0];
+    // Teammates are in the scene rather than the world, so they join the ray here.
+    const candidates = [...world.raycastTargets, ...[...this.#remotes.values()].map((remote) => remote.object)];
+    const hit = this.#raycaster.intersectObjects(candidates, true)[0];
     if (!hit) return null;
 
     const tagged = findTag(hit.object);
     if (!tagged) return null;
 
     switch (tagged.key) {
+      case 'playerId': {
+        const remote = this.#remotes.get(tagged.value);
+        if (!remote || remote.target.health !== 'downed') return null;
+        return {
+          kind: 'revive',
+          id: tagged.value,
+          verbKey: 'hud.interact.revive',
+          itemNameKey: 'hud.player.teammate',
+          hold: true,
+          holdSeconds: this.#config.player.health.reviveHoldSeconds,
+        };
+      }
       case 'worldItemId': {
         const item = world.items.get(tagged.value);
         const def = item ? itemDef(this.#config.items, item.itemId) : null;
@@ -573,6 +965,10 @@ export class Game {
 
       const crouchScale = remote.target.height / this.#config.player.body.standHeight;
       remote.root.scale.y += (crouchScale - remote.root.scale.y) * blend;
+
+      // Downed teammates are on the floor - the pose IS the "come and get me".
+      const down = isDown(remote.target.health) ? Math.PI / 2 : 0;
+      remote.root.rotation.x += (down - remote.root.rotation.x) * blend;
     }
   }
 
@@ -590,13 +986,16 @@ export class Game {
       z: player.z,
       yaw: player.yaw,
       height: player.height,
+      // The host's enemy needs to know who is hidden and who is already down.
+      hiding: this.#hiding?.active === true,
+      health: player.health.state,
     });
   }
 }
 
 /** Walks up to the nearest ancestor carrying one of the interaction tags. */
 function findTag(object: THREE.Object3D): { key: string; value: string } | null {
-  const keys = ['worldItemId', 'chestId', 'lockerId', 'doorId'];
+  const keys = ['worldItemId', 'chestId', 'lockerId', 'doorId', 'playerId'];
   let node: THREE.Object3D | null = object;
   while (node) {
     for (const key of keys) {

@@ -7,6 +7,7 @@
  */
 import * as THREE from 'three';
 import type { GraphicsConfig, PlayerConfig } from '@/config/types';
+import { FeedbackLayer } from './feedback';
 
 /** Point lights are per-room; only the nearest few are enabled to keep shaders sane. */
 const MAX_ACTIVE_LIGHTS = 6;
@@ -24,6 +25,8 @@ export class Renderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
+  /** Alert wash, heartbeat, damage flash and health vignettes. */
+  readonly feedback: FeedbackLayer;
   readonly #ambient: THREE.AmbientLight;
   #lights: { light: THREE.Light; x: number; z: number }[] = [];
   #lightSortTimer = 0;
@@ -45,6 +48,7 @@ export class Renderer {
     }
     this.scene.background = new THREE.Color(graphics.fog.color);
 
+    this.feedback = new FeedbackLayer(document.body, canvas, player);
     this.resize();
   }
 
@@ -101,6 +105,7 @@ export class Renderer {
   }
 
   dispose(): void {
+    this.feedback.dispose();
     this.renderer.dispose();
   }
 }

@@ -18,6 +18,10 @@ t('lobby.code', { code: 'K7XQ2M' });             // "Code: K7XQ2M"
 t('hud.interact.pickUp', { item: t('item.key.name') });
 ```
 
+Every interact prompt has exactly **one** named slot, `{item}`, because the HUD
+feeds them all through the same path — so `hud.interact.revive` is `"Revive {item}"`
+filled with `hud.player.teammate`. Do not invent a second slot name for a prompt.
+
 In Preact screens:
 
 ```tsx

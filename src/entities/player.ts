@@ -10,6 +10,7 @@
  */
 import type { PlayerConfig } from '@/config/types';
 import type { CollisionWorld } from '@/world/collision';
+import { createHealth, isDown, type Health } from './health';
 
 export interface PlayerState {
   x: number;
@@ -21,6 +22,7 @@ export interface PlayerState {
   height: number;
   crouching: boolean;
   sprinting: boolean;
+  health: Health;
 }
 
 export interface MoveIntent {
@@ -41,6 +43,7 @@ export function createPlayerState(x: number, z: number, yaw: number, config: Pla
     height: config.body.standHeight,
     crouching: false,
     sprinting: false,
+    health: createHealth(),
   };
 }
 
@@ -60,14 +63,19 @@ export function stepPlayer(
   config: PlayerConfig,
   collision: CollisionWorld,
 ): void {
-  state.crouching = intent.crouch;
-  state.sprinting = intent.sprint && !intent.crouch && (intent.forward !== 0 || intent.strafe !== 0);
+  // A downed player is immobile on the floor. They are not dead, and not on a
+  // timer - they are waiting for someone to come back for them.
+  const downed = isDown(state.health.state);
+  state.crouching = intent.crouch && !downed;
+  state.sprinting = !downed && intent.sprint && !intent.crouch && (intent.forward !== 0 || intent.strafe !== 0);
 
-  const speed = state.crouching
+  const base = state.crouching
     ? config.movement.crouchSpeed
     : state.sprinting
       ? config.movement.sprintSpeed
       : config.movement.walkSpeed;
+
+  const speed = downed ? 0 : base * (state.health.state === 'injured' ? config.movement.injuredSpeedMultiplier : 1);
 
   // Intent is in view space; rotate into world space by yaw.
   const sin = Math.sin(state.yaw);
@@ -107,5 +115,6 @@ export function stepPlayer(
 
 /** Camera Y. Presentation only - never feeds back into the sim. */
 export function eyeHeight(state: PlayerState, config: PlayerConfig): number {
+  if (isDown(state.health.state)) return config.body.downedEyeHeight;
   return state.height + config.body.eyeHeightOffset;
 }

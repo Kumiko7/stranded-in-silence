@@ -6,6 +6,7 @@
     "standHeight": 1.8,
     "crouchHeight": 1.05,
     "eyeHeightOffset": -0.15,
+    "downedEyeHeight": 0.45,
     "heightLerpSpeed": 9.0
   },
 

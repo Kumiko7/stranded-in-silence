@@ -45,10 +45,16 @@ interface BuiltArt {
   object: THREE.Object3D;              // origin at floor centre, facing -Z
   colliders: Collider[];
   parts: Record<string, THREE.Object3D>;   // the named parts below
+  api?: ArtApi;                        // optional richer hooks (setAlert, setCrouched)
   lights?: THREE.Light[];
   dispose?(): void;
 }
 ```
+
+`api` is always optional and logic must work without it — it falls back to the
+named parts. Idle motion (a ghost's bob, a flicker) belongs to the art and should
+be driven from a mesh's `onBeforeRender`, not asked for by logic: the simulation
+only ever hands art a position, a yaw and a state.
 
 `ArtBuildContext` gives you `materials` and `rng` — same meanings as in
 [`ROOM_FORMAT.md §4.1`](ROOM_FORMAT.md).
@@ -128,6 +134,11 @@ supports a crouch pose; logic falls back to scaling `root` if absent.
 
 Mostly floating — minimal animation is expected and preferred.
 
+The alert colour is a **primary gameplay signal**, not decoration: it is how a
+player reads `calm / suspicious / alerted / chasing` across a dark room, so make it
+carry from any angle and at distance. The default builds it from glowing eyes, a
+halo and a coloured light the ghost carries, which is why it reads through fog.
+
 ### `item.*` — must fit `0.35 × 0.35 × 0.4 m` (`config/items.json → sizeClass`)
 
 | Part | Purpose |
@@ -153,6 +164,7 @@ provide these names (see `art/packs/test/materials.ts` for a minimal set):
 | `locker`, `lockerVent` | `locker.standard` |
 | `itemMetal` | `item.key` |
 | `playerBody`, `playerMask` | `player.masked` |
+| `ghostShroud`, `ghostAlert` | `enemy.ghost` — both are **cloned** by the builder so it can tint per alert level without touching the shared cache |
 
 Adding a shared piece that needs a new material means adding it to this table and
 to every pack.
