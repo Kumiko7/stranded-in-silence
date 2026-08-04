@@ -12,6 +12,14 @@ export interface GameConfig {
     lobbyCodeLength: number;
     lobbyCodeAlphabet: string;
   };
+  lobby: {
+    /** Countdown opened by the first map pick, while somebody has still not picked. */
+    autoStartSeconds: number;
+    /** What the countdown drops to once every player has picked. */
+    allReadyStartSeconds: number;
+    /** How many frames the poster wall has. Slots past the map list hang blank. */
+    posterSlots: number;
+  };
 }
 
 export interface PlayerConfig {
@@ -42,6 +50,11 @@ export interface PlayerConfig {
     rayLength: number;
     holdCancelOnLookAway: boolean;
     lookAwayGraceSeconds: number;
+  };
+  /** What the lobby wardrobe offers. One option for now - see plan step 43. */
+  customisation: {
+    defaultColourId: string;
+    colours: { id: string; nameKey: string; hex: string }[];
   };
   health: {
     reviveHoldSeconds: number;
@@ -227,6 +240,8 @@ export interface GraphicsConfig {
   shadows: { enabled: boolean };
   fog: { enabled: boolean; color: string; density: number };
   renderDistanceRooms: number;
+  /** Merged over the block above while the lobby scene is up. */
+  lobby?: DeepPartial<GraphicsConfig>;
 }
 
 export interface InputConfig {
@@ -326,6 +341,8 @@ export interface MapEntry {
   nameKey: string;
   descKey?: string;
   artPack: string;
+  /** Art id of this map's lobby poster. Missing or unregistered falls back to a blank. */
+  posterArtId?: string;
   enabled?: boolean;
   overrides?: { graphics?: Partial<GraphicsConfig>; world?: DeepPartial<WorldConfig> };
 }
@@ -333,6 +350,17 @@ export interface MapEntry {
 export interface MapsConfig {
   defaultMapId: string;
   maps: Record<string, MapEntry>;
+}
+
+export interface DifficultyMode {
+  nameKey: string;
+  /** Off until step 38 applies the overlay. The lobby lever only cycles enabled modes. */
+  enabled?: boolean;
+}
+
+export interface DifficultyConfig {
+  default: string;
+  modes: Record<string, DifficultyMode>;
 }
 
 export interface UiConfig {
@@ -348,6 +376,7 @@ export interface UiConfig {
 
 export interface Config {
   audio: AudioConfig;
+  difficulty: DifficultyConfig;
   game: GameConfig;
   player: PlayerConfig;
   world: WorldConfig;

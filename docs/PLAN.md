@@ -41,7 +41,13 @@ run something you have to *solve*. Slice 3 makes it something you can lose:
   loud). Off / open mic / push-to-talk on one control, per-teammate mutes, and a
   microphone on the roster line of whoever is talking. Solo runs never open a mic.
 
-Still missing: item roster beyond the key, lobby, scoreboard.
+- **The lobby** (step 29) — a log cabin between runs: a wall of map posters you press
+  `E` on to pick, a difficulty lever, a wardrobe, a fire and a window onto a mountain
+  range. Solo starts at once; in company a countdown opens on the first pick and
+  shortens once everyone has chosen. Voice follows the *session*, so it survives the
+  load into a map.
+
+Still missing: item roster beyond the key, scoreboard.
 
 Because these are slices rather than a sequence of finished steps, several steps
 below are `◐` — the part the slice needed is done, the rest is not. Each one lists
@@ -256,11 +262,15 @@ the simulation is written host-authoritative from the start.*
 **Note:** voice is off entirely in a **solo run** — the microphone is never requested and the HUD pill is hidden. `live` is recomputed from `net.players` each frame, so a peer joining mid-run turns it on.
 **Verified:** a solo run asks for no microphone and shows no pill; attenuation is 1 inside 4 m and exactly 0 at 22 m; the mode cycle wraps and each mode gates correctly; the activity gate holds for its full hangover; a speaking player emits a `voice` noise every `noiseIntervalSeconds` (roster ring included) **and still does so while downed**; a denied microphone leaves the run fully playable. Four-peer audio itself has not been exercised — it needs real browsers with real microphones.
 
-### ☐ 29. Lobby scene and flow
+### ◐ 29. Lobby scene and flow
 **Goal:** the pre-run experience.
-**Touches:** `art/shared/lobby/`, `src/ui/screens/{Lobby,Join}.tsx`, `src/world/lobbyScene.ts`.
-**Details:** 3D lobby room with the poster wall (hold E on a poster to vote), player list, ready states, `autoStartSeconds` / `allReadyStartSeconds` countdown, join-by-code screen, host/join from the main menu.
-**Done when:** four players join by code, vote on a poster, and the run starts on the countdown.
+**Touches:** `art/shared/lobby/`, `src/game/Lobby.ts`, `src/world/lobbyScene.ts`, `src/ui/screens/{LobbyPanel,Wardrobe}.tsx`, `src/save/index.ts`, `src/net/index.ts`, `config/{game,graphics,difficulty,player}.json`.
+**Details:** a log cabin — poster wall, fireplace, panoramic window onto a snowfield and four ranges of mountains, difficulty lever, wardrobe, and a covered wall where the minigame goes. Press E on a poster to pick a map; solo starts at once, in company the first pick opens the `autoStartSeconds` countdown and it drops to `allReadyStartSeconds` once everyone has picked. Host-authoritative: it owns the tally, the difficulty and the clock, and publishes the whole lobby on every change. Finishing a run returns to the cabin.
+**Still missing:** verification with real peers — the lobby has only been exercised solo and through a headless browser. The join-by-code UI is still the main menu's code box rather than a `Join` screen, and ready states are not built (picking a map *is* the ready signal, which made a separate one redundant).
+**Note:** **voice now follows the session rather than the run.** The microphone opens on entering the cabin and stays open through the load into a map, so a conversation is never cut off at exactly the moment a team is agreeing on a plan. Peers announce which world they are standing in (`scene`), and each side hands `voice/` only the peers in the *same* world — `voice/` already treats a peer with no position as flat and fully audible, so nothing in `src/voice/` changed at all.
+**Note:** `src/save/` exists now, deliberately tiny: escaped maps (for the tick on a poster) and the wardrobe colour. The real profile, schema and options are step 35.
+**Note:** the lobby is reviewable like a room — `/tools/roomshot.html?map=lobby` — and `npm run validate:art` builds the cabin headless and proves every poster, the wardrobe and the lever are **reachable on foot** from all four arrival spots.
+**Verified:** boots, enters the cabin, builds 20 poster frames at 226 draws / 42.6k tris on 6 lights, tears down to an empty scene and rebuilds identically, with no console errors.
 
 **Milestone: the game is fully multiplayer.**
 
@@ -277,7 +287,7 @@ the simulation is written host-authoritative from the start.*
 ### ☑ 32. Mansion art pack III — 5+ more rooms, plus the poster
 **Done when:** ≥ 15 mansion rooms exist, meeting [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md).
 **Details:** 23 blueprints — 19 of them 1x1 (foyer, library, dining, kitchen, conservatory, nursery, study, music room, bathroom, bedroom, chapel, boiler, wine cellar, trophy, billiards, clock room, laundry, séance parlour, and a one-door linen store per side) plus a 2x1 gallery, 2x2 ballroom, 1x3 stair hall and L-shaped attic. All pass `npm run validate:art`.
-**Still missing:** the lobby poster. `poster.mansion` has no builder and no contract in [`art/SHARED_ART.md`](art/SHARED_ART.md) yet, and nothing renders one until the lobby scene lands — it belongs with **step 29**, not here.
+**Still missing:** nothing. `poster.mansion` landed with step 29, along with its contract in [`art/SHARED_ART.md`](art/SHARED_ART.md).
 **Note:** rooms are reviewed on screenshots taken through the game's own renderer -
 `tools/roomshot`, documented in [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md). The first
 pass over the mansion fixed four things `npm run validate:art` cannot see: the
@@ -357,5 +367,6 @@ floating under the plaster.
 | 2026-08-03 | **Slice 3 playable**: the hunter. Noise bus, room-graph A\*, sight and hearing, the full patrol/investigate/search/chase/attack FSM, the health ladder with revive, the wipe condition and the horror feedback layer. Steps 17, 18, 19 done; 4 finished; 16, 20, 21, 27 advanced. Two decisions worth knowing: the feedback layer is a **DOM compositing layer**, not an `EffectComposer` post stack (every effect the design asks for is a full-screen blend — see [`ARCHITECTURE.md §10`](ARCHITECTURE.md)), and the FSM lives in one `enemy.ts` rather than a `states/` folder. `generate()` now takes the enemy's `spawn` block as a parameter so generation still reads one config file, and `PlacedRoom` carries world-space patrol points. |
 | 2026-08-03 | **Step 34 done — the game has sound.** All 27 effects are synthesised in Tone.js and rendered to buffers at boot; the score is generative and four-layered. Every sound also declares a file path, so `assets/audio/` is a drop-in override with no code change — that is the seam a sound composer works against. `config/audio.json` gained `cues` (which event fires what) and a rebuilt `music` block; `chaseTrackSuffix` was replaced by the explicit `music.layers` map. `heartbeatCloseness()` moved out of `render/feedback.ts` so the heartbeat you hear and the one you see ride the same curve. Step 21's audio half is now done. |
 | 2026-08-04 | **Step 28 done — proximity voice.** `src/voice/` (capture, per-peer audio, attenuation, modes, VAD) over PeerJS media calls, which makes voice a true mesh while gameplay data stays a star. `config/net.json → voice` gained `gainSmoothingSeconds`, `noiseThresholdDb`, `noiseIntervalSeconds`, `speakingThresholdDb` and `speakingHoldMs`; the enemy-facing threshold sits well above the open-mic gate, which is what makes an open mic safe. Voice emits `player.json → noise.voice` on an interval, downed players included — being heard is the point. Music now ducks (`music.setVoiceDucking()`), the roster grew a speaking microphone, the pause menu grew a one-control mode switch plus mutes, and the HUD grew a plain-DOM voice pill. `.claude/launch.json` / `vite.config.ts` learned `PORT`, so two dev servers can run side by side. |
+| 2026-08-04 | **Step 29 — the lobby.** A log cabin (`art/shared/lobby/`, its own material library because it belongs to no pack) with a twenty-slot poster wall, a fireplace, a panoramic window onto four ranges of snow-capped mountains, a difficulty lever, a wardrobe and a covered minigame wall. `src/game/Lobby.ts` orchestrates it — deliberately its own file rather than a mode of `Game`, which has no enemy, noise bus, health or items to share with a foyer. Three decisions worth knowing: **voice moved out of `Game` and onto the session**, so it now spans the load into a map (peers announce a `scene`, and each side hands `voice/` only same-world peers — `src/voice/` itself did not change); the host **publishes the whole lobby on every change** rather than sending diffs, which is the shape steps 25–27 want; and `src/save/` exists at last, holding only escaped maps and the wardrobe colour until step 35 gives it a real schema. `player.masked` gained legs and `api.setColour()` — the wardrobe stands it two metres from the camera, where a floating capsule reads as a bug. `npm run validate:art` and `/tools/roomshot.html?map=lobby` both cover the cabin now. |
 | 2026-08-04 | **Room review tool.** `tools/roomshot` renders every room of a pack through the real `Renderer` + `buildWorld` and writes a contact sheet per room to `shots/` (git-ignored) via a dev-only Vite middleware — see [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md). Nothing about the look is re-implemented, so a sheet is what the game shows. Its first pass over the mansion fixed four bugs the headless validator cannot see, listed under step 32. |
 | 2026-08-02 | **Slice 2 playable**: locked doors, keys, chests, lockers and the two-hand inventory. Generation now locks doors on the spanning-tree route *before* adding loops and forbids loops across a lock, which makes "always X locked doors, always enough keys" structural rather than checked — see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys". Steps 9, 13, 14, 15, 22, 26 advanced. `loot.chestTable` / `floorTable` were trimmed to `key` + `empty` until the item roster lands in step 37. |

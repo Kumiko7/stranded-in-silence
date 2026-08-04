@@ -40,10 +40,54 @@ export interface EnemyTransform {
   alert: string;
 }
 
+/** Which of the two worlds a peer is standing in. Voice spans both. */
+export type Scene = 'lobby' | 'run';
+
+/**
+ * The whole lobby, as the host sees it. Small enough to send entire on every
+ * change, which removes any question of two peers disagreeing about the tally.
+ */
+export interface LobbySnapshot {
+  /** peer id -> the map they picked. Absent means they have not picked. */
+  picks: Record<string, string>;
+  difficultyId: string;
+  /** Seconds left before the run starts, or null when nothing is counting. */
+  countdown: number | null;
+}
+
+/** Everything a peer needs to build the same run. */
+export interface RunStart {
+  mapId: string;
+  seed: number;
+  difficultyId: string;
+}
+
 export type NetMessage =
-  | { t: 'welcome'; id: string; host: string; slot: number; mapId: string; seed: number; peers: string[] }
+  | {
+      t: 'welcome';
+      id: string;
+      host: string;
+      slot: number;
+      peers: string[];
+      lobby: LobbySnapshot;
+      /** Set only when the host is already in a run, so a late joiner catches up. */
+      run: RunStart | null;
+    }
   | { t: 'join'; id: string }
   | { t: 'leave'; id: string }
+  /* --- lobby -------------------------------------------------------------- */
+  /** Host -> all, whenever the tally, the difficulty or the countdown changes. */
+  | { t: 'lobby'; state: LobbySnapshot }
+  /** Any peer -> the host. `mapId` of null withdraws a pick. */
+  | { t: 'pick'; id: string; mapId: string | null }
+  /** Any peer -> the host. Anyone may pull the lever. */
+  | { t: 'setDifficulty'; difficultyId: string }
+  /** Host -> all. The countdown finished, or a solo player pressed E. */
+  | { t: 'runStart'; run: RunStart }
+  | { t: 'lobbyMove'; id: string; x: number; z: number; yaw: number }
+  /** Any -> all, on change and on anyone joining. Voice reads it across scenes. */
+  | { t: 'scene'; id: string; scene: Scene }
+  | { t: 'cosmetic'; id: string; colourId: string }
   | { t: 'move'; id: string; x: number; z: number; yaw: number; height: number; hiding: boolean; health: HealthState }
   | { t: 'door'; id: string; open: boolean }
   | { t: 'unlock'; id: string }
@@ -64,7 +108,17 @@ export type NetRole = 'offline' | 'host' | 'client';
 
 export interface NetEvents {
   /** `slot` picks which spawn point in the shared start room this player uses. */
-  onRunStart(mapId: string, seed: number, slot: number): void;
+  onRunStart(run: RunStart, slot: number): void;
+  /** This browser is now a client of `host`, standing in their lobby. */
+  onLobbyJoined(slot: number): void;
+  /** The host's view of the lobby changed. Clients apply it wholesale. */
+  onLobbyState(state: LobbySnapshot): void;
+  /** A peer picked a map (host only - clients learn from `onLobbyState`). */
+  onPick(id: string, mapId: string | null): void;
+  /** Somebody pulled the lever (host only, for the same reason). */
+  onDifficulty(difficultyId: string): void;
+  onLobbyMove(id: string, x: number, z: number, yaw: number): void;
+  onCosmetic(id: string, colourId: string): void;
   onPeerJoin(id: string): void;
   onPeerLeave(id: string): void;
   onPeerMove(id: string, transform: PlayerTransform): void;
@@ -102,10 +156,28 @@ export class Net {
   #voiceStream: MediaStream | null = null;
 
   /** Set by the host when a run starts, replayed to anyone who joins later. */
-  #run: { mapId: string; seed: number } | null = null;
+  #run: RunStart | null = null;
+  /** The host's lobby, replayed to anyone who joins. Clients keep a copy to send on. */
+  #lobby: LobbySnapshot = { picks: {}, difficultyId: '', countdown: null };
   /** Host-assigned spawn slots. The host is always 0. */
   #slots = new Map<string, number>();
   #nextSlot = 1;
+
+  /* --- scenes -------------------------------------------------------------- */
+  /**
+   * Which world each peer is standing in. Voice spans both, so a teammate still
+   * loading into a run has to stay audible to one still in the lobby - that is
+   * the whole reason this is tracked rather than assumed.
+   */
+  #scene: Scene = 'lobby';
+  #scenes = new Map<string, Scene>();
+
+  /* --- identity ------------------------------------------------------------ */
+  /** Host-assigned spawn slot for THIS browser. The host is always 0. */
+  #mySlot = 0;
+  /** Wardrobe choices, so a peer joining mid-lobby sees everyone as they are. */
+  #cosmetic = '';
+  #cosmetics = new Map<string, string>();
 
   constructor(events: NetEvents, voice: VoiceConfig) {
     this.#events = events;
@@ -166,14 +238,85 @@ export class Net {
   }
 
   /**
-   * Becomes the host of a run. Anyone already connected is pulled into it, and
-   * late joiners get the same seed - otherwise a peer who connected before the
-   * host pressed Play would end up alone in a different map.
+   * Becomes the host of a lobby. From here the code is joinable and this browser
+   * owns the vote tally, the difficulty and the countdown.
    */
-  hostRun(mapId: string, seed: number): void {
+  hostLobby(difficultyId: string): void {
     this.role = 'host';
-    this.#run = { mapId, seed };
+    this.#run = null;
+    this.#lobby = { picks: {}, difficultyId, countdown: null };
     for (const id of this.#connections.keys()) this.#sendWelcome(id);
+  }
+
+  /**
+   * Host only. Starts the run for everyone and remembers it, so a peer who joins
+   * mid-run gets the same seed rather than ending up alone in a different map.
+   */
+  startRun(run: RunStart): void {
+    this.#run = run;
+    this.broadcast({ t: 'runStart', run });
+  }
+
+  /** Host only. The run is over; the code goes back to being a lobby code. */
+  endRun(): void {
+    this.#run = null;
+  }
+
+  get lobby(): LobbySnapshot {
+    return this.#lobby;
+  }
+
+  /** Host only. Publishes the tally, the difficulty and the countdown. */
+  setLobbyState(state: LobbySnapshot): void {
+    this.#lobby = state;
+    this.broadcast({ t: 'lobby', state });
+  }
+
+  /** A client asking the host to record a pick. The host applies its own directly. */
+  sendPick(mapId: string | null): void {
+    this.broadcast({ t: 'pick', id: this.selfId, mapId });
+  }
+
+  sendDifficulty(difficultyId: string): void {
+    this.broadcast({ t: 'setDifficulty', difficultyId });
+  }
+
+  /* --- scenes -------------------------------------------------------------- */
+
+  get scene(): Scene {
+    return this.#scene;
+  }
+
+  /** Announced rather than inferred, so voice knows who to attenuate and who not to. */
+  setScene(scene: Scene): void {
+    if (this.#scene === scene) return;
+    this.#scene = scene;
+    this.broadcast({ t: 'scene', id: this.selfId, scene });
+  }
+
+  sceneOf(id: string): Scene {
+    return this.#scenes.get(id) ?? 'lobby';
+  }
+
+  get slot(): number {
+    return this.#mySlot;
+  }
+
+  /* --- cosmetics ----------------------------------------------------------- */
+
+  setCosmetic(colourId: string): void {
+    if (this.#cosmetic === colourId) return;
+    this.#cosmetic = colourId;
+    this.broadcast({ t: 'cosmetic', id: this.selfId, colourId });
+  }
+
+  cosmeticOf(id: string): string | null {
+    return this.#cosmetics.get(id) ?? null;
+  }
+
+  /** Peers standing in the same world as this browser. Voice attenuates only these. */
+  peersInScene(scene: Scene): string[] {
+    return [...this.#players].filter((id) => this.sceneOf(id) === scene);
   }
 
   async join(code: string): Promise<void> {
@@ -210,8 +353,7 @@ export class Net {
       if (this.role !== 'host') return;
       if (!this.#slots.has(id)) this.#slots.set(id, this.#nextSlot++);
 
-      // No run yet? They stay connected and hostRun() will pull them in.
-      if (this.#run) this.#sendWelcome(id);
+      this.#sendWelcome(id);
       this.#relay({ t: 'join', id }, id);
       this.#addPlayer(id);
     });
@@ -219,7 +361,7 @@ export class Net {
 
   #sendWelcome(id: string): void {
     const connection = this.#connections.get(id);
-    if (!connection || !this.#run) return;
+    if (!connection) return;
     if (!this.#slots.has(id)) this.#slots.set(id, this.#nextSlot++);
 
     this.#send(connection, {
@@ -227,9 +369,9 @@ export class Net {
       id,
       host: this.#code,
       slot: this.#slots.get(id) ?? 0,
-      mapId: this.#run.mapId,
-      seed: this.#run.seed,
       peers: this.peerIds.filter((peerId) => peerId !== id),
+      lobby: this.#lobby,
+      run: this.#run,
     });
   }
 
@@ -247,19 +389,50 @@ export class Net {
 
   #receive(from: string, message: NetMessage): void {
     switch (message.t) {
-      case 'welcome':
-        this.#run = { mapId: message.mapId, seed: message.seed };
-        // The run has to exist before remotes can be added to it.
-        this.#events.onRunStart(message.mapId, message.seed, message.slot);
+      case 'welcome': {
+        this.#run = message.run;
+        this.#lobby = message.lobby;
+        this.#mySlot = message.slot;
+        // The scene has to exist before remotes can be added to it. A joiner
+        // lands in the lobby unless the host is already down a hole.
+        if (message.run) this.#events.onRunStart(message.run, message.slot);
+        else this.#events.onLobbyJoined(message.slot);
+        this.#events.onLobbyState(message.lobby);
         // The host is a player too, and it is not in its own peer list.
         this.#addPlayer(message.host);
         for (const peerId of message.peers) this.#addPlayer(peerId);
         break;
+      }
       case 'join':
         this.#addPlayer(message.id);
         break;
       case 'leave':
         this.#removePlayer(message.id);
+        break;
+      case 'lobby':
+        this.#lobby = message.state;
+        this.#events.onLobbyState(message.state);
+        break;
+      case 'pick':
+        // Only the host tallies. A client seeing this is the relay passing by.
+        if (this.role === 'host') this.#events.onPick(message.id, message.mapId);
+        break;
+      case 'setDifficulty':
+        if (this.role === 'host') this.#events.onDifficulty(message.difficultyId);
+        break;
+      case 'runStart':
+        this.#run = message.run;
+        this.#events.onRunStart(message.run, this.#mySlot);
+        break;
+      case 'lobbyMove':
+        this.#events.onLobbyMove(message.id, message.x, message.z, message.yaw);
+        break;
+      case 'scene':
+        this.#scenes.set(message.id, message.scene);
+        break;
+      case 'cosmetic':
+        this.#cosmetics.set(message.id, message.colourId);
+        this.#events.onCosmetic(message.id, message.colourId);
         break;
       case 'move':
         this.#events.onPeerMove(message.id, message);
@@ -374,13 +547,24 @@ export class Net {
   }
 
   #addPlayer(id: string): void {
+    const known = this.#players.has(id);
     this.#players.add(id);
     this.#events.onPeerJoin(id);
     this.#callPeer(id);
+
+    // Somebody new can see us: say where we are and what colour we are wearing.
+    // Cheaper and far simpler than folding both into the welcome and keeping
+    // them in step there as well.
+    if (!known) {
+      this.broadcast({ t: 'scene', id: this.selfId, scene: this.#scene });
+      if (this.#cosmetic) this.broadcast({ t: 'cosmetic', id: this.selfId, colourId: this.#cosmetic });
+    }
   }
 
   #removePlayer(id: string): void {
     this.#players.delete(id);
+    this.#scenes.delete(id);
+    this.#cosmetics.delete(id);
     this.#calls.get(id)?.close();
     this.#calls.delete(id);
     this.#events.onVoiceEnded(id);
@@ -410,6 +594,8 @@ export class Net {
     for (const call of this.#calls.values()) call.close();
     this.#calls.clear();
     this.#players.clear();
+    this.#scenes.clear();
+    this.#cosmetics.clear();
     for (const connection of this.#connections.values()) connection.close();
     this.#connections.clear();
     this.#peer?.destroy();
@@ -419,7 +605,26 @@ export class Net {
   async close(): Promise<void> {
     this.role = 'offline';
     this.#run = null;
+    this.#lobby = { picks: {}, difficultyId: '', countdown: null };
+    this.#mySlot = 0;
+    this.#scene = 'lobby';
     await this.#dispose();
+  }
+
+  /** Leaves the session but keeps the peer alive, so the code stays claimed. */
+  leave(): void {
+    this.role = 'offline';
+    this.#run = null;
+    this.#lobby = { picks: {}, difficultyId: '', countdown: null };
+    this.#mySlot = 0;
+    this.#scene = 'lobby';
+    this.#slots.clear();
+    this.#nextSlot = 1;
+    for (const call of this.#calls.values()) call.close();
+    this.#calls.clear();
+    for (const id of [...this.#players]) this.#removePlayer(id);
+    for (const connection of this.#connections.values()) connection.close();
+    this.#connections.clear();
   }
 }
 

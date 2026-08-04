@@ -26,5 +26,14 @@
     "far": 26.0
   },
 
-  "renderDistanceRooms": 3
+  "renderDistanceRooms": 3,
+
+  "lobby": {
+    "$doc": "Overrides merged over the block above while the lobby scene is up. The lobby is the one bright place in the game: daylight off snow, a fire, and only enough fog to give the mountains depth.",
+    "exposure": 1.05,
+    "ambientIntensity": 1.7,
+    "ambientColor": "#a9c0da",
+    "$note": "Fog is thin enough to leave the cabin crisp and thick enough to give the mountains aerial perspective - at 130 m it is already half fog colour.",
+    "fog": { "enabled": true, "color": "#cadcee", "density": 0.009 }
+  }
 }

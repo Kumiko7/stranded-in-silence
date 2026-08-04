@@ -32,7 +32,7 @@ Read C:/<repo>/shots/mansion/library.png
 
 | Parameter | Default | What it does |
 | --- | --- | --- |
-| `map` | `mansion` | Map id from `config/maps.json`. Its art pack **and its graphics overrides** are used, so a shot matches what that map looks like in a run. |
+| `map` | `mansion` | Map id from `config/maps.json`. Its art pack **and its graphics overrides** are used, so a shot matches what that map looks like in a run. The special value **`lobby`** reviews the cabin instead of a pack — see §5.1. |
 | `rooms` | all | Comma-separated. Bare names or full ids: `?rooms=library,study`. This is the iteration loop — edit a room, reload, look. |
 | `seed` | `20260804` | Drives every `ctx.rng()` call in `build()`. Change it to check a room's per-instance variation. |
 | `width` | `512` | Pixels per view. Raise it (`?width=740`) to inspect one room closely. |
@@ -141,6 +141,26 @@ map entry to `config/maps.json` (which you have to do anyway —
 
 The tool asks the pack for nothing beyond the `ArtPack` contract, so a pack that
 builds at all can be reviewed.
+
+### 5.1 The lobby cabin
+
+```
+/tools/roomshot.html?map=lobby
+```
+
+The lobby is not a room blueprint, so it gets its own pass — but through the same
+`Renderer`, the same `buildLobbyScene()` the game calls, and `graphics.json → lobby`,
+so the sheet is what a player sees. It writes `shots/lobby/cabin.png`.
+
+Nine views: the arrival spot, the window, the fire, the poster wall (wide and close),
+the wardrobe, the difficulty lever, the minigame wall and an overview. The wardrobe
+view is built from the **pose the game uses**, not from a `lookAt`, and stands a
+`player.masked` at the mannequin anchor — the whole question that view answers is
+whether the model lands on the right of the screen with the panel's half clear.
+
+`npm run validate:art` covers the cabin too: that it builds, builds deterministically,
+that every poster / wardrobe / lever exposes the parts logic drives it by, and that
+all of them are **reachable on foot** from the four arrival spots.
 
 ---
 

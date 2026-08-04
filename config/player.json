@@ -67,6 +67,21 @@
     "injured": { "radius": 14.0, "loudness": 1.0 }
   },
 
+  "customisation": {
+    "$doc": "What the wardrobe in the lobby offers. One colour for now; more options land with step 43, and each one is an entry here plus a control in the wardrobe panel.",
+    "defaultColourId": "slate",
+    "colours": [
+      { "id": "slate", "nameKey": "cosmetic.colour.slate", "hex": "#6f7690" },
+      { "id": "rust", "nameKey": "cosmetic.colour.rust", "hex": "#9c5638" },
+      { "id": "moss", "nameKey": "cosmetic.colour.moss", "hex": "#5f7a52" },
+      { "id": "plum", "nameKey": "cosmetic.colour.plum", "hex": "#7a5570" },
+      { "id": "sand", "nameKey": "cosmetic.colour.sand", "hex": "#b09b6f" },
+      { "id": "teal", "nameKey": "cosmetic.colour.teal", "hex": "#3f7d80" },
+      { "id": "ember", "nameKey": "cosmetic.colour.ember", "hex": "#b8823a" },
+      { "id": "ash", "nameKey": "cosmetic.colour.ash", "hex": "#8a8b86" }
+    ]
+  },
+
   "effects": {
     "$doc": "Screen feedback. Distances in metres, measured enemy -> local player.",
     "heartbeatStartDistance": 22.0,

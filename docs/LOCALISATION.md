@@ -45,6 +45,8 @@ Flat, dot-namespaced, `lowerCamelCase` segments:
 | `menu.*` | Main menu |
 | `join.*` | Join-by-code flow |
 | `lobby.*` | Lobby screen and lobby world |
+| `wardrobe.*` | The lobby customisation panel |
+| `cosmetic.*` | Names of customisation options (`player.json → customisation`) |
 | `map.*` | Map names and descriptions |
 | `difficulty.*` | Difficulty mode names |
 | `enemy.*` | Enemy names |

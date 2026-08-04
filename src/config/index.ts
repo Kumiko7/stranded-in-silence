@@ -10,7 +10,7 @@
  * Files are imported at build time, so editing a JSON file hot-reloads the dev
  * build. Logic must read config through here, never by importing JSON directly.
  */
-import type { Config, DeepPartial } from './types';
+import type { Config, DeepPartial, GraphicsConfig } from './types';
 
 const modules = import.meta.glob('/config/*.json', { eager: true, import: 'default' });
 
@@ -58,7 +58,7 @@ export function loadConfig(): Config {
     sections[name] = stripDocKeys(value) as Json;
   }
 
-  const required = ['audio', 'game', 'player', 'world', 'enemy', 'items', 'graphics', 'input', 'net', 'maps', 'ui'];
+  const required = ['audio', 'difficulty', 'game', 'player', 'world', 'enemy', 'items', 'graphics', 'input', 'net', 'maps', 'ui'];
   const missing = required.filter((name) => !sections[name]);
   if (missing.length) throw new Error(`config: missing ${missing.join(', ')}.json`);
 
@@ -80,11 +80,29 @@ export function configForMap(mapId: string): Config {
   };
 }
 
+/** Graphics with `graphics.json -> lobby` applied. The lobby is the bright place. */
+export function lobbyGraphics(): GraphicsConfig {
+  const { graphics } = loadConfig();
+  return deepMerge(graphics, graphics.lobby);
+}
+
 export function enabledMapIds(): string[] {
   const cfg = loadConfig();
   return Object.entries(cfg.maps.maps)
     .filter(([, entry]) => entry.enabled !== false)
     .map(([id]) => id);
+}
+
+/**
+ * Difficulties the lobby lever may cycle. Only `normal` is enabled until step 38
+ * applies the overlays - a lever that changed a label and nothing else would lie.
+ */
+export function enabledDifficultyIds(): string[] {
+  const cfg = loadConfig();
+  const ids = Object.entries(cfg.difficulty.modes)
+    .filter(([, mode]) => mode.enabled === true)
+    .map(([id]) => id);
+  return ids.length ? ids : [cfg.difficulty.default];
 }
 
 export type { Config } from './types';

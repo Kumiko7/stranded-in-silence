@@ -18,9 +18,12 @@
 import * as THREE from 'three';
 import type { Cell, RoomBlueprint, Side } from '@art/lib/contract';
 import { getArtPack } from '@art/packs/index';
-import { configForMap } from '@/config/index';
+import { resolveArt } from '@art/shared/index';
+import { configForMap, enabledMapIds, loadConfig, lobbyGraphics } from '@/config/index';
+import { stream } from '@/core/rng';
 import { Renderer } from '@/render/Renderer';
 import type { PlacedContainer, PlacedDoor, PlacedItem, RunLayout } from '@/world/generation';
+import { buildLobbyScene } from '@/world/lobbyScene';
 import { buildWorld } from '@/world/worldBuilder';
 
 /* --- options ---------------------------------------------------------------- */
@@ -272,9 +275,140 @@ async function write(file: string, dataUrl: string): Promise<void> {
   if (!response.ok) throw new Error(`save failed (${response.status}): ${await response.text()}`);
 }
 
+/* --- the lobby --------------------------------------------------------------- */
+
+/**
+ * `?map=lobby` reviews the cabin instead of a pack. It is not a room blueprint,
+ * so it gets its own pass - but through the same `Renderer`, the same
+ * `buildLobbyScene()` the game calls and the same `graphics.json -> lobby`
+ * overrides, so what lands in the sheet is what a player sees.
+ */
+async function shootLobby(): Promise<void> {
+  const config = loadConfig();
+  const graphics = lobbyGraphics();
+
+  const renderer = new Renderer(canvas, graphics, config.player);
+  renderer.renderer.toneMappingExposure = graphics.exposure * exposureBoost;
+  renderer.renderer.setSize(tileWidth, tileHeight, false);
+  renderer.camera.aspect = tileWidth / tileHeight;
+  renderer.camera.updateProjectionMatrix();
+
+  const world = buildLobbyScene(config, enabledMapIds());
+  renderer.scene.add(world.root);
+  renderer.setRoomLights(world.lights);
+
+  // The mannequin is placed by `src/game/Lobby.ts`, not by the scene - but the
+  // wardrobe view exists to answer "does the model land on the right", so the
+  // sheet has to stand one there too.
+  const model = resolveArt('player.masked')({
+    materials: world.materials,
+    rng: stream(0, 'mannequin'),
+    dims: {
+      cellSize: config.world.grid.cellSize,
+      ceilingHeight: config.world.grid.ceilingHeight,
+      wallThickness: config.world.grid.wallThickness,
+      doorWidth: config.world.doors.width,
+      doorHeight: config.world.doors.height,
+    },
+  });
+  model.object.position.set(world.mannequin.position[0], 0, world.mannequin.position[2]);
+  (model.parts['root'] ?? model.object).rotation.y = world.mannequin.rotationY;
+  model.api?.setColour?.(config.player.customisation.colours[1]?.hex ?? '#9c5638');
+  renderer.scene.add(model.object);
+
+  const eye = config.player.body.standHeight + config.player.body.eyeHeightOffset;
+  const spawn = world.spawns[0];
+  const from = new THREE.Vector3(spawn?.position[0] ?? 0, eye, spawn?.position[2] ?? 0);
+  const yaw = spawn?.rotationY ?? 0;
+
+  const at = (x: number, y: number, z: number): THREE.Vector3 => new THREE.Vector3(x, y, z);
+  const views: View[] = [
+    // What you actually see the instant you arrive.
+    { label: 'arrival', from, look: from.clone().add(at(-Math.sin(yaw) * 6, -0.35, -Math.cos(yaw) * 6)) },
+    { label: 'the window', from: at(0.5, eye, 1.2), look: at(0, 1.9, -12) },
+    { label: 'the fire', from: at(-1.4, eye, 0.2), look: at(-5.6, 1.0, 0) },
+    { label: 'the poster wall', from: at(0, eye, -0.4), look: at(0, 1.8, 6) },
+    { label: 'posters, close', from: at(-2.6, eye, 2.4), look: at(-2.2, 1.5, 5) },
+    // Built from the pose the game actually uses, not from a lookAt: the whole
+    // question this view answers is whether the model lands on the right.
+    (() => {
+      const view = world.wardrobeCamera;
+      const from = at(view.position[0], view.position[1], view.position[2]);
+      return {
+        label: 'the wardrobe view',
+        from,
+        look: from
+          .clone()
+          .add(at(-Math.sin(view.yaw) * 4, Math.tan(view.pitch) * 4, -Math.cos(view.yaw) * 4)),
+      };
+    })(),
+    { label: 'the difficulty lever', from: at(world.lever.x + 1.9, eye, world.lever.z + 0.5), look: at(world.lever.x, 0.9, world.lever.z) },
+    { label: 'the minigame wall', from: at(2.6, eye, 2.6), look: at(6.0, 1.4, 2.1) },
+    { label: 'overview', from: at(4.6, 3.0, 3.4), look: at(-2.0, 1.2, -1.2) },
+  ];
+
+  const ctx = sheetContext(views.length);
+  const columns = Math.min(COLUMNS, views.length);
+  let calls = 0;
+  let triangles = 0;
+
+  views.forEach((view, index) => {
+    renderer.camera.position.copy(view.from);
+    renderer.camera.lookAt(view.look);
+    renderer.updateLights(1, view.from.x, view.from.z);
+    renderer.render();
+    calls = Math.max(calls, renderer.renderer.info.render.calls);
+    triangles = Math.max(triangles, renderer.renderer.info.render.triangles);
+
+    const x = (index % columns) * tileWidth;
+    const y = HEADER + Math.floor(index / columns) * (tileHeight + LABEL);
+    ctx.drawImage(renderer.renderer.domElement, x, y, tileWidth, tileHeight);
+    caption(ctx, `${index + 1}. ${view.label}`, x, y + tileHeight, tileWidth, LABEL, '#9aa2bb');
+  });
+
+  caption(
+    ctx,
+    [
+      'lobby.cabin',
+      `${world.posters.length} poster slots`,
+      `${calls} draws/scene`,
+      `${(triangles / 1000).toFixed(1)}k tris`,
+      `${world.lights.length} lights`,
+      ...(exposureBoost === 1 ? [] : [`EXPOSURE x${exposureBoost}`]),
+    ].join('  ·  '),
+    0,
+    0,
+    ctx.canvas.width,
+    HEADER,
+    '#d8dcea',
+  );
+
+  const dataUrl = ctx.canvas.toDataURL('image/png');
+  await write('lobby/cabin.png', dataUrl);
+
+  const img = new Image();
+  img.src = dataUrl;
+  img.title = 'lobby/cabin.png';
+  gallery.append(img);
+
+  renderer.scene.remove(model.object);
+  model.dispose?.();
+  renderer.scene.remove(world.root);
+  world.dispose();
+  renderer.dispose();
+  log(`  lobby/cabin.png  (${views.length} views, ${calls} draws, ${(triangles / 1000).toFixed(1)}k tris)`);
+  log(save ? 'done — shots/lobby/' : 'done (save=off)');
+  statusEl.classList.add('done');
+}
+
 /* --- run -------------------------------------------------------------------- */
 
 async function run(): Promise<void> {
+  if (mapId === 'lobby') {
+    await shootLobby();
+    return;
+  }
+
   const config = configForMap(mapId);
   const entry = config.maps.maps[mapId];
   if (!entry) throw new Error(`no map "${mapId}" in config/maps.json`);

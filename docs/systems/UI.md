@@ -48,9 +48,11 @@ later is a one-variable change. Do not build a scale setting now.
 
 | Screen | Notes |
 | --- | --- |
-| `MainMenu` | Play / Options / Credits / Quit over the lobby backdrop |
+| `MainMenu` | Play / Options / Credits / Quit. **Play opens a lobby**; the code box next to it joins someone else's |
 | `Join` | 6-digit code entry, auto-uppercase, per-character boxes, paste support |
-| `Lobby` | Player list, ready state, countdown, code + copy button. Map voting happens **in the 3D lobby** on posters, not here |
+| `LobbyPanel` | The expedition readout, top right of the 3D lobby: what has been picked and by how many, the difficulty the lever is on, and the countdown. Picking happens **on the poster wall in the 3D lobby**, not here |
+| Lobby escape menu | Resume / code + copy / voice panel / leave to main menu. Reached by dropping pointer lock, exactly like the pause menu |
+| `Wardrobe` | Customisation. Options claim the **left** half of the screen; the right half is left clear for the player's real model, which the camera parks in front of while the panel is open. There is no preview render — it is the actual `player.masked` standing in the cabin |
 | `Options` | Tabs: Gameplay / Graphics / Audio / Controls / Voice. Writes to the save profile |
 | `Controls` | Rebinding. Click an action, press a key. Conflicts are shown, not silently overwritten |
 | `Pause` | Resume / Options / Voice / Abandon run. **Voice mode is one control, per the design brief** — a segmented `off / open mic / push to talk` (`src/ui/screens/VoicePanel.tsx`), with self-mute and a per-teammate mute under it. Mutes are local; nothing is sent and the muted player is never told |
@@ -71,6 +73,9 @@ a config change.
 | Teammate list | The **roster**, bottom left: every player as a heart (healthy / injured / downed, downed gets a flatline) with their name. Noise rings bloom off the heart whenever that player makes a sound — wider with the loudness, and **red** once the hunter is close enough to have heard it. A `loudness: 0` emitter draws nothing, because it genuinely is nothing. A **microphone** appears next to anyone talking and stays crossed out for anyone you have muted (`hud.teammateList.showVoiceIndicator`) |
 | Voice indicator | The pill under the roster: mode, whether the mic is open right now, and a five-segment input level. The one element written as **plain DOM** (`src/ui/hud/voiceIndicator.ts`) — the level moves every frame, so it must not go through the vdom |
 | Objective hint | Transient line, e.g. "This door needs a key" |
+
+The lobby draws a reduced set — crosshair, interact prompt and the expedition panel.
+No roster and no hand slots: there is nothing to carry in the cabin and nobody to lose.
 
 ## Rules
 

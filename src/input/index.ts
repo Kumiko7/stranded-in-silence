@@ -73,8 +73,15 @@ export class Input {
     this.#pressed.add(code);
   }
 
+  /**
+   * `requestPointerLock()` returns a promise in current browsers, and it rejects
+   * whenever the call did not come from a user gesture. The rejection has to be
+   * swallowed here: `pointerlockerror` already fires for the same failure and
+   * the callers listen for that, so an unhandled rejection would be pure noise.
+   */
   requestPointerLock(): void {
-    void this.#canvas.requestPointerLock();
+    const result = this.#canvas.requestPointerLock() as unknown;
+    if (result instanceof Promise) result.catch(() => {});
   }
 
   releasePointerLock(): void {
