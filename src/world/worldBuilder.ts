@@ -8,9 +8,17 @@
  * 36 simple rooms it is not yet worth the complexity.
  */
 import * as THREE from 'three';
-import type { ArtBuildContext, ArtPack, Collider, MaterialLibrary, RoomBuildContext, RoomDims } from '@art/lib/contract';
+import type {
+  ArtApi,
+  ArtBuildContext,
+  ArtPack,
+  Collider,
+  MaterialLibrary,
+  RoomBuildContext,
+  RoomDims,
+} from '@art/lib/contract';
 import { doorKey } from '@art/lib/contract';
-import { resolveArt } from '@art/shared/index';
+import { hasArt, resolveArt } from '@art/shared/index';
 import type { ItemsConfig, WorldConfig } from '@/config/types';
 import { stream } from '@/core/rng';
 import type { WorldItem } from '@/entities/items';
@@ -18,6 +26,12 @@ import { CollisionWorld } from './collision';
 import type { Chest, Locker } from './containers';
 import type { Door } from './doors';
 import type { RunLayout } from './generation';
+
+/** A piece of temporary scenery, with whatever hooks its art chose to expose. */
+export interface BuiltDecor {
+  object: THREE.Object3D;
+  api?: ArtApi;
+}
 
 export interface BuiltWorld {
   root: THREE.Group;
@@ -34,6 +48,13 @@ export interface BuiltWorld {
   /** Drops an item into the world - chest contents, or something a player dropped. */
   spawnItem(id: string, itemId: string, x: number, y: number, z: number): WorldItem | null;
   removeItem(id: string): void;
+  /**
+   * Scenery with a lifetime: a thrown item in flight, a tar slick, a barricade.
+   * Unlike an item it has no collider, cannot be looked at and is never culled -
+   * these are all short-lived and all of them matter while they exist.
+   */
+  spawnDecor(id: string, artId: string, x: number, y: number, z: number, rotationY?: number): BuiltDecor | null;
+  removeDecor(id: string): void;
   /** Hides geometry beyond `renderDistanceRooms`. Fog hides it anyway - this stops us drawing it. */
   updateVisibility(x: number, z: number, radius: number): void;
   dispose(): void;
@@ -196,10 +217,12 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
       lockIndicator,
       x: placed.position[0],
       z: placed.position[1],
+      rotationY: placed.rotationY,
       locked: placed.locked,
       open: false,
       progress: 0,
       collider: collider ?? null,
+      barricadeSeconds: 0,
     });
   }
 
@@ -272,6 +295,34 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
     if (cullIndex >= 0) cullable.splice(cullIndex, 1);
   }
 
+  // --- temporary scenery ----------------------------------------------------
+  const decor = new Map<string, { object: THREE.Object3D; dispose?(): void }>();
+
+  function spawnDecor(id: string, artId: string, x: number, y: number, z: number, rotationY = 0): BuiltDecor | null {
+    if (!hasArt(artId, pack.overrides)) {
+      console.warn(`[world] no art registered for "${artId}"`);
+      return null;
+    }
+    removeDecor(id);
+
+    const ctx: ArtBuildContext = { materials, rng: stream(layout.seed, `decor:${id}`), dims };
+    const art = resolveArt(artId, pack.overrides)(ctx);
+    art.object.position.set(x, y, z);
+    art.object.rotation.y = rotationY;
+    root.add(art.object);
+
+    decor.set(id, { object: art.object, ...(art.dispose ? { dispose: art.dispose.bind(art) } : {}) });
+    return { object: art.object, ...(art.api ? { api: art.api } : {}) };
+  }
+
+  function removeDecor(id: string): void {
+    const entry = decor.get(id);
+    if (!entry) return;
+    decor.delete(id);
+    root.remove(entry.object);
+    entry.dispose?.();
+  }
+
   // --- loose items ---------------------------------------------------------
   for (const placed of layout.items) {
     spawnItem(placed.id, placed.itemId, placed.position[0], placed.position[1], placed.position[2]);
@@ -293,6 +344,8 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
     materials,
     spawnItem,
     removeItem,
+    spawnDecor,
+    removeDecor,
     updateVisibility(x: number, z: number, radius: number): void {
       const limit = radius * radius;
       for (const entry of cullable) {
@@ -303,6 +356,7 @@ export function buildWorld(layout: RunLayout, pack: ArtPack, world: WorldConfig,
       // Geometry is intentionally NOT disposed here: art/lib/build.ts caches box
       // geometry by size across worlds, so disposing it would break the next run.
       // Art that allocates outside the cache returns its own `dispose`.
+      for (const id of [...decor.keys()]) removeDecor(id);
       for (const dispose of disposers) dispose();
       root.clear();
       materials.dispose();

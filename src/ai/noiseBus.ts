@@ -21,7 +21,16 @@ export type NoiseKind =
   | 'lockerEnter'
   | 'itemDrop'
   | 'voice'
-  | 'injured';
+  | 'injured'
+  /* --- the item roster (docs/PLAN.md step 37) ----------------------------- */
+  /** Anything thrown, coming to rest. */
+  | 'throwImpact'
+  /** An alarm clock, once per `ringIntervalSeconds` for as long as it rings. */
+  | 'alarm'
+  /** A flare charge going off. */
+  | 'blast'
+  /** A player tearing a barricade off a door. */
+  | 'wreck';
 
 export interface NoiseEvent {
   x: number;

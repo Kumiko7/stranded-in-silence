@@ -156,7 +156,9 @@ export class RoomGraph {
     const door = doors.get(doorId);
     if (!door) return 1;
     if (door.locked && !costs.canOpenLockedDoors) return Infinity;
-    return door.open ? 1 : 1 + costs.doorSeconds;
+    // A barricade is not a wall, it is a bill - so it makes the route expensive
+    // rather than impossible, and the enemy will happily go round if it can.
+    return door.open ? 1 : 1 + costs.doorSeconds + door.barricadeSeconds;
   }
 
   /** Rooms within `depth` links of a start room, ignoring door state. */

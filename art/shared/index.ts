@@ -8,7 +8,18 @@ import type { ArtBuilder, ArtRegistry } from '../lib/contract';
 import { buildDoor, buildExitDoor } from './props/door';
 import { buildChest } from './props/chest';
 import { buildLocker } from './props/locker';
+import { buildDoorBarricade } from './props/doorBarricade';
 import { buildKey } from './props/items/key';
+import { buildMedicine } from './props/items/medicine';
+import { buildFlashbang } from './props/items/flashbang';
+import { buildAlarmClock } from './props/items/alarmClock';
+import { buildTarFlask } from './props/items/tarFlask';
+import { buildBarricade } from './props/items/barricade';
+import { buildCoinPile } from './props/items/coinPile';
+import { buildDiamond } from './props/items/diamond';
+import { buildThrowArc } from './vfx/throwArc';
+import { buildTarPool } from './vfx/tarPool';
+import { buildFlashBurst } from './vfx/flashBurst';
 import { buildPlayer } from './characters/player';
 import { buildGhost } from './characters/ghost';
 import { buildLever, buildMinigamePlaceholder, buildWardrobe } from './lobby/fixtures';
@@ -19,9 +30,24 @@ export const sharedArt: ArtRegistry = {
   'door.exit': buildExitDoor,
   'chest.standard': buildChest,
   'locker.standard': buildLocker,
-  'item.key': buildKey,
+  'door.barricade': buildDoorBarricade,
   'player.masked': buildPlayer,
   'enemy.ghost': buildGhost,
+
+  // The item roster (plan step 37). One entry per id in `config/items.json`.
+  'item.key': buildKey,
+  'item.medicine': buildMedicine,
+  'item.flashbang': buildFlashbang,
+  'item.alarmClock': buildAlarmClock,
+  'item.tarFlask': buildTarFlask,
+  'item.barricade': buildBarricade,
+  'item.coinPile': buildCoinPile,
+  'item.diamond': buildDiamond,
+
+  // What throwables leave behind, plus the line you aim them along.
+  'vfx.throwArc': buildThrowArc,
+  'vfx.tarPool': buildTarPool,
+  'vfx.flashBurst': buildFlashBurst,
 
   // The lobby. `poster.<mapId>` is named by `config/maps.json -> posterArtId`;
   // a map with no poster of its own falls back to `poster.blank`, which is also

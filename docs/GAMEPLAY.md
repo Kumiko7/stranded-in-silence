@@ -46,8 +46,9 @@ the load between them — see [`ARCHITECTURE.md §5`](ARCHITECTURE.md).
 - **Move** WASD, **look** mouse, **sprint** hold Shift, **crouch** hold Ctrl,
   **interact** E, **use left hand** LMB, **use right hand** RMB. All rebindable
   (`config/input.json`).
-- Two hands = two item slots. Picking up a third item drops the one in that hand.
-  Treasure does not use a slot (`items.json → items.treasureSmall.occupiesSlot`).
+- Two hands = two item slots. Picking up a third item drops the one in that hand,
+  and the hand it takes **alternates** — so if it swapped the wrong one, pressing E
+  again on what you just dropped puts it in the other hand and corrects the mistake.
 - Health is a three-step ladder: **healthy → injured → downed**.
   - Injured: slower (`player.json → movement.injuredSpeedMultiplier`) and vignetted.
     **Not** noisier — an injured player's footsteps are exactly a healthy player's,
@@ -106,6 +107,38 @@ distortion that ramp with proximity (`player.json → effects`).
 - Lockers hide you from sight, not from a searching enemy — and not at all if it
   watched you climb in, in which case that locker is the first thing it opens.
 
+## 4.1 Items
+
+Seven items, **all single use**, all specified in `config/items.json`. Nothing in the
+roster fights the hunter; every one of them buys you time or information.
+
+| Item | Hand button does | What it costs the hunter |
+| --- | --- | --- |
+| **Bandages** | Hold on yourself, or on an injured teammate you are looking at | Nothing. It undoes a hit, which is the only thing in the game that does |
+| **Flare charge** | Hold to aim, release to throw | Stuns everything in `radius` on landing — the hunter *and* any player, thrower included. Loud enough to bring it running if it was standing just outside |
+| **Alarm clock** | Hold to aim, release to throw | Rings where it lands for `durationSeconds`, re-emitting the loudest noise in the game. The decoy you get to place |
+| **Tar flask** | Hold to aim, release to throw | A slick that anything wading through crosses at `slowMultiplier` speed. It does not care that the hunter is faster than you |
+| **Barricade** | Hold on a **closed** door | Adds `openSeconds` to that door for *everyone*. Doors already cost the hunter time; this is how you make one cost it much more |
+| **Loose coins** | Nothing — spent on contact | Nothing. Money, straight into the run purse |
+| **The diamond** | Nothing — it takes a hand and waits | Nothing. Rare, chest-only, and worth a fortune if you carry it out |
+
+**Throwing** is one gesture, learned once: hold the hand button and an arc appears;
+release and the item flies exactly along it. Pressing the other hand button — or
+Escape — before releasing throws the aim away and keeps the item. The line is not an
+approximation, it is the same integration the item will fly.
+
+Throws deliberately ignore room furniture and containers. They stop on **walls,
+closed doors, players, the hunter and the floor**, and nothing else: collision here
+is a flat 2D test that cannot tell a wall from a table leg, and a flask dying on a
+sideboard it visibly sailed over is worse than a flask that clears it.
+
+**Coins are a team purse**, not loot to divide. A pile is spent the instant anyone
+touches it and never takes a slot, so nobody has to decide whether money is worth a
+hand or argue about who got there first. The purse is only real once you are out:
+whoever escapes banks it as it stands when they leave, and a team that is wiped
+banks nothing. The diamond is the one thing that has to be *carried* out, and it
+pays into the purse at the exit door.
+
 ## 5. Voice chat
 
 Proximity-based and generous — `net.json → voice.hearingRange` (22 m) versus the
@@ -130,7 +163,8 @@ the hunter somewhere to keep searching.
 - **Win**: every remaining player has escaped. Partial escapes still count as a win
   for those who made it, and the scoreboard shows who did.
 - **Lose**: everyone is downed or dead.
-- Treasure carried out is kept; treasure on a downed or dead player is not.
+- The run purse is banked by each player who escapes, as it stands when they leave.
+  A diamond on a body on the cellar floor is worth exactly nothing.
 
 ## 7. Design principles
 
@@ -154,9 +188,8 @@ These are accounted for in config and architecture so they slot in without rewor
 - Traps (floor and ceiling): noise-makers and hold-you-in-place
 - Multi-cell rooms (1×2, 2×2, L) — `world.json → layout.multiCellRooms`
 - Lobby trophies and minigames
-- Collectables, lore notes, treasure
+- Collectables and lore notes
 - Difficulty modes — `config/difficulty.json`, already fully data-driven
-- Metaprogression: currency, XP, cosmetics — `game.json → meta`
-- Full item roster: medicine, brick, coin, flare, barricade, tar, x-ray lens, sensor
+- Metaprogression: XP and a shop to spend the purse on — `game.json → meta`
 - Post-escape spectating — `game.json → spectate`
 - Vertical maps (rooms stacked) — `world.json → grid.levels`, deliberately deferred

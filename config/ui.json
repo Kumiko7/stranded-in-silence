@@ -26,6 +26,12 @@
     "crosshair": { "enabled": true, "size": 4, "colour": "#d8d4c8", "opacity": 0.55 },
     "interactPrompt": { "enabled": true, "showHoldRing": true },
     "handSlots": { "enabled": true, "position": "bottom-center" },
+    "coins": {
+      "$doc": "The run purse. In a run it only appears once you have actually picked something up - a permanent 0 would be noise. The lobby wardrobe always shows the banked total.",
+      "enabled": true,
+      "position": "top-right",
+      "showWhenEmpty": false
+    },
     "healthState": { "enabled": true, "mode": "vignette-only" },
     "teammateList": { "enabled": true, "position": "bottom-left", "showVoiceIndicator": true },
     "voiceIndicator": { "enabled": true, "position": "bottom-left", "showLevelMeter": true },

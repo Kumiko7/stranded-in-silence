@@ -26,10 +26,16 @@ export interface WorldItem {
 export interface Inventory {
   left: string | null;
   right: string | null;
+  /**
+   * Which hand the NEXT full-hands pickup will overwrite. It alternates, so
+   * pressing E again on the item you just displaced puts it in the other hand
+   * rather than undoing the swap you meant to keep.
+   */
+  nextSwap: Hand;
 }
 
 export function createInventory(): Inventory {
-  return { left: null, right: null };
+  return { left: null, right: null, nextSwap: 'left' };
 }
 
 export function itemDef(config: ItemsConfig, itemId: string | null): ItemDef | null {
@@ -45,11 +51,21 @@ export function itemParam(def: ItemDef, name: string, fallback: number): number 
 /**
  * Puts an item in a hand, preferring an empty one. Returns the item that was
  * displaced, which the caller drops into the world.
+ *
+ * With both hands full it takes the hand `nextSwap` names and then flips it.
+ * That is what makes the correction gesture work: press E, the left hand is
+ * swapped and the old item lands at your feet; press E again on it and it goes
+ * to the RIGHT hand, so you end up having replaced the other slot after all.
  */
 export function takeItem(inventory: Inventory, itemId: string): { hand: Hand; displaced: string | null } {
-  const hand: Hand = inventory.left === null ? 'left' : inventory.right === null ? 'right' : 'left';
+  const empty: Hand | null = inventory.left === null ? 'left' : inventory.right === null ? 'right' : null;
+  const hand = empty ?? inventory.nextSwap;
   const displaced = inventory[hand];
+
   inventory[hand] = itemId;
+  // Only a real swap advances the cursor - filling an empty hand displaced
+  // nothing, so there is no mistake to correct.
+  if (displaced !== null) inventory.nextSwap = other(hand);
   return { hand, displaced };
 }
 
@@ -57,6 +73,10 @@ export function dropFrom(inventory: Inventory, hand: Hand): string | null {
   const itemId = inventory[hand];
   inventory[hand] = null;
   return itemId;
+}
+
+export function other(hand: Hand): Hand {
+  return hand === 'left' ? 'right' : 'left';
 }
 
 /** The first hand holding `itemId`, or null. Used by "press E and the key is spent". */

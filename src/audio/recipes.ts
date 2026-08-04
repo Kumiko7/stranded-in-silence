@@ -280,6 +280,17 @@ export const RECIPES: Record<string, Recipe> = {
     },
   },
 
+  'player.healed': {
+    seconds: 1.4,
+    build(): void {
+      // A breath that finally goes all the way out, over a rising fifth. The
+      // only unambiguously good news the sfx bus ever carries.
+      noise({ colour: 'pink', from: 480, to: 260, q: 1.8, attack: 0.08, hold: 0.1, decay: 0.5, peak: 0.2 });
+      chord({ at: 0.04, root: 196, ratios: [1, 1.5], type: 'triangle', lowpass: 1800, attack: 0.06, hold: 0.2, decay: 0.8, peak: 0.24 });
+      ping({ at: 0.18, from: 1568, decay: 0.7, peak: 0.12 });
+    },
+  },
+
   'player.heartbeat': {
     seconds: 1.0,
     build(): void {
@@ -401,6 +412,147 @@ export const RECIPES: Record<string, Recipe> = {
       // One small bounce, because nothing lands once.
       voice({ at: 0.15, from: 150, to: 90, type: 'sine', attack: 0.001, decay: 0.1, peak: 0.16 });
       noise({ at: 0.15, colour: 'brown', from: 500, to: 260, q: 1.2, attack: 0.001, decay: 0.08, peak: 0.12 });
+    },
+  },
+
+  /* --- the item roster ------------------------------------------------------ */
+
+  'item.throw': {
+    seconds: 0.4,
+    build(): void {
+      // Cloth and air. Deliberately small: the throw is your sound, the landing
+      // is everybody else's.
+      noise({ colour: 'pink', from: 700, to: 2400, q: 1.1, attack: 0.02, hold: 0.03, decay: 0.16, peak: 0.24 });
+      voice({ from: 240, to: 420, type: 'sine', attack: 0.02, decay: 0.14, peak: 0.08 });
+    },
+  },
+
+  'item.impact': {
+    seconds: 0.8,
+    build(): void {
+      // Something with weight hitting a floor it was not thrown at gently.
+      voice({ from: 210, to: 62, type: 'sine', attack: 0.001, decay: 0.22, peak: 0.7 });
+      noise({ colour: 'brown', from: 900, to: 240, q: 0.9, attack: 0.001, decay: 0.18, peak: 0.5 });
+      ping({ at: 0.005, from: 1650, decay: 0.12, peak: 0.16 });
+      // The skitter afterwards, because nothing thrown lands once.
+      noise({ at: 0.17, colour: 'brown', from: 1300, to: 700, q: 2.0, attack: 0.002, decay: 0.1, peak: 0.16 });
+      voice({ at: 0.28, from: 160, to: 100, type: 'sine', attack: 0.001, decay: 0.1, peak: 0.14 });
+    },
+  },
+
+  'item.flash': {
+    seconds: 2.4,
+    build(): void {
+      // The crack, then everything above 2 kHz for a moment, then the room.
+      noise({ colour: 'white', from: 60, filter: 'highpass', attack: 0.0015, decay: 0.7, peak: 0.85 });
+      voice({ from: 900, to: 60, type: 'sawtooth', lowpass: 3000, attack: 0.001, decay: 0.45, peak: 0.55 });
+      voice({ from: 46, type: 'sine', attack: 0.004, hold: 0.12, decay: 0.9, peak: 0.7 });
+      // The ring left in your ears once the bang has gone.
+      voice({ at: 0.06, from: 4200, to: 3900, type: 'sine', attack: 0.02, hold: 0.5, decay: 1.5, peak: 0.12 });
+    },
+  },
+
+  'item.alarm': {
+    seconds: 1.0,
+    build(): void {
+      // Two bells beaten by one hammer, twelve strikes a second. One second of
+      // it loops seamlessly, which is the whole point: it does not stop.
+      for (let i = 0; i < 12; i++) {
+        const at = i / 12;
+        ping({ at, from: i % 2 === 0 ? 2340 : 2760, decay: 0.075, peak: 0.5 });
+        noise({ at, colour: 'white', from: 5200, filter: 'highpass', attack: 0.001, decay: 0.02, peak: 0.12 });
+      }
+      // The case buzzing along with them.
+      voice({ from: 156, type: 'square', lowpass: 900, attack: 0.05, hold: 0.85, decay: 0.1, peak: 0.05 });
+    },
+  },
+
+  'item.tar': {
+    seconds: 1.6,
+    build(): void {
+      // Glass giving up, then something heavy arriving flat.
+      noise({ colour: 'white', from: 4600, to: 2200, filter: 'highpass', attack: 0.001, decay: 0.25, peak: 0.45 });
+      for (const [at, from] of [[0.01, 3200], [0.05, 2600], [0.09, 3900]] as const) {
+        ping({ at, from, decay: 0.18, peak: 0.14 });
+      }
+      voice({ at: 0.02, from: 150, to: 52, type: 'sine', attack: 0.002, decay: 0.3, peak: 0.5 });
+      // The slick spreading: a wet, low, unhurried wash.
+      noise({ at: 0.1, colour: 'brown', from: 520, to: 180, q: 1.1, attack: 0.08, hold: 0.25, decay: 0.7, peak: 0.34 });
+    },
+  },
+
+  'item.medicine': {
+    seconds: 2.0,
+    build(): void {
+      // Tearing gauze, twice, at slightly different lengths so the loop breathes.
+      noise({ colour: 'pink', from: 2600, to: 1500, q: 1.2, attack: 0.02, hold: 0.14, decay: 0.2, peak: 1.2 });
+      noise({ at: 0.7, colour: 'pink', from: 3000, to: 1700, q: 1.4, attack: 0.03, hold: 0.1, decay: 0.24, peak: 1.0 });
+      // The tin, put down and picked up again.
+      ping({ at: 1.25, from: 1180, decay: 0.2, peak: 0.5 });
+      noise({ at: 1.5, colour: 'brown', from: 700, to: 420, q: 1.6, attack: 0.04, decay: 0.28, peak: 0.7 });
+    },
+  },
+
+  'item.barricade': {
+    seconds: 1.8,
+    build(): void {
+      // Wood against wood, worked at. Loops for as long as the ring is filling.
+      creak({ seconds: 0.5, from: 240, to: 340, peak: 2.2, wobble: 50 });
+      voice({ at: 0.55, from: 180, to: 90, type: 'sine', attack: 0.001, decay: 0.14, peak: 1.2 });
+      noise({ at: 0.55, colour: 'brown', from: 800, to: 300, q: 1.2, attack: 0.001, decay: 0.16, peak: 0.9 });
+      creak({ at: 0.95, seconds: 0.45, from: 320, to: 220, peak: 1.8, wobble: 40 });
+      voice({ at: 1.45, from: 200, to: 96, type: 'sine', attack: 0.001, decay: 0.14, peak: 1.0 });
+    },
+  },
+
+  'item.barricadePlaced': {
+    seconds: 1.4,
+    build(): void {
+      // Three hammer blows and a plank settling against the frame.
+      for (const [i, at] of [0, 0.2, 0.42].entries()) {
+        voice({ at, from: 260 - i * 20, to: 90, type: 'sine', attack: 0.001, decay: 0.16, peak: 0.7 });
+        noise({ at, colour: 'brown', from: 1400, to: 500, q: 1.4, attack: 0.001, decay: 0.1, peak: 0.4 });
+        ping({ at, from: 2600 - i * 140, decay: 0.08, peak: 0.16 });
+      }
+      creak({ at: 0.62, seconds: 0.5, from: 280, to: 200, peak: 0.3, wobble: 40 });
+    },
+  },
+
+  'item.barricadeBroken': {
+    seconds: 1.8,
+    build(): void {
+      // Nails coming out of timber, and the timber losing.
+      creak({ seconds: 0.35, from: 620, to: 300, peak: 0.55, wobble: 90 });
+      noise({ at: 0.2, colour: 'brown', from: 2200, to: 600, q: 0.9, attack: 0.002, decay: 0.35, peak: 0.7 });
+      voice({ at: 0.22, from: 320, to: 60, type: 'sawtooth', lowpass: 1600, attack: 0.002, decay: 0.4, peak: 0.5 });
+      // The pieces hitting the floor after it.
+      for (const [at, from] of [[0.5, 190], [0.68, 240], [0.83, 150]] as const) {
+        voice({ at, from, to: from * 0.45, type: 'sine', attack: 0.001, decay: 0.18, peak: 0.4 });
+        noise({ at, colour: 'brown', from: 800, to: 280, q: 1.2, attack: 0.001, decay: 0.14, peak: 0.26 });
+      }
+    },
+  },
+
+  'item.coins': {
+    seconds: 1.2,
+    build(): void {
+      // A handful of metal, scooped. Nine strikes, deliberately uneven.
+      for (const [i, at] of [0, 0.03, 0.07, 0.11, 0.18, 0.24, 0.33, 0.41, 0.52].entries()) {
+        ping({ at, from: 1900 + ((i * 137) % 900), decay: 0.22 - i * 0.015, peak: 0.2 });
+      }
+      noise({ colour: 'white', from: 5200, filter: 'highpass', attack: 0.002, hold: 0.06, decay: 0.35, peak: 0.1 });
+      voice({ at: 0.05, from: 260, to: 180, type: 'triangle', attack: 0.004, decay: 0.2, peak: 0.1 });
+    },
+  },
+
+  'item.treasure': {
+    seconds: 2.8,
+    build(): void {
+      // The only other consonant chord in the game, and it is not free.
+      chord({ root: 261.6, ratios: [1, 1.5, 2, 3, 4], type: 'sine', attack: 0.02, hold: 0.5, decay: 1.9, peak: 0.34 });
+      ping({ at: 0.01, from: 2093, decay: 1.6, peak: 0.24 });
+      ping({ at: 0.14, from: 3136, decay: 1.2, peak: 0.16 });
+      noise({ colour: 'white', from: 7000, filter: 'highpass', attack: 0.05, hold: 0.3, decay: 1.2, peak: 0.05 });
     },
   },
 

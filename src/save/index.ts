@@ -20,10 +20,16 @@ export interface Profile {
   completedMaps: string[];
   /** Id from `player.json -> customisation.colours`, or null for the default. */
   colourId: string | null;
+  /**
+   * Coins banked across every run. A run's purse only lands here when this
+   * player personally makes it out - see `Game.#cashOut()`. Nothing spends them
+   * yet; the lobby shop is plan step 42.
+   */
+  coins: number;
 }
 
 function empty(): Profile {
-  return { completedMaps: [], colourId: null };
+  return { completedMaps: [], colourId: null, coins: 0 };
 }
 
 /**
@@ -73,6 +79,7 @@ export class Save {
           ? parsed.completedMaps.filter((id): id is string => typeof id === 'string')
           : [],
         colourId: typeof parsed.colourId === 'string' ? parsed.colourId : null,
+        coins: Number.isFinite(parsed.coins) ? Math.max(0, Math.floor(parsed.coins as number)) : 0,
       };
     } catch (error) {
       console.warn('[save] profile unreadable, starting fresh', error);
@@ -93,6 +100,13 @@ export class Save {
   markCompleted(mapId: string): void {
     if (this.hasCompleted(mapId)) return;
     this.#profile.completedMaps.push(mapId);
+    this.#flush();
+  }
+
+  /** Banks a run's purse. Called only when this player got out with it. */
+  addCoins(amount: number): void {
+    if (amount <= 0) return;
+    this.#profile.coins += Math.floor(amount);
     this.#flush();
   }
 

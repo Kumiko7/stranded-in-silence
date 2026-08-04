@@ -173,7 +173,38 @@ export function createMaterials(): MaterialLibrary {
     chestTrim: standard(0xb8964e, { roughness: 0.36, metalness: 0.8 }),
     locker: standard(0x7d715e, { roughness: 0.72, metalness: 0.15 }),
     lockerVent: standard(0x4a4740, { roughness: 0.9 }),
+
+    /* --- the item roster -------------------------------------------------- */
     itemMetal: standard(0xc4b072, { roughness: 0.34, metalness: 0.85 }),
+    itemSteel: standard(0x8d9199, { roughness: 0.42, metalness: 0.75 }),
+    itemWood: standard(0x7c5a38, { roughness: 0.86 }),
+    itemCloth: standard(0xd8cfb8, { roughness: 1 }),
+    itemAccent: standard(0x9c2f28, { roughness: 0.68 }),
+    itemBrass: standard(0xbe9a4c, { roughness: 0.28, metalness: 0.9 }),
+    itemEnamel: standard(0xe6dfc9, { roughness: 0.42 }),
+    itemGold: standard(0xc9a13a, { roughness: 0.26, metalness: 0.95 }),
+    itemTar: standard(0x0e0f13, { roughness: 0.16, metalness: 0.25 }),
+    itemGlass: () =>
+      new THREE.MeshStandardMaterial({
+        color: 0xa8bcc4,
+        roughness: 0.06,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.32,
+      }),
+    // The one thing in the map worth a fortune has to catch what little light
+    // there is, from any angle, or nobody will ever notice it in a chest.
+    itemGem: standard(0xcdeaff, { roughness: 0.04, metalness: 0.15, emissive: 0x7fc9e8, emissiveIntensity: 0.75 }),
+
+    /* --- thrown-item effects ---------------------------------------------- */
+    'vfx.tar': () =>
+      new THREE.MeshStandardMaterial({ color: 0x0d0e12, roughness: 0.14, metalness: 0.3, transparent: true, opacity: 0.95 }),
+    // The rim under the slick: matte and a shade lighter, so the edge catches the
+    // room's light and the pool reads as spilt rather than as a hole in the floor.
+    'vfx.tarRim': standard(0x2b2822, { roughness: 0.85 }),
+    // Cloned by the flare burst so it can fade its own copy out.
+    'vfx.flash': () =>
+      new THREE.MeshBasicMaterial({ color: 0xfff4d6, transparent: true, opacity: 0.9, depthWrite: false, fog: false }),
 
     playerBody: standard(0x6f7690, { roughness: 0.85 }),
     playerMask: standard(0xd8d4c8, { roughness: 0.6 }),

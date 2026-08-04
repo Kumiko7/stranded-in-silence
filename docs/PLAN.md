@@ -318,10 +318,13 @@ floating under the plaster.
 **Details:** track the categories in `game.json → scoring`, per-player rows, green ring on the best value per category.
 **Done when:** a finished run shows accurate stats for all players.
 
-### ☐ 37. Item roster
-**Touches:** `src/entities/items/behaviours/`, `art/shared/props/items/`.
-**Details:** medicine, brick, coin, flare charge, barricade, tar flask, cracked lens, tremor box — all already specified in `config/items.json`.
+### ☑ 37. Item roster
+**Touches:** `config/items.json`, `src/entities/projectile.ts`, `src/world/{wallGrid,effects}.ts`, `src/game/Game.ts`, `art/shared/props/items/`, `art/shared/vfx/`.
+**Details:** seven single-use items — medicine, flare charge, alarm clock, tar flask, barricade, loose coins, the diamond — plus the aim-arc throwing system and the shared run purse.
 **Done when:** every item works, is throwable/usable per its config, and affects the enemy as documented.
+**Note:** throwing is *hold the hand button to aim, release to throw*; the preview line is the same integration the item flies, so what you see is where it lands. Throws ignore room furniture and containers entirely — they stop on walls, closed doors, players, the hunter and the floor (`src/world/wallGrid.ts`), because 2D collision cannot tell a wall from a table leg and a flask dying on furniture it flew over reads as a bug every time. Only the release state crosses the wire; every peer re-runs the arc.
+**Note:** coins are a **team purse**. A pile is spent on contact and never takes a slot, so there is nothing to divide; the diamond is the one exception - it takes a hand and only pays out when its carrier is through the exit door. Whoever escapes banks the purse as it stands when they leave. The wardrobe shows the banked total; the shop that spends it is step 42.
+**Note:** the brick, cracked lens and tremor box from the old roster were dropped. Blinding, sensing and the noise-decoy were folded into the flare charge and the alarm clock; the roster is seven items rather than nine on purpose.
 
 ### ☐ 38. Difficulty modes
 **Touches:** `src/config/` overlay application, lobby UI.
@@ -337,6 +340,7 @@ floating under the plaster.
 ### ☐ 39. Spectating after escape or death
 ### ☐ 40. Traps — floor and ceiling, noise and hold
 ### ☐ 41. Treasure, currency and run rewards
+*Partly landed with step 37: coin piles, the diamond, the shared run purse and banking it on escape all work. What is left is the rest of the treasure roster, `world.json → contents.treasure` (still `enabled: false`) and the `treasure` room anchor.*
 ### ☐ 42. Metaprogression — lobby shop, XP, levels
 ### ☐ 43. Player cosmetics
 ### ☐ 44. Multi-cell rooms — 1×2, 2×2, L footprints

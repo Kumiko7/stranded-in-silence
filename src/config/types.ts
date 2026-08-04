@@ -213,20 +213,44 @@ export interface WorldConfig {
   };
 }
 
+/**
+ * How a hand button drives an item.
+ *
+ * `hold` fills a ring while the button is down; `throw` draws the aim arc while
+ * it is down and lets go on release; `none` is an item that only pays out on
+ * escape; `pickup` never reaches a hand at all - it is spent on contact.
+ */
+export type ItemUseMode = 'hold' | 'throw' | 'none' | 'pickup';
+
 export interface ItemDef {
   nameKey: string;
   descKey: string;
   artId: string;
   behaviour: string;
-  useMode: 'press' | 'hold' | 'toggle' | 'none';
+  useMode: ItemUseMode;
   consumedOnUse: boolean;
   occupiesSlot?: boolean;
   params: Record<string, number | string | boolean>;
 }
 
+/** Ballistics shared by every throwable. See `items.json -> defaults.throw`. */
+export interface ThrowConfig {
+  speed: number;
+  gravity: number;
+  radius: number;
+  /** Where the item leaves your hand, relative to eye height. */
+  releaseHeightOffset: number;
+  maxFlightSeconds: number;
+  /** How far under the ceiling a throw is stopped from rising. */
+  ceilingClearance: number;
+  /** Fraction of vertical speed kept after clipping the ceiling. */
+  ceilingBounce: number;
+  aim: { sampleSeconds: number; maxPoints: number };
+}
+
 export interface ItemsConfig {
   sizeClass: { width: number; depth: number; height: number };
-  defaults: { pickupRange: number; dropForwardOffset: number };
+  defaults: { pickupRange: number; dropForwardOffset: number; throw: ThrowConfig };
   items: Record<string, ItemDef>;
 }
 
@@ -320,6 +344,8 @@ export interface AudioConfig {
     selfFlat: { kinds: string[] };
     alertStings: Record<string, string>;
     holdLoops: Record<string, string>;
+    /** Item behaviour -> looping soundId while a hand button is held on it. */
+    itemUseLoops: Record<string, string>;
     /** Playback rate a hold loop reaches as its ring fills. */
     holdLoopEndRate: number;
     /** Playback rate the heartbeat reaches when the hunter is on top of you. */
@@ -371,6 +397,8 @@ export interface UiConfig {
     teammateList: { enabled: boolean; showVoiceIndicator: boolean };
     /** The voice pill above the roster: mode, transmitting state, input level. */
     voiceIndicator: { enabled: boolean; showLevelMeter: boolean };
+    /** The run purse. Hidden until you have actually picked something up. */
+    coins: { enabled: boolean; showWhenEmpty: boolean };
   };
 }
 

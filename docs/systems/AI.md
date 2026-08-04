@@ -79,6 +79,13 @@ and `doorSlam` on closing one, `chestOpen`, `lockerEnter` and `itemDrop`, plus
 `voice` every `net.json → voice.noiseIntervalSeconds` while someone is speaking
 above `voice.noiseThresholdDb`.
 
+Thrown items add four more, and they are the only noise a player gets to **aim**:
+`throwImpact` when anything lands, `alarm` every `ringIntervalSeconds` for as long
+as an alarm clock is ringing, `blast` when a flare charge goes off, and `wreck` when
+a player tears a barricade off a door. These are emitted by the **host** and
+credited to whoever threw the item — every peer simulates the same arc, so four
+peers emitting the landing would be four times the noise.
+
 Injury costs **speed, not stealth**: an injured player emits the same walk /
 sprint / crouch noise as a healthy one, so crouching while hurt is still worth
 doing. (`noise.injured` is therefore unused for now; it is kept for an emitter
@@ -136,6 +143,24 @@ graph query), and needs no navmesh baking. Doors cost
 `doors.openSeconds` (or `openSecondsWhenChasing`) of standing still — the single
 most important balance lever in the game. A locked door is `Infinity` in the graph
 unless `doors.canOpenLockedDoors`, so keys gate the enemy exactly as they gate you.
+
+A **barricade** adds `door.barricadeSeconds` to both the graph cost and the wait it
+actually stands there for. It is priced in the one currency the hunter cannot cheat,
+and it is exactly what a player pays for the same door. It makes a route expensive
+rather than impossible, so the enemy will happily go round if there is a way round —
+which is what stops a barricade from being a wall.
+
+## What items do to it
+
+The hunter has no counter to any of these, by design: each one buys time, and none
+of them fights.
+
+| Item | Effect |
+| --- | --- |
+| **Flare charge** | `enemy.stunFor` seconds of doing nothing at all. It keeps its alert level, its target and its route — it simply cannot act on any of them, which is what makes the window readable. Set by the host only |
+| **Tar flask** | `EnemyContext.slowAt(x, z)` multiplies its speed wherever the slick is. Applied after every other multiplier, because tar does not care how fast it is meant to be |
+| **Alarm clock** | Nothing special — it is a `noise` event, on a timer, that the enemy investigates like any other. That is the whole trick |
+| **Barricade** | Time at a door, above |
 
 ## Attacking
 

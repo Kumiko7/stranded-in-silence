@@ -1,5 +1,7 @@
 {
-  "$doc": "Item catalogue. `artId` resolves against art/shared/props. Logic only ever reads this file + the item's behaviour id; art is fully swappable. See docs/art/ART_GUIDE.md.",
+  "$doc": "Item catalogue. `artId` resolves against art/shared/props/items. Logic only ever reads this file + the item's behaviour id; art is fully swappable. See docs/art/ART_GUIDE.md.",
+
+  "$roster": "Every item is SINGLE USE. `useMode` says how the hand button drives it: `hold` fills a ring while the button is down, `throw` draws an arc while the button is down and releases on let-go, `none` means the item does nothing in the hand and only pays out on escape, `pickup` means it is consumed the instant you touch it and never enters a slot.",
 
   "sizeClass": {
     "$doc": "All world items occupy this bounding box so room art knows how much space to leave on a spawn anchor.",
@@ -10,9 +12,23 @@
 
   "defaults": {
     "pickupRange": 2.2,
-    "throwSpeed": 11.0,
     "dropForwardOffset": 0.6,
-    "carrySlot": "either"
+    "throw": {
+      "$doc": "Shared by every throwable. The arc is a plain ballistic curve so the preview and the flight are the same integration - what you see is exactly where it goes.",
+      "$collision": "Throwables ignore room furniture and containers: with 2D collision a flask would otherwise die on a table leg it visibly flew over. They stop on walls, the floor, closed doors, players and the hunter.",
+      "speed": 12.0,
+      "gravity": 17.0,
+      "radius": 0.12,
+      "releaseHeightOffset": -0.12,
+      "maxFlightSeconds": 5.0,
+      "ceilingClearance": 0.25,
+      "ceilingBounce": 0.25,
+      "aim": {
+        "$doc": "The preview arc drawn while the use button is held. One bead every `sampleSeconds` of flight - at 12 m/s that is a bead roughly every 40 cm, which reads as a line without becoming one.",
+        "sampleSeconds": 0.035,
+        "maxPoints": 120
+      }
+    }
   },
 
   "items": {
@@ -32,80 +48,68 @@
       "behaviour": "heal",
       "useMode": "hold",
       "consumedOnUse": true,
-      "params": { "healSeconds": 3.0, "toState": "healthy", "canHealOthers": true, "range": 1.8 }
+      "params": { "useSeconds": 3.0, "toState": "healthy", "range": 2.2 }
     },
-    "brick": {
-      "nameKey": "item.brick.name",
-      "descKey": "item.brick.desc",
-      "artId": "item.brick",
-      "behaviour": "throwable",
-      "useMode": "press",
+    "flashbang": {
+      "nameKey": "item.flashbang.name",
+      "descKey": "item.flashbang.desc",
+      "artId": "item.flashbang",
+      "behaviour": "flash",
+      "useMode": "throw",
       "consumedOnUse": true,
-      "params": { "impactNoise": { "radius": 20.0, "loudness": 0.9 }, "stunSeconds": 0.0 }
+      "params": {
+        "radius": 9.0,
+        "enemyStunSeconds": 5.0,
+        "playerStunSeconds": 2.2,
+        "blindSeconds": 3.2,
+        "burstSeconds": 1.1
+      }
     },
-    "coin": {
-      "nameKey": "item.coin.name",
-      "descKey": "item.coin.desc",
-      "artId": "item.coin",
-      "behaviour": "throwable",
-      "useMode": "press",
+    "alarmClock": {
+      "nameKey": "item.alarmClock.name",
+      "descKey": "item.alarmClock.desc",
+      "artId": "item.alarmClock",
+      "behaviour": "alarm",
+      "useMode": "throw",
       "consumedOnUse": true,
-      "params": { "impactNoise": { "radius": 26.0, "loudness": 1.0 }, "stunSeconds": 0.0 }
+      "params": { "durationSeconds": 14.0, "ringIntervalSeconds": 0.9 }
     },
-    "flashGrenade": {
-      "nameKey": "item.flashGrenade.name",
-      "descKey": "item.flashGrenade.desc",
-      "artId": "item.flashGrenade",
-      "behaviour": "throwable",
-      "useMode": "press",
+    "tarFlask": {
+      "nameKey": "item.tarFlask.name",
+      "descKey": "item.tarFlask.desc",
+      "artId": "item.tarFlask",
+      "behaviour": "tar",
+      "useMode": "throw",
       "consumedOnUse": true,
-      "params": { "fuseSeconds": 1.5, "radius": 8.0, "stunSeconds": 4.0, "blindsPlayers": true }
+      "params": { "radius": 2.2, "slowMultiplier": 0.28, "durationSeconds": 22.0, "spreadSeconds": 0.6 }
     },
     "barricade": {
       "nameKey": "item.barricade.name",
       "descKey": "item.barricade.desc",
       "artId": "item.barricade",
-      "behaviour": "barricadeDoor",
+      "behaviour": "barricade",
       "useMode": "hold",
       "consumedOnUse": true,
-      "params": { "placeSeconds": 2.0, "enemyBreakSeconds": 8.0, "range": 2.2 }
+      "params": { "placeSeconds": 2.2, "openSeconds": 9.0, "range": 2.4 }
     },
-    "tarTrap": {
-      "nameKey": "item.tarTrap.name",
-      "descKey": "item.tarTrap.desc",
-      "artId": "item.tarTrap",
-      "behaviour": "placeTrap",
-      "useMode": "press",
+    "coinPile": {
+      "nameKey": "item.coinPile.name",
+      "descKey": "item.coinPile.desc",
+      "artId": "item.coinPile",
+      "behaviour": "coins",
+      "useMode": "pickup",
       "consumedOnUse": true,
-      "params": { "radius": 1.6, "slowMultiplier": 0.4, "durationSeconds": 6.0, "affectsEnemy": true }
+      "occupiesSlot": false,
+      "params": { "minValue": 25, "maxValue": 60 }
     },
-    "xrayGoggles": {
-      "nameKey": "item.xrayGoggles.name",
-      "descKey": "item.xrayGoggles.desc",
-      "artId": "item.xrayGoggles",
-      "behaviour": "revealContainers",
-      "useMode": "toggle",
-      "consumedOnUse": false,
-      "params": { "range": 12.0, "batterySeconds": 30.0 }
-    },
-    "enemySensor": {
-      "nameKey": "item.enemySensor.name",
-      "descKey": "item.enemySensor.desc",
-      "artId": "item.enemySensor",
-      "behaviour": "proximityBeep",
-      "useMode": "toggle",
-      "consumedOnUse": false,
-      "params": { "range": 30.0, "minBeepInterval": 0.15, "maxBeepInterval": 2.0, "beepNoise": { "radius": 3.0, "loudness": 0.15 } }
-    },
-    "treasureSmall": {
-      "nameKey": "item.treasureSmall.name",
-      "descKey": "item.treasureSmall.desc",
-      "artId": "item.treasureSmall",
+    "diamond": {
+      "nameKey": "item.diamond.name",
+      "descKey": "item.diamond.desc",
+      "artId": "item.diamond",
       "behaviour": "treasure",
       "useMode": "none",
       "consumedOnUse": false,
-      "occupiesSlot": false,
-      "params": { "value": 25 }
+      "params": { "value": 400 }
     }
   }
 }

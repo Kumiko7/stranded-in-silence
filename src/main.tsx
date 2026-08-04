@@ -89,6 +89,11 @@ async function boot(): Promise<void> {
     hands: { left: null, right: null },
     useLeftKey: input.labelFor('useLeft'),
     useRightKey: input.labelFor('useRight'),
+    use: null,
+    coins: 0,
+    bankedCoins: save.profile.coins,
+    showCoins: config.ui.hud.coins.enabled,
+    showEmptyCoins: config.ui.hud.coins.showWhenEmpty,
     hint: null,
     health: 'healthy',
     roster: [],
@@ -140,6 +145,10 @@ async function boot(): Promise<void> {
     onChestOpened: (chestId) => game.openChest(chestId),
     onItemTaken: (id) => game.takeWorldItem(id),
     onItemDropped: (id, itemId, x, y, z) => game.dropWorldItem(id, itemId, x, y, z),
+    onItemThrown: (id, itemId, owner, from, velocity) => game.throwItem(id, itemId, owner, from, velocity),
+    onBarricade: (doorId, seconds) => game.setDoorBarricade(doorId, seconds),
+    onHealed: (toState) => game.healLocal(toState),
+    onCoins: (amount) => game.addCoins(amount),
     onNoise: (id, kind, x, z) => game.addNoise(id, kind, x, z),
     onEnemy: (transform) => game.setEnemyTransform(transform),
     onHit: () => game.takeHit(),
@@ -175,12 +184,16 @@ async function boot(): Promise<void> {
           right: config.items.items[hands.right ?? '']?.nameKey ?? null,
         },
       }),
-    onEscaped: () => {
+    onUseChange: (use) => set({ use }),
+    onCoinsChange: (coins) => set({ coins }),
+    onEscaped: (coins) => {
       // The tick on a poster is earned by getting out YOURSELF. A team that
-      // escapes without you does not mark your card.
+      // escapes without you does not mark your card - and neither does it bank
+      // your share of the purse.
       if (currentRun) save.markCompleted(currentRun.mapId);
+      save.addCoins(coins);
       input.releasePointerLock();
-      set({ screen: 'escaped' });
+      set({ screen: 'escaped', bankedCoins: save.profile.coins, use: null });
     },
     onPlayerCountChange: (count) => set({ players: count }),
     onHealthChange: (health) => set({ health }),
@@ -224,6 +237,9 @@ async function boot(): Promise<void> {
       holdProgress: 0,
       hint: null,
       health: 'healthy',
+      use: null,
+      coins: 0,
+      bankedCoins: save.profile.coins,
     });
     input.requestPointerLock();
   }
@@ -252,6 +268,8 @@ async function boot(): Promise<void> {
       holdProgress: 0,
       hint: null,
       health: 'healthy',
+      use: null,
+      coins: 0,
     });
     input.requestPointerLock();
   }
@@ -270,7 +288,7 @@ async function boot(): Promise<void> {
     net.leave();
     renderer.applyGraphics(config.graphics);
     input.releasePointerLock();
-    set({ screen: 'menu', lobby: null, players: 1, promptVerbKey: null, hint: null, health: 'healthy' });
+    set({ screen: 'menu', lobby: null, players: 1, promptVerbKey: null, hint: null, health: 'healthy', use: null, coins: 0 });
   }
 
   /* --- screens ------------------------------------------------------------ */

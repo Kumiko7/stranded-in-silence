@@ -18,18 +18,30 @@ export interface Door {
   readonly lockIndicator: THREE.Object3D;
   readonly x: number;
   readonly z: number;
+  /** Facing, so anything hung on the door (a barricade) lines up with the leaf. */
+  readonly rotationY: number;
   /** A locked door cannot be opened until a key is spent on it. */
   locked: boolean;
   open: boolean;
   /** 0 = closed, 1 = fully open. Animated toward `open`. */
   progress: number;
   collider: WorldCollider | null;
+  /**
+   * Extra seconds ANYONE - player or hunter - must spend to get this door open,
+   * from a barricade wedged against it. 0 when the door is clear. A barricade is
+   * destroyed by whoever forces it, so this only ever goes back to 0 once.
+   */
+  barricadeSeconds: number;
+}
+
+export function isBarricaded(door: Door): boolean {
+  return door.barricadeSeconds > 0;
 }
 
 const OPEN_ANGLE = Math.PI / 2;
 
 export function toggleDoor(door: Door, open?: boolean): void {
-  if (door.locked) return;
+  if (door.locked || isBarricaded(door)) return;
   door.open = open ?? !door.open;
 }
 
@@ -37,6 +49,15 @@ export function toggleDoor(door: Door, open?: boolean): void {
 export function unlockDoor(door: Door): void {
   door.locked = false;
   door.lockIndicator.visible = false;
+}
+
+/**
+ * Wedges a door shut, or tears the wedge off again with `seconds` of 0. The art
+ * is the caller's: it hangs a `door.barricade` piece on the door and takes it
+ * down again, exactly as it does for any other decor.
+ */
+export function setBarricade(door: Door, seconds: number): void {
+  door.barricadeSeconds = Math.max(0, seconds);
 }
 
 export function updateDoors(doors: readonly Door[], dt: number, openSeconds: number, closeSeconds: number): void {
