@@ -390,8 +390,11 @@ body {
 /* Options on the left; the right half is left clear for the real player model
    standing in the cabin, which is what the camera is parked in front of. */
 
+/* Fixed, not a 100 %-tall block: this renders alongside the lobby HUD, which is
+   itself full height, so a static sibling would stack below the viewport. */
 .wardrobe {
-  height: 100%;
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   pointer-events: none;

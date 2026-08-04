@@ -539,6 +539,11 @@ export class Lobby {
     // only put the model off screen.
     const walking = controlsEnabled && !this.#wardrobeOpen;
 
+    // Escape has to be handled here: the wardrobe releases pointer lock when it
+    // opens, so the lock-change that normally opens the escape menu has already
+    // happened and will not fire again.
+    if (this.#wardrobeOpen && this.#input.justPressed('pauseMenu')) this.closeWardrobe();
+
     if (walking) {
       const look = this.#input.consumeLook();
       applyLook(player, look.x, look.y, this.#config.player, this.#input.mouseSensitivity);
