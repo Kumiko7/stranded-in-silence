@@ -9,10 +9,13 @@
   },
 
   "lobby": {
-    "autoStartSeconds": 30,
+    "$doc": "The pre-run cabin. A solo player starts the moment they press E on a poster; in multiplayer the first vote opens a countdown, which shortens to `allReadyStartSeconds` once everyone has voted.",
+    "autoStartSeconds": 60,
     "allReadyStartSeconds": 5,
     "mapVoteMode": "highest-votes-random-tiebreak",
-    "allowRandomMap": true
+    "allowRandomMap": true,
+    "$note": "`posterSlots` is how many frames the poster wall has, not how many maps exist. Slots past the enabled map list hang blank white posters.",
+    "posterSlots": 20
   },
 
   "run": {

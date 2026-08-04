@@ -112,7 +112,7 @@ block swallows it.
 | `insideAnchor` | Camera position when a player is hidden inside. |
 | `slats` | The vent the hidden player looks through. Logic may fade it. |
 
-### `player.masked` — capsule `0.64 m` diameter, `1.8 m` tall
+### `player.masked` — `0.64 m` across, `1.8 m` tall
 
 | Part | Purpose |
 | --- | --- |
@@ -123,6 +123,14 @@ block swallows it.
 
 Also expose `setCrouched(t: number)` on the builder result's optional `api` if the art
 supports a crouch pose; logic falls back to scaling `root` if absent.
+
+`api.setColour(hex)` tints the body to that player's wardrobe choice
+(`player.json → customisation.colours`). The builder **must clone** `playerBody`
+before using it — a shared material would repaint every player in the run at once —
+and return a `dispose()` that frees the clone.
+
+The body must **stand on the floor with legs**, not float: the lobby wardrobe parks
+it full height two metres from the camera, where a bare capsule reads as a bug.
 
 ### `enemy.ghost` — capsule `0.84 m` diameter, `1.95 m` tall
 
@@ -151,6 +159,52 @@ shelves and chest floors, and collision is a 2D floor-plane test, so a collider
 under a shelf ledge would block a doorway you can see straight through. You pick
 an item up by looking at it, not by walking into it.
 
+## 3.2 The lobby
+
+The cabin (`art/shared/lobby/`) is not a map and has no art pack, so it brings its own
+material library (`createLobbyMaterials()`) which still satisfies §3.1 in full. It is
+built by `buildLobby(ctx, posterSlots)` and returns **anchors** — arrival spots, one
+per poster slot, the wardrobe, the mannequin, the wardrobe camera, the lever and the
+minigame wall. `src/world/lobbyScene.ts` places the pieces below at them, exactly as
+`worldBuilder.ts` places doors and chests in a room.
+
+### `poster.*` — `0.72 m` wide × `1.02 m` tall, origin at the BOTTOM CENTRE
+
+| Part | Purpose |
+| --- | --- |
+| `tick` | Shown once this player has escaped that map **themselves**. Logic toggles `.visible`. |
+| `mark` | The pick highlight. Logic toggles `.visible` and tints it via `api.setMark(hex)`. |
+| `interactAnchor` | Prompt position. |
+
+A poster carries **no text**. Art has no access to `t()` and a map's name is a locale
+key, so the name reaches the player through the interact prompt and the expedition
+panel. `maps.json → maps.<id>.posterArtId` names the builder; an id that is not
+registered falls back to `poster.blank`, which is also what hangs in the slots no map
+has claimed. Adding the nineteenth map's poster is a texture plus one registry line.
+
+`mark`'s material must be **cloned** before tinting, for the same reason the ghost
+clones its alert material.
+
+### `lobby.wardrobe` — `1.4 × 0.66 m` footprint, `2.3 m` tall
+
+| Part | Purpose |
+| --- | --- |
+| `doorLeft` / `doorRight` | The two leaves. Hung open; nothing animates them. |
+| `interactAnchor` | Prompt position. |
+
+### `lobby.lever` — `0.7 × 0.5 m` footprint, `1.15 m` tall
+
+| Part | Purpose |
+| --- | --- |
+| `handle` | Pivots along the lever's travel. Logic calls `api.setLever(t)`, `t` in `0..1`. |
+| `interactAnchor` | Prompt position. |
+
+### `lobby.minigame` — scenery
+
+No parts, no interaction, no collider: the wall a minigame goes on (plan step 46).
+Build it as something visibly *covered* rather than as blank wall — "this is coming"
+is the whole message.
+
 ## 3.1 Materials shared art asks for
 
 Shared art gets its materials from the **pack's** library, so every pack must
@@ -163,8 +217,10 @@ provide these names (see `art/packs/test/materials.ts` for a minimal set):
 | `chest`, `chestTrim` | `chest.standard` |
 | `locker`, `lockerVent` | `locker.standard` |
 | `itemMetal` | `item.key` |
-| `playerBody`, `playerMask` | `player.masked` |
+| `playerBody`, `playerMask` | `player.masked` — `playerBody` is **cloned** by the builder so `setColour` tints one player, not all of them |
 | `ghostShroud`, `ghostAlert` | `enemy.ghost` — both are **cloned** by the builder so it can tint per alert level without touching the shared cache |
+| `timberDark`, `poster.blank`, `poster.<map>`, `poster.tick`, `poster.mark` | `poster.*` (lobby only) |
+| `timber`, `timberPale`, `timberDark`, `iron`, `brass`, `copper`, `mirror`, `canvas`, `cushion`, `cushionGreen` | `lobby.wardrobe`, `lobby.lever`, `lobby.minigame` (lobby only) |
 
 Adding a shared piece that needs a new material means adding it to this table and
 to every pack.

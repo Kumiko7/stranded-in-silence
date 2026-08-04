@@ -8,11 +8,37 @@ file never goes stale.
 
 ## 1. The loop
 
-Main menu → lobby (host or join by 6-digit code) → vote on a map → run starts →
+Main menu → lobby (host or join by 6-digit code) → pick a map → run starts →
 find keys, avoid the hunter, reach the exit → scoreboard → back to lobby.
 
 A run ends when every player is **escaped**, **downed**, **dead** or **disconnected**.
 If nobody escaped, the team lost.
+
+## 1.1 The lobby
+
+A log cabin in the snow, and deliberately the opposite of a run: bright, warm and
+safe. Everything in it is done by walking up to it and pressing `E`.
+
+- **The poster wall** — one framed poster per map, blank for the maps that do not
+  exist yet (`game.json → lobby.posterSlots`). Pressing `E` on one picks it; pressing
+  `E` on your own pick withdraws it.
+  - **Solo, the run starts immediately.** There is nobody to wait for.
+  - **In company, the first pick opens a countdown** of
+    `lobby.autoStartSeconds`, which drops to `lobby.allReadyStartSeconds` the moment
+    every player has picked. A decisive group is fast; a dithering one is bounded.
+  - Most-picked map wins; a tie is broken at random
+    (`lobby.mapVoteMode`). The host decides and tells everyone — peers never
+    re-derive it.
+  - A poster carries a **tick** once you have escaped that map **yourself**. A team
+    that got out without you does not mark your card.
+- **The lever** in the middle of the room sets the difficulty. Anyone may pull it.
+- **The wardrobe** customises your player. One option for now
+  (`player.json → customisation`).
+- Finishing a run returns everyone to the cabin to pick the next one. The escape menu
+  there leaves the session for the main menu.
+
+**Voice runs in the lobby exactly as it does in a run**, and is not interrupted by
+the load between them — see [`ARCHITECTURE.md §5`](ARCHITECTURE.md).
 
 ## 2. Players
 

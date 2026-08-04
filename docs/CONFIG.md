@@ -44,7 +44,9 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Exit door placement and hold time | `world.json` | `exit.*` |
 | Item stats and behaviour params | `items.json` | `items.<id>.params.*` |
 | Which maps exist | `maps.json` | `maps.*` |
+| A map's lobby poster | `maps.json` | `maps.<id>.posterArtId` — an art id from `art/shared/index.ts`; unset or unregistered hangs a blank |
 | Lighting, fog, shadows, draw distance | `graphics.json` | top level |
+| How the lobby cabin is lit | `graphics.json` | `lobby.*` — merged over the block above while the lobby is up |
 | Volumes, spatial audio, sound registry | `audio.json` | `buses.*`, `spatial.*`, `sounds.*` |
 | Which sound a game event fires | `audio.json` | `cues.*` — noise kinds, alert stings, hold loops |
 | How the score reacts to the hunter | `audio.json` | `music.intensityByAlert`, `.proximityWeight`, `.chaseLayerThreshold` |
@@ -53,8 +55,11 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | How quiet you can talk without the hunter noticing | `net.json` | `voice.noiseThresholdDb` (and `voice.voiceActivityThresholdDb` for the open-mic gate) |
 | Tick rate, interpolation, signalling URL | `net.json` | `simulation.*`, `signalling.*` |
 | Lobby countdown, player cap, run rules | `game.json` | `lobby.*`, `session.*`, `run.*` |
+| How many frames the poster wall has | `game.json` | `lobby.posterSlots` — slots past the map list hang blank |
+| What the lobby wardrobe offers | `player.json` | `customisation.colours`, `.defaultColourId` |
 | UI colours, fonts, HUD layout | `ui.json` | `theme.*`, `hud.*` |
 | Difficulty modes | `difficulty.json` | `modes.*` |
+| Which difficulties the lobby lever offers | `difficulty.json` | `modes.<id>.enabled` — only `normal` until step 38 applies the overlays |
 | Any on-screen text | `locales/en.json` | see [`LOCALISATION.md`](LOCALISATION.md) |
 
 ## How config is loaded

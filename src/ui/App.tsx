@@ -7,11 +7,23 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { HealthState, VoiceMode } from '@/config/types';
 import type { RosterEntry } from '@/game/Game';
+import type { LobbyView } from '@/game/Lobby';
 import { t } from '@/i18n/index';
+import { LobbyPanel } from './screens/LobbyPanel';
 import { MainMenu } from './screens/MainMenu';
 import { VoicePanel } from './screens/VoicePanel';
+import { Wardrobe, type ColourOption } from './screens/Wardrobe';
 
-export type Screen = 'menu' | 'run' | 'paused' | 'escaped' | 'wiped';
+export type Screen =
+  | 'menu'
+  | 'lobby'
+  | 'lobbyPaused'
+  | 'wardrobe'
+  | 'loading'
+  | 'run'
+  | 'paused'
+  | 'escaped'
+  | 'wiped';
 
 export interface UiState {
   screen: Screen;
@@ -19,6 +31,11 @@ export interface UiState {
   netStatus: 'connecting' | 'ready' | 'error';
   error: string | null;
   players: number;
+  maxPlayers: number;
+  /** The expedition panel's contents. Null until the cabin is up. */
+  lobby: LobbyView | null;
+  colours: readonly ColourOption[];
+  colourId: string;
   promptVerbKey: string | null;
   /** Locale key of the item a pick-up prompt names, if any. */
   promptItemKey: string | null;
@@ -62,7 +79,12 @@ export interface UiCallbacks {
   onStart(): void;
   onJoin(code: string): void;
   onResume(): void;
+  /** Abandon the run and go back to the cabin. */
   onLeave(): void;
+  /** Leave the session entirely, from the lobby's escape menu. */
+  onLeaveLobby(): void;
+  onCloseWardrobe(): void;
+  onColour(id: string): void;
   onVoiceMode(mode: VoiceMode): void;
   onVoiceSelfMute(): void;
   onVoiceMutePeer(id: string): void;
@@ -95,6 +117,60 @@ export function App({
         onStart={callbacks.onStart}
         onJoin={callbacks.onJoin}
       />
+    );
+  }
+
+  if (state.screen === 'lobby' || state.screen === 'wardrobe') {
+    return (
+      <>
+        <LobbyHud state={state} />
+        {state.screen === 'wardrobe' && (
+          <Wardrobe
+            colours={state.colours}
+            selected={state.colourId}
+            onSelect={callbacks.onColour}
+            onClose={callbacks.onCloseWardrobe}
+          />
+        )}
+      </>
+    );
+  }
+
+  if (state.screen === 'lobbyPaused') {
+    return (
+      <div class="overlay">
+        <div class="overlay__panel overlay__panel--wide">
+          <h2 class="overlay__title">{t('lobby.title')}</h2>
+
+          <CodeRow code={state.code} ready={state.netStatus === 'ready'} />
+
+          <button class="btn btn--primary" onClick={callbacks.onResume}>
+            {t('pause.resume')}
+          </button>
+
+          <VoicePanel
+            voice={state.voice}
+            roster={state.roster}
+            onMode={callbacks.onVoiceMode}
+            onSelfMute={callbacks.onVoiceSelfMute}
+            onMutePeer={callbacks.onVoiceMutePeer}
+          />
+
+          <button class="btn" data-sfx="back" onClick={callbacks.onLeaveLobby}>
+            {t('pause.leaveLobby')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (state.screen === 'loading') {
+    return (
+      <div class="overlay overlay--quiet">
+        <div class="overlay__panel">
+          <h2 class="overlay__title">{t('lobby.loading')}</h2>
+        </div>
+      </div>
     );
   }
 
@@ -137,6 +213,54 @@ export function App({
   }
 
   return <Hud state={state} />;
+}
+
+/**
+ * The lobby's own HUD: a crosshair, the interact prompt, and the expedition
+ * panel. No roster and no hand slots - there is nothing to carry and nobody to
+ * lose in here.
+ */
+function LobbyHud({ state }: { state: UiState }) {
+  return (
+    <div class="hud">
+      <div class="hud__crosshair" />
+
+      {state.promptVerbKey && (
+        <div class="hud__prompt">
+          <span class="hud__prompt-verb">
+            {t(state.promptVerbKey, state.promptItemKey ? { item: t(state.promptItemKey) } : undefined)}
+          </span>
+          <span class="hud__prompt-key">{t('hud.interact.pressHint', { key: state.interactKey })}</span>
+        </div>
+      )}
+
+      {state.lobby && <LobbyPanel view={state.lobby} maxPlayers={state.maxPlayers} />}
+    </div>
+  );
+}
+
+/** The lobby code, with a copy button. Shown in the lobby's escape menu. */
+function CodeRow({ code, ready }: { code: string; ready: boolean }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div class="menu__row">
+      <span class="menu__label">{t('menu.yourCode')}</span>
+      <code class="menu__code">{ready ? code : '------'}</code>
+      <button
+        class="btn btn--small"
+        disabled={!ready}
+        onClick={() => {
+          void navigator.clipboard.writeText(code).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          });
+        }}
+      >
+        {copied ? t('common.copied') : t('lobby.copyCode')}
+      </button>
+    </div>
+  );
 }
 
 function Hud({ state }: { state: UiState }) {

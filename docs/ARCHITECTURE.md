@@ -61,7 +61,7 @@ stranded/
 | `voice/` | Mic capture, per-peer audio tracks, proximity attenuation, PTT/VAD modes | `net`, `config`, `audio` (its context, `voice` bus and panner settings) |
 | `audio/` | Mixer buses, spatial SFX, music/ambience, sound registry | `config`, `assets` |
 | `ui/` | Preact screens (`screens/`), per-frame HUD (`hud/`), theme from `config/ui.json` | `i18n`, `config`, `core` |
-| `game/` | Run orchestration: owns the world, local player, remotes and the per-frame update while a run is live | everything below |
+| `game/` | Orchestration. `Game.ts` owns a run; `Lobby.ts` owns the cabin between runs | everything below |
 | `util/` | Small pure helpers: maths, arrays, colour, easing | nothing |
 
 **Dependency direction is strictly downward in that table.** `world/` may import
@@ -103,12 +103,17 @@ Boot → MainMenu → Lobby → Loading → InRun → Scoreboard → Lobby
 
 | State | Active systems |
 | --- | --- |
-| `MainMenu` | ui, render (lobby scene backdrop), audio |
-| `Lobby` | + net (connected), voice, world (lobby scene), entities (player) |
+| `MainMenu` | ui, render, audio |
+| `Lobby` | + net (connected), voice, world (`lobbyScene`), entities (player) |
 | `Loading` | world generation, art pack load, seed sync |
 | `InRun` | everything |
 | `Spectating` | as `InRun` minus local player control |
 | `Scoreboard` | ui, audio, net (stats exchange) |
+
+**Voice follows the session, not the run.** It is turned on when a player enters the
+lobby and stays on through `Loading` and out the other side, because the load is
+exactly when a team is agreeing on a plan. The microphone lifecycle is owned by
+`src/main.tsx`; neither `Game` nor `Lobby` touches it.
 
 ---
 
@@ -203,13 +208,15 @@ mic picking up small sounds cannot give you away. Full detail in
 | Add an item | `config/items.json` + a behaviour in `src/entities/items/behaviours/` + art in `art/shared/props/items/` + locale keys |
 | Change how the maze is built | `src/world/generation.ts` — [`systems/GENERATION.md`](systems/GENERATION.md) |
 | Change enemy behaviour | `src/ai/` — [`systems/AI.md`](systems/AI.md) |
+| Change the lobby cabin's look | `art/shared/lobby/` — review it with `/tools/roomshot.html?map=lobby` |
+| Change what the lobby *does* | `src/game/Lobby.ts` + `src/world/lobbyScene.ts` |
 | Add a menu / screen | `src/ui/screens/` — [`systems/UI.md`](systems/UI.md) |
 | Add a HUD element | `src/ui/hud/` + `config/ui.json → hud` |
 | Change net sync | `src/net/` + `src/shared/messages.ts` — [`systems/NETWORKING.md`](systems/NETWORKING.md) |
 | Add a sound | `config/audio.json → sounds` + a recipe in `src/audio/recipes.ts` or a file in `assets/audio/` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |
 | Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
 | Add a difficulty | `config/difficulty.json` only |
-| Add a save field | `src/save/schema.ts` |
+| Add a save field | `src/save/index.ts` (a real schema lands with step 35) |
 
 ---
 

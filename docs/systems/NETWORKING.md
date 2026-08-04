@@ -22,6 +22,28 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 > so each pair has exactly one bidirectional call. Nothing about voice is relayed,
 > mixed or arbitrated here — see [`AUDIO_VOICE.md`](AUDIO_VOICE.md).
 >
+> **The lobby is host-authoritative already** (step 29), and is the shape the rest of
+> the game is heading toward: the host owns the tally, the difficulty and the
+> countdown, and publishes the whole thing on every change rather than sending diffs.
+> A snapshot small enough to send entire removes any question of two peers disagreeing
+> about the score.
+>
+> | Message | Direction | Purpose |
+> | --- | --- | --- |
+> | `welcome {slot, peers, lobby, run}` | host → joiner | Identity, spawn slot, the lobby as it stands, and the run in progress if there is one. A joiner lands in the cabin unless the host is already down a hole. |
+> | `lobby {state}` | host → all | `{ picks, difficultyId, countdown }`. Sent on every change, and once a second while the clock runs — only the whole second crosses the wire. |
+> | `pick {id, mapId}` | any → host | A map chosen, or `null` to withdraw. Only the host tallies. |
+> | `setDifficulty {difficultyId}` | any → host | Anyone may pull the lever. |
+> | `runStart {run}` | host → all | `{ mapId, seed, difficultyId }`. The countdown finished, or a solo player pressed `E`. |
+> | `lobbyMove {id, x, z, yaw}` | any → all | Cabin transforms at 10 Hz. Nothing in a foyer needs the run's rate. |
+> | `scene {id, scene}` | any → all | `lobby` or `run`. Re-announced whenever a peer joins. |
+> | `cosmetic {id, colourId}` | any → all | The wardrobe choice, re-announced the same way. |
+>
+> **`scene` is what keeps voice alive across a load.** Each side hands `voice/` only
+> the peers standing in the *same* world, and `voice/` treats a peer with no position
+> as flat and fully audible — so a teammate still generating a map stays in the
+> conversation instead of being cut off at the door. See [`AUDIO_VOICE.md`](AUDIO_VOICE.md).
+>
 > **The enemy is already host-only**, which is the shape step 27 wants:
 >
 > | Message | Direction | Purpose |

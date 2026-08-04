@@ -1,11 +1,13 @@
 {
   "$doc": "Difficulty modes are pure config overlays: each entry is deep-merged over the base configs at run start. Adding a difficulty requires zero code.",
+  "$note": "`enabled` is what the lobby lever cycles through. Only `normal` is on until step 38 wires the overlay into config loading - a lever that changes a label and nothing else would be a lie.",
 
   "default": "normal",
 
   "modes": {
     "easy": {
       "nameKey": "difficulty.easy.name",
+      "enabled": false,
       "overrides": {
         "enemy": { "archetypes": { "ghost": {
           "movement": { "chaseSpeed": 4.8 },
@@ -18,10 +20,12 @@
     },
     "normal": {
       "nameKey": "difficulty.normal.name",
+      "enabled": true,
       "overrides": {}
     },
     "hard": {
       "nameKey": "difficulty.hard.name",
+      "enabled": false,
       "overrides": {
         "enemy": { "archetypes": { "ghost": {
           "movement": { "chaseSpeed": 5.9 },
@@ -35,6 +39,7 @@
     },
     "nightmare": {
       "nameKey": "difficulty.nightmare.name",
+      "enabled": false,
       "overrides": {
         "enemy": { "archetypes": { "ghost": {
           "movement": { "chaseSpeed": 6.3 },

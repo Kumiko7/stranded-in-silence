@@ -80,6 +80,9 @@ export interface RunHooks {
 interface RemotePlayer {
   object: THREE.Object3D;
   root: THREE.Object3D;
+  /** The body clones its material per player, so it has to be freed per player. */
+  dispose?(): void;
+  setColour(hex: string): void;
   target: { x: number; z: number; yaw: number; height: number; hiding: boolean; health: HealthState };
 }
 
@@ -237,20 +240,21 @@ export class Game {
     this.#audio.stopSustains();
     this.#audio.music.setScene('run');
 
-    // The microphone is only asked for once someone is actually in a run.
+    // Voice is NOT started or stopped here. It follows the session - lobby and
+    // run alike - so a conversation survives the load into a map rather than
+    // being cut off at exactly the moment people are agreeing on a plan. Its
+    // lifecycle is owned by the boot sequence in `src/main.tsx`.
     this.#voiceNoiseTimer = 0;
-    this.#voice.setActive(true);
   }
 
   end(): void {
     this.#audio.stopSustains();
     this.#audio.music.setScene('menu');
-    this.#voice.setActive(false);
     if (this.#world) {
       this.#renderer.scene.remove(this.#world.root);
       this.#world.dispose();
     }
-    for (const remote of this.#remotes.values()) this.#renderer.scene.remove(remote.object);
+    for (const remote of this.#remotes.values()) this.#disposeRemote(remote);
     this.#remotes.clear();
     this.#removeEnemyArt();
     this.#renderer.setRoomLights([]);
@@ -316,20 +320,40 @@ export class Game {
     });
 
     this.#renderer.scene.add(art.object);
-    this.#remotes.set(id, {
+    const remote: RemotePlayer = {
       object: art.object,
       root,
+      ...(art.dispose ? { dispose: art.dispose.bind(art) } : {}),
+      setColour: art.api?.setColour?.bind(art.api) ?? ((): void => {}),
       target: { x: 0, z: 0, yaw: 0, height: 1.8, hiding: false, health: 'healthy' },
-    });
+    };
+    remote.setColour(this.#colourHex(this.#net.cosmeticOf(id)));
+    this.#remotes.set(id, remote);
     this.#run.add(id);
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
     this.#pushRoster();
   }
 
+  /** A teammate changed clothes in the lobby, or turned up already dressed. */
+  setRemoteColour(id: string, colourId: string): void {
+    this.#remotes.get(id)?.setColour(this.#colourHex(colourId));
+  }
+
+  #colourHex(colourId: string | null): string {
+    const { colours, defaultColourId } = this.#config.player.customisation;
+    const wanted = colourId ?? defaultColourId;
+    return (colours.find((entry) => entry.id === wanted) ?? colours[0])?.hex ?? '#6f7690';
+  }
+
+  #disposeRemote(remote: RemotePlayer): void {
+    this.#renderer.scene.remove(remote.object);
+    remote.dispose?.();
+  }
+
   removeRemote(id: string): void {
     const remote = this.#remotes.get(id);
     if (!remote) return;
-    this.#renderer.scene.remove(remote.object);
+    this.#disposeRemote(remote);
     this.#remotes.delete(id);
     this.#run.remove(id);
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
@@ -641,12 +665,17 @@ export class Game {
       pushToTalk: this.#input.isDown('pushToTalk'),
       listener: { x: player.x, z: player.z },
       spectator,
-      peers: [...this.#remotes].map(([id, remote]) => ({
-        id,
-        x: remote.target.x,
-        z: remote.target.z,
-        spectator: this.#run.isSpectator(id),
-      })),
+      // Peers still in the lobby, or loading into this map, are left out on
+      // purpose: `voice/` treats a peer with no position as flat and fully
+      // audible, which is what stops a conversation dying across the load.
+      peers: [...this.#remotes]
+        .filter(([id]) => this.#net.sceneOf(id) === 'run')
+        .map(([id, remote]) => ({
+          id,
+          x: remote.target.x,
+          z: remote.target.z,
+          spectator: this.#run.isSpectator(id),
+        })),
     });
 
     if (this.#input.justPressed('toggleVoiceMute')) this.#voice.toggleSelfMute();

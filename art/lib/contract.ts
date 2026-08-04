@@ -118,6 +118,12 @@ export interface ArtApi {
   setAlert?(level: string): void;
   /** `player.masked`: 0 = standing, 1 = fully crouched. */
   setCrouched?(t: number): void;
+  /** `player.masked`: this player's chosen colour, as `#rrggbb`. */
+  setColour?(hex: string): void;
+  /** `poster.*`: colour of the pick highlight, as `#rrggbb`. */
+  setMark?(hex: string): void;
+  /** `lobby.lever`: 0..1 along the lever's travel. */
+  setLever?(t: number): void;
 }
 
 export interface BuiltArt extends BuiltPiece {

@@ -565,6 +565,148 @@ async function checkSources() {
   }
 }
 
+/* --- the lobby cabin --------------------------------------------------------------- */
+
+/**
+ * The lobby is not a room blueprint, so none of the checks above reach it - but
+ * it is the one place every player stands before every run, and "can you
+ * actually walk to the poster wall" is exactly the kind of thing nobody notices
+ * until a playtest.
+ *
+ * Checks: it builds, it builds deterministically, every piece logic drives
+ * exposes the parts logic drives it by, and every one of them is reachable on
+ * foot from all four arrival spots.
+ */
+function checkLobby(sharedArt, buildLobby, createLobbyMaterials, maps, game) {
+  const where = 'lobby.cabin';
+
+  const materials = createLobbyMaterials();
+  const handedOut = new Set();
+  const spy = {
+    get: (name) => {
+      const material = materials.get(name);
+      handedOut.add(material);
+      return material;
+    },
+    dispose: () => materials.dispose(),
+  };
+
+  const slots = Math.max(1, game.lobby.posterSlots);
+  const build = (seed) => buildLobby({ materials: spy, rng: makeRng(seed), dims: DIMS }, slots);
+
+  let cabin;
+  try {
+    cabin = build(1);
+  } catch (error) {
+    fail(where, `failed to build: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+
+  const twin = build(1);
+  if (fingerprint(cabin.object) !== fingerprint(twin.object)) {
+    fail(where, 'two builds with the same seed differ - something is reading outside ctx.rng');
+  }
+  if (twin.dispose) twin.dispose();
+
+  const stats = measure(cabin.object);
+  if (!cabin.lights.length) fail(where, 'no light at all - the cabin would be unnavigable');
+
+  for (const material of stats.materials) {
+    if (!handedOut.has(material)) {
+      // The player model clones its body material so it can be tinted per
+      // player, so a clone here is expected and only a stray original is not.
+      const source = material.name || material.type;
+      warn(where, `uses a material that did not come from ctx.materials (${source})`);
+      break;
+    }
+  }
+
+  /* --- the pieces logic drives ----------------------------------------------- */
+
+  const REQUIRED = {
+    'poster.blank': ['tick', 'mark'],
+    'lobby.wardrobe': ['doorLeft', 'doorRight'],
+    'lobby.lever': ['handle'],
+  };
+  // Every poster a map names has to satisfy the poster contract too.
+  for (const [mapId, entry] of Object.entries(maps.maps)) {
+    if (entry.posterArtId && sharedArt[entry.posterArtId]) REQUIRED[entry.posterArtId] = ['tick', 'mark'];
+    else if (entry.posterArtId) warn(where, `map "${mapId}" names poster "${entry.posterArtId}", which is not registered`);
+  }
+
+  const placed = [];
+  for (const [artId, parts] of Object.entries(REQUIRED)) {
+    const builder = sharedArt[artId];
+    if (!builder) {
+      fail(where, `no art registered for "${artId}"`);
+      continue;
+    }
+    const art = builder({ materials: spy, rng: makeRng(7), dims: DIMS });
+    for (const part of parts) {
+      if (!art.parts[part]) fail(artId, `is missing part "${part}" (docs/art/SHARED_ART.md)`);
+    }
+    placed.push({ artId, art });
+  }
+  if (!sharedArt['lobby.lever']) fail(where, 'the difficulty lever has no art');
+
+  /* --- can you get to any of it? ---------------------------------------------- */
+
+  // A footprint whose bounding box comfortably contains the cabin, so the flood
+  // fill has room to prove the walls actually stop you.
+  const reach = Math.ceil(8 / DIMS.cellSize);
+  const footprint = [];
+  for (let gx = -reach; gx <= reach; gx++) {
+    for (let gy = -reach; gy <= reach; gy++) footprint.push([gx, gy]);
+  }
+
+  const spawns = cabin.anchors.playerSpawns;
+  const flood = floodFrom(
+    cabin.colliders,
+    footprint,
+    spawns.map((pose) => [pose.position[0], pose.position[2]]),
+    PLAYER_RADIUS,
+  );
+
+  for (const [index, pose] of spawns.entries()) {
+    if (!flood.standable(pose.position[0], pose.position[2])) {
+      fail(where, `player spawn ${index + 1} is inside something`);
+    }
+  }
+
+  /** Interaction range, with a little slack for standing at an angle. */
+  const ARM = 2.2;
+  const targets = [
+    ...cabin.anchors.posters.map((pose, index) => ({ name: `poster slot ${index + 1}`, pose })),
+    { name: 'the wardrobe', pose: cabin.anchors.wardrobe },
+    { name: 'the difficulty lever', pose: cabin.anchors.lever },
+  ];
+  for (const { name, pose } of targets) {
+    if (!flood.reachedNear(pose.position[0], pose.position[2], ARM)) {
+      fail(where, `${name} cannot be reached on foot from the arrival spots`);
+    }
+  }
+
+  // The mannequin has to be visible from the wardrobe camera, which at minimum
+  // means neither of them is buried in geometry.
+  const camera = cabin.anchors.wardrobeCamera;
+  if (!flood.reachedNear(camera.position[0], camera.position[2], 0.6)) {
+    warn(where, 'the wardrobe camera is parked somewhere a player could not stand');
+  }
+
+  for (const { art } of placed) if (art.dispose) art.dispose();
+  if (cabin.dispose) cabin.dispose();
+  spy.dispose();
+
+  return {
+    id: 'lobby.cabin',
+    cells: slots,
+    draws: stats.drawCalls,
+    tris: stats.triangles,
+    lights: cabin.lights.length,
+    colliders: cabin.colliders.length,
+  };
+}
+
 /* --- entry point ------------------------------------------------------------------ */
 
 async function main() {
@@ -578,9 +720,13 @@ async function main() {
 
   let THREE;
   let artPacks;
+  let shared;
+  let lobbyArt;
   try {
     THREE = await server.ssrLoadModule('three');
     ({ artPacks } = await server.ssrLoadModule('/art/packs/index.ts'));
+    shared = await server.ssrLoadModule('/art/shared/index.ts');
+    lobbyArt = await server.ssrLoadModule('/art/shared/lobby/index.ts');
   } finally {
     // Load first, then keep the server alive until we are done building.
   }
@@ -666,6 +812,15 @@ async function main() {
 
     spy.dispose();
   }
+
+  const lobbyRow = checkLobby(
+    shared.sharedArt,
+    lobbyArt.buildLobby,
+    lobbyArt.createLobbyMaterials,
+    json('../config/maps.json'),
+    json('../config/game.json'),
+  );
+  if (lobbyRow) rows.push(lobbyRow);
 
   await checkSources();
   await server.close();
