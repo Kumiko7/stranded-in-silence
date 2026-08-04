@@ -106,6 +106,19 @@ export function createMaterials(): MaterialLibrary {
     leather: standard(0x6c4a34, { roughness: 0.66 }),
     dustSheet: standard(0xffffff, { map: tex.dustCanvas, roughness: 1 }),
     linen: standard(0xb4ae9d, { roughness: 1 }),
+    /**
+     * Hanging cloth. Double-sided because a sheet on a line is one plane with a
+     * player on either side of it, and faintly self-lit because real linen with a
+     * lamp behind it glows rather than going black - which is what a backlit
+     * single-sided plane does, and it reads as a hole in the room.
+     */
+    sheetLinen: standard(0xb4ae9d, {
+      map: tex.dustCanvas,
+      roughness: 1,
+      side: THREE.DoubleSide,
+      emissive: 0x6b6455,
+      emissiveIntensity: 0.3,
+    }),
 
     /* --- surfaces you look at closely ------------------------------------- */
     porcelain: standard(0xd2d2c9, { roughness: 0.22 }),

@@ -30,5 +30,5 @@
       "@shared/*": ["src/shared/*"]
     }
   },
-  "include": ["src", "art", "config", "vite.config.ts"]
+  "include": ["src", "art", "config", "tools", "vite.config.ts"]
 }

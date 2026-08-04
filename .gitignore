@@ -22,5 +22,8 @@ npm-debug.log*
 # vite
 .vite/
 
+# room review contact sheets - regenerate with tools/roomshot (docs/art/ROOM_REVIEW.md)
+shots/
+
 # manual test stuff, ignore
 formanualtesting/

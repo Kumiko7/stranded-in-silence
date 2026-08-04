@@ -38,6 +38,7 @@ stranded/
 ├─ config/             ALL tunable values + localisation. No code.
 ├─ assets/             Raw media only (audio, textures, UI images). Served as /.
 ├─ art/                All 3D content, written in three.js. Never imports src/.
+├─ tools/              Dev-only tools. Not shipped; may import both art/ and src/.
 ├─ docs/               These documents.
 └─ src/                All logic.
 ```
@@ -194,6 +195,7 @@ each other at `net.json → voice.hearingRange` (22 m), the enemy only within
 | Tune anything numeric | `config/` only — [`CONFIG.md`](CONFIG.md) |
 | Change on-screen text | `config/locales/` — [`LOCALISATION.md`](LOCALISATION.md) |
 | Add a room | `art/packs/<pack>/rooms/`, then `npm run validate:art` — [`art/ROOM_FORMAT.md`](art/ROOM_FORMAT.md) |
+| Review how rooms *look* | `tools/roomshot` — [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) |
 | Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md) |
 | Restyle a door / chest / enemy | `art/shared/` — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
 | Add an item | `config/items.json` + a behaviour in `src/entities/items/behaviours/` + art in `art/shared/props/items/` + locale keys |
@@ -261,6 +263,7 @@ being simple.
 | [`LOCALISATION.md`](LOCALISATION.md) | Any user-visible text |
 | [`CONVENTIONS.md`](CONVENTIONS.md) | Writing code or committing |
 | [`art/ART_GUIDE.md`](art/ART_GUIDE.md) | Any visual work |
+| [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) | Judging how rooms look |
 | [`systems/GENERATION.md`](systems/GENERATION.md) | Map layout |
 | [`systems/AI.md`](systems/AI.md) | Enemy behaviour |
 | [`systems/NETWORKING.md`](systems/NETWORKING.md) | Multiplayer |

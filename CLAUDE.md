@@ -49,6 +49,7 @@ Keep these true — they are how the next session avoids reading everything:
 | `config/` | `docs/CONFIG.md` |
 | locale namespaces | `docs/LOCALISATION.md` |
 | art contracts | `docs/art/ROOM_FORMAT.md`, `docs/art/SHARED_ART.md` |
+| how rooms look | review them first — `docs/art/ROOM_REVIEW.md` |
 | folder layout, boundaries, tech decisions | `docs/ARCHITECTURE.md` |
 | generation / AI / net / audio / UI behaviour | the file in `docs/systems/` |
 | a design rule | `docs/GAMEPLAY.md` |

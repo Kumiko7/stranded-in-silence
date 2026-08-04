@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Room review — screenshots</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #0b0c11;
+        color: #cfd3e0;
+        font: 13px/1.5 ui-monospace, Consolas, monospace;
+      }
+      h1 { font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; color: #8e94a8; }
+      #status { white-space: pre-wrap; margin: 12px 0; }
+      #status.done { color: #86d18a; }
+      #status.failed { color: #e0705f; }
+      /* The live GL surface. Small on purpose: the sheets are what matters. */
+      #shot-canvas { width: 320px; height: 200px; border: 1px solid #23273a; }
+      #gallery img { width: 100%; margin: 12px 0; border: 1px solid #23273a; }
+      /* The feedback layer mounts itself over the page; it must not cover the sheets. */
+      .fx { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <h1>Room review</h1>
+    <div id="status">starting…</div>
+    <canvas id="shot-canvas"></canvas>
+    <div id="gallery"></div>
+    <script type="module" src="/tools/roomshot.ts"></script>
+  </body>
+</html>

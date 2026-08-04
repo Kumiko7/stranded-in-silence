@@ -15,8 +15,16 @@
  */
 import * as THREE from 'three';
 import type { Cell, Side } from '../../../lib/contract';
+import type { BatchOptions } from '../../../lib/merge';
 import { poseMatrix, subUV, tiltMatrix } from '../../../lib/merge';
 import type { Room, Vec3 } from '../rooms/common';
+
+/**
+ * Anything that lives inside its own light source. A candle two centimetres from
+ * a point light casts a shadow the length of the room, which reads as a black bar
+ * across the floor rather than as a candle.
+ */
+const NO_SHADOW: BatchOptions = { castShadow: false };
 
 /** Rotation that turns a `-Z`-facing prop to face into the room off this wall. */
 export const FACE: Record<Side, number> = {
@@ -108,17 +116,26 @@ function quad(w: number, h: number): THREE.PlaneGeometry {
 }
 
 /** Upright cylinder whose `y` is its bottom. */
-function post(room: Room, material: string, rTop: number, rBot: number, h: number, p: Vec3, seg = 10): void {
-  room.geo(material, cyl(rTop, rBot, h, seg), poseMatrix([p[0], p[1] + h / 2, p[2]]), { tile: 0.6 });
+function post(
+  room: Room,
+  material: string,
+  rTop: number,
+  rBot: number,
+  h: number,
+  p: Vec3,
+  seg = 10,
+  options: BatchOptions = {},
+): void {
+  room.geo(material, cyl(rTop, rBot, h, seg), poseMatrix([p[0], p[1] + h / 2, p[2]]), { tile: 0.6, ...options });
 }
 
 /* --- light sources ------------------------------------------------------------- */
 
 /** A candle stub with a flame. No real light - it is the glow that sells it. */
 export function candle(room: Room, p: Vec3, height = 0.2): void {
-  post(room, 'wax', 0.021, 0.024, height, p, 6);
-  post(room, 'ash', 0.004, 0.004, 0.02, [p[0], p[1] + height, p[2]], 4);
-  room.geo('flame', cyl(0.001, 0.017, 0.075, 6), poseMatrix([p[0], p[1] + height + 0.05, p[2]]), { castShadow: false });
+  post(room, 'wax', 0.021, 0.024, height, p, 6, NO_SHADOW);
+  post(room, 'ash', 0.004, 0.004, 0.02, [p[0], p[1] + height, p[2]], 4, NO_SHADOW);
+  room.geo('flame', cyl(0.001, 0.017, 0.075, 6), poseMatrix([p[0], p[1] + height + 0.05, p[2]]), NO_SHADOW);
 }
 
 /** Three candles of different ages, the way a real stub-end cluster looks. */
@@ -179,24 +196,27 @@ export function chandelier(
   // Low enough to feel oppressive, high enough that nobody walks into it.
   const hang = ceilingHeight - 0.88;
 
-  room.geo('brass', cyl(0.09, 0.14, 0.09, 10), poseMatrix([x, ceilingHeight - 0.05, z]));
-  post(room, 'brass', 0.014, 0.014, ceilingHeight - hang - 0.05, [x, hang, z], 6);
-  post(room, 'brass', 0.035, 0.05, 0.5, [x, hang - 0.28, z], 8);
-  room.geo('brass', ball(0.06, 8), poseMatrix([x, hang - 0.32, z]));
+  // None of the fixture casts a shadow: the room's one shadow-casting light sits
+  // inside it, so a shadow-casting stem or ring paints a hard black bar right
+  // across the floor it is meant to be lighting.
+  room.geo('brass', cyl(0.09, 0.14, 0.09, 10), poseMatrix([x, ceilingHeight - 0.05, z]), NO_SHADOW);
+  post(room, 'brass', 0.014, 0.014, ceilingHeight - hang - 0.05, [x, hang, z], 6, NO_SHADOW);
+  post(room, 'brass', 0.035, 0.05, 0.5, [x, hang - 0.28, z], 8, NO_SHADOW);
+  room.geo('brass', ball(0.06, 8), poseMatrix([x, hang - 0.32, z]), NO_SHADOW);
 
   for (let t = 0; t < tiers; t++) {
     const r = radius * (1 - t * 0.32);
     const y = hang + t * 0.24;
     const count = 8 - t * 2;
-    room.geo('brass', ring(r, 0.016, 20), poseMatrix([x, y, z]));
+    room.geo('brass', ring(r, 0.016, 20), poseMatrix([x, y, z]), NO_SHADOW);
     for (let i = 0; i < count; i++) {
       const a = (i / count) * Math.PI * 2 + t * 0.4;
       const cx = x + Math.cos(a) * r;
       const cz = z + Math.sin(a) * r;
-      post(room, 'brass', 0.028, 0.018, 0.05, [cx, y, cz], 6);
+      post(room, 'brass', 0.028, 0.018, 0.05, [cx, y, cz], 6, NO_SHADOW);
       candle(room, [cx, y + 0.05, cz], room.range(0.1, 0.2));
       // Lustres: the little glass drops that catch what light there is.
-      if (t === 0) room.geo('glass', ball(0.028, 6), poseMatrix([cx, y - 0.09, cz]));
+      if (t === 0) room.geo('glass', ball(0.028, 6), poseMatrix([cx, y - 0.09, cz]), NO_SHADOW);
     }
   }
 
@@ -797,18 +817,23 @@ export function creeper(room: Room, x: number, y: number, z: number, spread = 1,
   }
 }
 
-/** A hanging sheet on a line - laundry, or a covered doorway. Breaks sightlines. */
+/**
+ * A hanging sheet on a line - laundry, or a covered doorway. Breaks sightlines.
+ *
+ * `sheetLinen` rather than `linen`: a sheet is a single plane you can stand on
+ * either side of, so it has to be double-sided, and the side facing away from
+ * the lamp has to keep reading as cloth instead of as a black slab.
+ */
 export function hangingSheet(room: Room, x: number, z: number, width: number, height: number, rotationY = 0): void {
-  room.geo('linen', quad(width, height), poseMatrix([x, height / 2 + (3.4 - height) * 0.5, z], rotationY), {
-    castShadow: false,
-  });
+  const { ceilingHeight } = room.ctx.dims;
+  const y = height / 2 + (ceilingHeight - height) * 0.5;
+
+  room.geo('sheetLinen', quad(width, height), poseMatrix([x, y, z], rotationY), NO_SHADOW);
   // Folds either side, so it is not obviously one flat plane.
   for (const s of [-width * 0.3, width * 0.3]) {
     const px = x + Math.cos(rotationY) * s;
     const pz = z - Math.sin(rotationY) * s;
-    room.geo('linen', quad(width * 0.28, height * 0.96), tiltMatrix([px, height / 2 + (3.4 - height) * 0.5, pz], [0, rotationY, 0], [1, 1, 1]), {
-      castShadow: false,
-    });
+    room.geo('sheetLinen', quad(width * 0.28, height * 0.96), tiltMatrix([px, y, pz], [0, rotationY, 0], [1, 1, 1]), NO_SHADOW);
   }
 }
 

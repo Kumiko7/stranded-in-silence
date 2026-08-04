@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import type { BuiltPiece, Cell, Collider, PackKit, RoomBuildContext, Side } from '../../../lib/contract';
 import { SIDES, doorKey } from '../../../lib/contract';
 import { boxCollider, boxGeometry } from '../../../lib/build';
-import { MeshBatcher, poseMatrix } from '../../../lib/merge';
+import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
 import * as tex from '../textures';
 
 export type FloorStyle = 'parquet' | 'boards' | 'marble' | 'carpet' | 'tile' | 'brick' | 'stone';
@@ -370,14 +370,29 @@ export function addShell(
         }
         break;
       case 'ribs':
+        // Three transverse arches. Each is built from short segments turned to
+        // follow the curve and overlapped at the joints: sample it too coarsely
+        // and the rib stops reading as vaulting and starts reading as a row of
+        // blocks floating under the ceiling.
         for (let i = 0; i < 3; i++) {
           const z = cz - cellSize / 2 + cellSize * ((i + 0.5) / 3);
-          for (let s = 0; s < 5; s++) {
-            const a = (Math.PI * s) / 4;
+          const span = cellSize / 2 - 0.15;
+          const rise = 0.55;
+          const spring = ceilingHeight - 0.14 - rise;
+          const segments = 11;
+
+          for (let s = 0; s < segments; s++) {
+            const a0 = (Math.PI * s) / segments;
+            const a1 = (Math.PI * (s + 1)) / segments;
+            const x0 = Math.cos(a0) * span;
+            const x1 = Math.cos(a1) * span;
+            const y0 = spring + Math.sin(a0) * rise;
+            const y1 = spring + Math.sin(a1) * rise;
+
             batch.add(
               stoneMat,
-              boxGeometry(0.4, 0.22, 0.3),
-              poseMatrix([cx + Math.cos(a) * (cellSize / 2 - 0.5), ceilingHeight - 0.4 + Math.sin(a) * 0.32, z]),
+              boxGeometry(Math.hypot(x1 - x0, y1 - y0) + 0.07, 0.2, 0.3),
+              tiltMatrix([cx + (x0 + x1) / 2, (y0 + y1) / 2, z], [0, 0, Math.atan2(y1 - y0, x1 - x0)]),
               { tile: 1.4 },
             );
           }

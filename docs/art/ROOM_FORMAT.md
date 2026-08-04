@@ -327,6 +327,10 @@ combination of doors and once per seed, and then:
 Run it after every room. It is far faster than launching the game, and it catches
 the class of bug a playtest otherwise finds at 2 a.m.
 
+What it cannot tell you is whether the room **looks** right — it never opens a GL
+context, by design. For that, screenshot it through the real renderer:
+[`ROOM_REVIEW.md`](ROOM_REVIEW.md).
+
 ---
 
 ## 9. Related docs
