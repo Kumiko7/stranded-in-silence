@@ -6,6 +6,9 @@ tools, no imported meshes. `assets/` holds only raw media (audio, textures, UI i
 If you are here to build **a room**, read [`ROOM_FORMAT.md`](ROOM_FORMAT.md).
 If you are here to build **a whole new map**, read [`ART_PACK_CHECKLIST.md`](ART_PACK_CHECKLIST.md).
 If you are here to build **a door / chest / item / character**, read [`SHARED_ART.md`](SHARED_ART.md).
+If you are here to **look at what you built**, read [`ROOM_REVIEW.md`](ROOM_REVIEW.md) —
+it screenshots every room through the game's own renderer, which is the only way to
+review art you cannot see.
 
 ---
 

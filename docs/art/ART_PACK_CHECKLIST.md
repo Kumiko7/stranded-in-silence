@@ -150,6 +150,7 @@ poster to vote. The poster should read as a movie poster for the map's theme.
 - [ ] Pack entry added to `config/maps.json`, strings added to `en.json`
 - [ ] A lobby poster exists *(only once the lobby scene lands — plan step 29)*
 - [ ] `npm run validate:art` passes
+- [ ] Every room reviewed on a contact sheet — [`ROOM_REVIEW.md`](ROOM_REVIEW.md)
 - [ ] Played a full run start to exit without getting stuck
 
 `validate:art` enforces most of this list for you, including the parts that are

@@ -1,5 +1,5 @@
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
-import { poseMatrix } from '../../../lib/merge';
+import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import * as THREE from 'three';
 import { ALL_WALLS, Room } from './common';
 import { cobwebs, debris, flicker, pendantLamp, table } from '../kit/props';
@@ -69,8 +69,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('silver', [0.03, 0.02, 0.24], [-0.9, 0.97, -0.2], 0.4);
   room.box('woodDark', [0.03, 0.02, 0.12], [-0.75, 0.97, -0.14], 0.4);
 
-  // Pot rack over the block.
-  room.geo('iron', new THREE.CylinderGeometry(0.02, 0.02, 2.6, 6), poseMatrix([-0.4, 2.5, 0.1], Math.PI / 2), {
+  // Pot rack over the block. The rail lies along X, so it needs a roll about Z -
+  // `poseMatrix` only turns things about Y, which left it standing on end and
+  // spearing the ceiling.
+  room.geo('iron', new THREE.CylinderGeometry(0.02, 0.02, 2.6, 6), tiltMatrix([-0.4, 2.45, 0.1], [0, 0, Math.PI / 2]), {
     consume: true,
   });
   for (let i = 0; i < 6; i++) {
