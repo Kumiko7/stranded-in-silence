@@ -33,7 +33,37 @@ export function createMaterials(): MaterialLibrary {
     chestTrim: standard(0x8f939c, 0.5, 0.7),
     locker: standard(0x6d7a80, 0.6, 0.45),
     lockerVent: standard(0x33393d),
+
+    /* --- the item roster -------------------------------------------------- */
     itemMetal: standard(0xc4b072, 0.4, 0.8),
+    itemSteel: standard(0x8d9199, 0.45, 0.7),
+    itemWood: standard(0x7c5a38, 0.86),
+    itemCloth: standard(0xd8cfb8, 1),
+    itemAccent: standard(0x9c2f28, 0.7),
+    itemBrass: standard(0xbe9a4c, 0.3, 0.9),
+    itemEnamel: standard(0xe6dfc9, 0.45),
+    itemGold: standard(0xc9a13a, 0.28, 0.9),
+    itemTar: standard(0x0e0f13, 0.18, 0.25),
+    itemGlass: () =>
+      new THREE.MeshStandardMaterial({ color: 0xa8bcc4, roughness: 0.08, metalness: 0.1, transparent: true, opacity: 0.32 }),
+    itemGem: () =>
+      new THREE.MeshStandardMaterial({
+        color: 0xcdeaff,
+        roughness: 0.05,
+        metalness: 0.15,
+        emissive: 0x7fc9e8,
+        emissiveIntensity: 0.75,
+      }),
+
+    /* --- thrown-item effects ---------------------------------------------- */
+    'vfx.tar': () =>
+      new THREE.MeshStandardMaterial({ color: 0x0d0e12, roughness: 0.14, metalness: 0.3, transparent: true, opacity: 0.95 }),
+    // The rim under the slick: matte and a shade lighter, so the edge catches the
+    // room's light and the pool reads as spilt rather than as a hole in the floor.
+    'vfx.tarRim': standard(0x2b2822, 0.85),
+    // Cloned by the flare burst so it can fade its own copy out.
+    'vfx.flash': () =>
+      new THREE.MeshBasicMaterial({ color: 0xfff4d6, transparent: true, opacity: 0.9, depthWrite: false, fog: false }),
 
     exitDoor: standard(0x5f9a76),
     exitFrame: standard(0x3d5c48),

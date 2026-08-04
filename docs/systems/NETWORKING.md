@@ -147,10 +147,27 @@ interpolate remote entities
 | `Interaction` result | events | host → all | on event |
 | `PlayerState` change (injured/downed/revived/escaped) | events | host → all | on event |
 | `NoiseEvent` (for local audio only) | events | host → all | on event |
+| `throw {id, itemId, owner, position, velocity}` | events | any → all | on throw |
+| `barricade {doorId, seconds}` | events | any → all | on place / on break |
+| `heal {playerId, toState}` | events | any → the patient | on event |
+| `coins {amount}` | events | any → all | on pickup / at the exit |
 | `RunEnd` + stats | events | host → all | once |
 | `LobbyState` | events | host → all | on change |
 
 All shapes live in `src/shared/messages.ts` so client and host cannot drift.
+
+**A throw is six floats, not a stream.** Only the release state crosses the wire;
+every peer re-runs the same ballistics from it (`src/entities/projectile.ts`) and
+builds the same tar slick, the same ringing clock, the same flare. Nothing about the
+flight, the landing or what it leaves behind is replicated. The bodies a throw can
+hit include the local player on every peer, so all four test the identical set and
+skip only whoever threw it — otherwise the same flask would clear a teammate on one
+machine and stop dead on theirs. The one thing that stays host-only is the **noise**
+a landing makes: four peers emitting it would be four times the volume.
+
+Effects that a peer must not be allowed to disagree about are messages, not
+simulation: a barricade going up or coming down (`barricade`), and coins
+(`coins`, a single running total everybody adds to).
 
 ## Failure handling
 

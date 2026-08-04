@@ -49,10 +49,13 @@ export class FeedbackLayer {
   readonly #alert: HTMLElement;
   readonly #vignette: HTMLElement;
   readonly #flash: HTMLElement;
+  readonly #blind: HTMLElement;
   readonly #canvas: HTMLElement;
   readonly #config: PlayerConfig;
 
   #flashFor = 0;
+  #blindFor = 0;
+  #blindTotal = 0;
   #pulse = 0;
 
   constructor(parent: HTMLElement, canvas: HTMLElement, config: PlayerConfig) {
@@ -71,7 +74,10 @@ export class FeedbackLayer {
     this.#flash = document.createElement('div');
     this.#flash.className = 'fx__flash';
 
-    this.#root.append(this.#alert, this.#vignette, this.#flash);
+    this.#blind = document.createElement('div');
+    this.#blind.className = 'fx__blind';
+
+    this.#root.append(this.#alert, this.#vignette, this.#flash, this.#blind);
     parent.append(this.#root);
   }
 
@@ -80,8 +86,19 @@ export class FeedbackLayer {
     this.#flashFor = this.#config.effects.damageFlashSeconds;
   }
 
+  /**
+   * A flare going off in front of you. White out at once, then bleed away - the
+   * duration is the item's (`items.json`), not a screen-effect constant.
+   */
+  blind(seconds: number): void {
+    this.#blindFor = Math.max(this.#blindFor, seconds);
+    this.#blindTotal = Math.max(this.#blindTotal, seconds);
+  }
+
   reset(): void {
     this.#flashFor = 0;
+    this.#blindFor = 0;
+    this.#blindTotal = 0;
     this.#pulse = 0;
     this.update(0, { alert: 'calm', enemyDistance: Infinity, injured: false, downed: false });
     this.#root.style.opacity = '0';
@@ -112,6 +129,13 @@ export class FeedbackLayer {
 
     this.#flashFor = Math.max(0, this.#flashFor - dt);
     this.#flash.style.opacity = String(this.#flashFor / Math.max(0.01, effects.damageFlashSeconds));
+
+    // Squared, so the first moment is total and the tail is a haze you can just
+    // about play through. Being blind is meant to be survivable, not a cutscene.
+    this.#blindFor = Math.max(0, this.#blindFor - dt);
+    const blind = this.#blindFor / Math.max(0.01, this.#blindTotal);
+    this.#blind.style.opacity = String(blind * blind);
+    if (this.#blindFor === 0) this.#blindTotal = 0;
   }
 
   dispose(): void {

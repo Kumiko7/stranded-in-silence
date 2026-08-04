@@ -149,6 +149,10 @@ halo and a coloured light the ghost carries, which is why it reads through fog.
 
 ### `item.*` — must fit `0.35 × 0.35 × 0.4 m` (`config/items.json → sizeClass`)
 
+One builder per id in `config/items.json → items`: `item.key`, `item.medicine`,
+`item.flashbang`, `item.alarmClock`, `item.tarFlask`, `item.barricade`,
+`item.coinPile`, `item.diamond`.
+
 | Part | Purpose |
 | --- | --- |
 | `gripAnchor` | Where the hand socket attaches when held. |
@@ -158,6 +162,39 @@ halo and a coloured light the ghost carries, which is why it reads through fog.
 shelves and chest floors, and collision is a 2D floor-plane test, so a collider
 under a shelf ledge would block a doorway you can see straight through. You pick
 an item up by looking at it, not by walking into it.
+
+An item is met three times over — lying in a dark room, sitting in an opened chest,
+and tumbling through the air after somebody threw it — so **the silhouette has to
+carry from every angle**. Two shapes at two heights beat one clean form: the
+bandages are a tin *and* a roll, the diamond is a stone *and* a claw. Anything that
+reads as a plain box from three sides out of four is not finished.
+
+`item.alarmClock` exposes `api.setActive(on)` — logic turns the ringing on when the
+clock lands and off when it winds down. What ringing *looks* like is the art's
+business, and belongs in `onBeforeRender` like any other idle motion.
+
+### `door.barricade` — hung on a door's own transform
+
+Origin at the floor centre of the doorway, facing `-Z`, exactly like `door.standard`,
+so it lines up with any themed door without knowing anything about it. Sized from
+`ctx.dims.doorWidth` / `doorHeight`. No parts and no collider: logic only ever adds
+the whole piece and deletes it — the door behind it is what actually blocks.
+
+### `vfx.*` — what a thrown item leaves behind
+
+Built at **unit radius**; logic scales the object to the radius in `items.json` and
+drives the shape below. That way "a bigger tar flask" is a config edit.
+
+| `artId` | Driven by | Notes |
+| --- | --- | --- |
+| `vfx.throwArc` | `api.setArc(points)` | The aim line, as world-space `[x, y, z, …]` already computed by the simulation. The art does **no** ballistics of its own — the line on screen is the flight. Brings its own materials (see below). |
+| `vfx.tarPool` | `api.setProgress(t)` | The slick spreading, 0 → 1. Flat on the floor: collision is a floor-plane test, so anything that slows you down has to *be* the floor. |
+| `vfx.flashBurst` | `api.setProgress(t)` | The flare burning out, 0 → 1. The core is a **fireball, not the blast radius** — at a nine-metre radius it still only grows to about a metre. What the radius *is*, is the ground ring's job. Clones its material to fade its own copy. |
+
+`vfx.throwArc` is the one shared piece that brings its **own** materials rather than
+asking the pack for them, for the same reason the lobby does (§3.2): it is a
+heads-up overlay drawn for one player, not a thing standing in the world, and a pack
+theming it could only make an aim line harder to read.
 
 ## 3.2 The lobby
 
@@ -217,6 +254,9 @@ provide these names (see `art/packs/test/materials.ts` for a minimal set):
 | `chest`, `chestTrim` | `chest.standard` |
 | `locker`, `lockerVent` | `locker.standard` |
 | `itemMetal` | `item.key` |
+| `itemSteel`, `itemWood`, `itemCloth`, `itemAccent`, `itemBrass`, `itemEnamel`, `itemGold`, `itemTar`, `itemGlass`, `itemGem` | the item roster — `item.medicine`, `item.flashbang`, `item.alarmClock`, `item.tarFlask`, `item.barricade`, `item.coinPile`, `item.diamond`, `door.barricade` |
+| `vfx.tar`, `vfx.tarRim` | `vfx.tarPool` — the rim is matte and a shade lighter, so a black disc on a dark floor reads as spilt rather than as a hole in the boards |
+| `vfx.flash` | `vfx.flashBurst` — **cloned** by the builder so one flare fading does not dim every other one |
 | `playerBody`, `playerMask` | `player.masked` — `playerBody` is **cloned** by the builder so `setColour` tints one player, not all of them |
 | `ghostShroud`, `ghostAlert` | `enemy.ghost` — both are **cloned** by the builder so it can tint per alert level without touching the shared cache |
 | `timberDark`, `poster.blank`, `poster.<map>`, `poster.tick`, `poster.mark` | `poster.*` (lobby only) |
@@ -227,10 +267,15 @@ to every pack.
 
 ## 4. VFX and indicators
 
-`art/shared/vfx/` holds the enemy alert indicators, heartbeat distortion, damage
-flash and escape glow. They are driven entirely by logic through `setAlert`,
-`setIntensity` etc. and are documented alongside their builders. They are shared
-across all packs by default; packs may override for theme.
+`art/shared/vfx/` holds the aim arc, the thrown-item effects (§3 above) and, later,
+the enemy alert indicators and escape glow. They are driven entirely by logic
+through `setArc`, `setProgress`, `setActive` and friends, and are documented
+alongside their builders. They are shared across all packs by default; packs may
+override for theme.
+
+The full-screen part of the horror feedback — the alert wash, the heartbeat pulse,
+the damage flash and a flare's white-out — is **not** here. It is a DOM compositing
+layer (`src/render/feedback.ts`); see ARCHITECTURE.md §10.
 
 ## 5. When you add a new shared piece
 

@@ -34,6 +34,7 @@
     "player.injured": { "bus": "sfx", "synth": "player.injured", "files": ["sfx/player_injured.ogg"], "volume": 1.0 },
     "player.downed": { "bus": "sfx", "synth": "player.downed", "files": ["sfx/player_downed.ogg"], "volume": 1.0 },
     "player.revive.loop": { "bus": "sfx", "synth": "player.revive", "files": ["sfx/player_revive_loop.ogg"], "volume": 0.6, "loop": true },
+    "player.healed": { "bus": "sfx", "synth": "player.healed", "files": ["sfx/player_healed.ogg"], "volume": 0.8 },
     "player.heartbeat": { "bus": "sfx", "synth": "player.heartbeat", "files": ["sfx/player_heartbeat.ogg"], "volume": 0.9, "loop": true, "spatial": false },
 
     "door.open": { "bus": "sfx", "synth": "door.open", "files": ["sfx/door_open.ogg"], "volume": 0.7, "pitchRange": [0.9, 1.12] },
@@ -47,6 +48,18 @@
     "locker.exit": { "bus": "sfx", "synth": "locker.exit", "files": ["sfx/locker_exit.ogg"], "volume": 0.6 },
     "item.pickup": { "bus": "sfx", "synth": "item.pickup", "files": ["sfx/item_pickup.ogg"], "volume": 0.6 },
     "item.drop": { "bus": "sfx", "synth": "item.drop", "files": ["sfx/item_drop.ogg"], "volume": 0.6 },
+
+    "item.throw": { "bus": "sfx", "synth": "item.throw", "files": ["sfx/item_throw.ogg"], "volume": 0.5, "pitchRange": [0.94, 1.08], "spatial": false },
+    "item.impact": { "bus": "sfx", "synth": "item.impact", "files": ["sfx/item_impact.ogg"], "volume": 0.85, "pitchRange": [0.92, 1.1] },
+    "item.flash": { "bus": "sfx", "synth": "item.flash", "files": ["sfx/item_flash.ogg"], "volume": 1.0 },
+    "item.alarm.loop": { "bus": "sfx", "synth": "item.alarm", "files": ["sfx/item_alarm_loop.ogg"], "volume": 0.85, "loop": true },
+    "item.tar.spill": { "bus": "sfx", "synth": "item.tar", "files": ["sfx/item_tar_spill.ogg"], "volume": 0.8 },
+    "item.medicine.loop": { "bus": "sfx", "synth": "item.medicine", "files": ["sfx/item_medicine_loop.ogg"], "volume": 0.6, "loop": true },
+    "item.barricade.loop": { "bus": "sfx", "synth": "item.barricade", "files": ["sfx/item_barricade_loop.ogg"], "volume": 0.7, "loop": true },
+    "item.barricade.placed": { "bus": "sfx", "synth": "item.barricadePlaced", "files": ["sfx/item_barricade_placed.ogg"], "volume": 0.9 },
+    "item.barricade.broken": { "bus": "sfx", "synth": "item.barricadeBroken", "files": ["sfx/item_barricade_broken.ogg"], "volume": 1.0 },
+    "item.coins": { "bus": "sfx", "synth": "item.coins", "files": ["sfx/item_coins.ogg"], "volume": 0.7, "spatial": false },
+    "item.treasure": { "bus": "sfx", "synth": "item.treasure", "files": ["sfx/item_treasure.ogg"], "volume": 0.8, "spatial": false },
 
     "enemy.idle.loop": { "bus": "sfx", "synth": "enemy.idle", "files": ["sfx/enemy_idle_loop.ogg"], "volume": 0.7, "loop": true },
     "enemy.alerted": { "bus": "sfx", "synth": "enemy.alerted", "files": ["sfx/enemy_alerted.ogg"], "volume": 0.9, "spatial": false },
@@ -73,7 +86,12 @@
       "lockerEnter": "locker.enter",
       "itemDrop": "item.drop",
       "injured": "player.injured",
-      "voice": ""
+      "voice": "",
+      "$items": "throwImpact / alarm / blast / wreck are silent here on purpose. Every peer simulates the same thrown arc and every peer is told when a barricade comes down, so each one plays the sound itself - sounding it from the noise event as well would double it up for whoever caused it.",
+      "throwImpact": "",
+      "alarm": "",
+      "blast": "",
+      "wreck": ""
     },
     "selfFlat": {
       "$doc": "Noise kinds that play flat (non-positional) when they are your own. Panning your own footsteps around your head sounds wrong.",
@@ -89,7 +107,13 @@
       "$doc": "InteractTarget kind -> looping soundId, played at the target while the hold ring is filling.",
       "chest": "chest.open.loop",
       "exit": "exit.hold.loop",
-      "revive": "player.revive.loop"
+      "revive": "player.revive.loop",
+      "forceOpen": "item.barricade.loop"
+    },
+    "itemUseLoops": {
+      "$doc": "Item BEHAVIOUR -> looping soundId, played while a hand button is held on a usable item.",
+      "heal": "item.medicine.loop",
+      "barricade": "item.barricade.loop"
     },
     "holdLoopEndRate": 1.25,
     "heartbeatMaxRate": 2.4

@@ -40,9 +40,13 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Number of locked doors and spare keys | `world.json` | `doors.lockedDoorCount`, `doors.keySpareCount` |
 | Chests / lockers / item spawns per room | `world.json` | `contents.*` |
 | How long a chest takes to open, locker enter/exit | `world.json` | `containers.*` |
-| What chests and floors contain | `world.json` | `loot.chestTable`, `loot.floorTable` — only `key` and `empty` until the item roster lands (plan step 37) |
+| What chests and floors contain | `world.json` | `loot.chestTable`, `loot.floorTable` — `diamond` is deliberately chest-only |
 | Exit door placement and hold time | `world.json` | `exit.*` |
 | Item stats and behaviour params | `items.json` | `items.<id>.params.*` |
+| How far / fast anything throws, and the aim arc | `items.json` | `defaults.throw.*` — shared by every throwable, because the arc has to be one thing a player learns once |
+| What a coin pile is worth | `items.json` | `items.coinPile.params.minValue`, `.maxValue` — rolled from the run seed, so a pile is worth the same to whoever reaches it first |
+| How loud a thrown item is | `player.json` | `noise.throwImpact`, `.alarm`, `.blast`, `.wreck` |
+| Whether the run purse shows on the HUD | `ui.json` | `hud.coins.enabled`, `.showWhenEmpty` |
 | Which maps exist | `maps.json` | `maps.*` |
 | A map's lobby poster | `maps.json` | `maps.<id>.posterArtId` — an art id from `art/shared/index.ts`; unset or unregistered hangs a blank |
 | Lighting, fog, shadows, draw distance | `graphics.json` | top level |

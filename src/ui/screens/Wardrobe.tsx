@@ -20,15 +20,25 @@ export interface ColourOption {
 interface Props {
   colours: readonly ColourOption[];
   selected: string;
+  /** Everything banked across every run. Nothing spends it yet - step 42 does. */
+  coins: number;
   onSelect(id: string): void;
   onClose(): void;
 }
 
-export function Wardrobe({ colours, selected, onSelect, onClose }: Props) {
+export function Wardrobe({ colours, selected, coins, onSelect, onClose }: Props) {
   return (
     <div class="wardrobe">
       <div class="wardrobe__panel">
         <h2 class="wardrobe__title">{t('wardrobe.title')}</h2>
+
+        {/* The purse lives here rather than on the run HUD because this is where
+            it will be spent. In a run it is a tally; here it is a balance. */}
+        <div class="wardrobe__purse">
+          <span class="wardrobe__label">{t('wardrobe.coins')}</span>
+          <span class="wardrobe__coins">{coins}</span>
+          <span class="wardrobe__hint">{t('wardrobe.coinsHint')}</span>
+        </div>
 
         <div class="wardrobe__group">
           <span class="wardrobe__label">{t('wardrobe.colour')}</span>

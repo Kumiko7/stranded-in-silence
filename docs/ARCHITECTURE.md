@@ -176,9 +176,17 @@ player sprint/footstep ─┐
 door open / slam  ──────┤
 chest open ─────────────┼──► ai/NoiseBus ──► enemy hearing check ──► alert level
 thrown item impact ─────┤     (position,          (per archetype       │
-proximity voice ────────┤      radius,             hearing config)     ▼
-item drop ──────────────┘      loudness)                        enemy FSM transition
+alarm clock ringing ────┤      radius,             hearing config)     ▼
+flare charge blast ─────┤      loudness)                     enemy FSM transition
+barricade torn off ─────┤
+proximity voice ────────┤
+item drop ──────────────┘
 ```
+
+Thrown items are the only noise a player gets to **aim**, which is the whole point
+of them. They are also the one emitter the host owns rather than the peer who
+caused them: every peer simulates the same arc from the same release state, so four
+peers emitting the landing would be four times the noise.
 
 Emitters declare `{ radius, loudness }` in `config/player.json → noise` or
 `config/items.json`. The enemy's `hearing` block in `config/enemy.json` decides what
@@ -205,7 +213,9 @@ mic picking up small sounds cannot give you away. Full detail in
 | Review how rooms *look* | `tools/roomshot` — [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) |
 | Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md) |
 | Restyle a door / chest / enemy | `art/shared/` — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
-| Add an item | `config/items.json` + a behaviour in `src/entities/items/behaviours/` + art in `art/shared/props/items/` + locale keys |
+| Add an item | `config/items.json` + a `behaviour` branch in `src/game/Game.ts` + art in `art/shared/props/items/` + locale keys + a weight in `world.json → loot` |
+| Change how throwing feels | `config/items.json → defaults.throw` — one block, shared by every throwable |
+| Change what stops a thrown item | `src/world/wallGrid.ts` — deliberately NOT the collision world |
 | Change how the maze is built | `src/world/generation.ts` — [`systems/GENERATION.md`](systems/GENERATION.md) |
 | Change enemy behaviour | `src/ai/` — [`systems/AI.md`](systems/AI.md) |
 | Change the lobby cabin's look | `art/shared/lobby/` — review it with `/tools/roomshot.html?map=lobby` |
@@ -217,6 +227,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
 | Add a difficulty | `config/difficulty.json` only |
 | Add a save field | `src/save/index.ts` (a real schema lands with step 35) |
+| Change what a run pays out | `config/items.json → items.coinPile / items.diamond`; banking is `Game.#cashInTreasure()` → `Save.addCoins()` |
 
 ---
 
@@ -233,6 +244,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Voice | **Native `RTCPeerConnection` audio tracks** | Proximity attenuation needs per-peer `GainNode` control; a wrapper library would only get in the way. |
 | Audio | **Tone.js recipes rendered to buffers at boot, played back as raw Web Audio** | Every sound is synthesised, so the game has a full soundtrack with no assets and no licensing. Rendering offline once means playback is a plain buffer source rather than a synth graph per footstep — and a composer's file drops into the *same* `AudioBuffer` slot, so replacing a sound is a file, not a code change. Tone stays live only for the generative score. |
 | Physics | **Custom 2D circle-vs-shape** | There is no jumping and no vertical movement. A full physics engine (rapier/cannon) would add a large dependency and a determinism headache to solve a problem that is ~150 lines here. Revisit only if verticality ships. |
+| Thrown items | **A ballistic arc tested against the MAZE, not against colliders** (`src/world/wallGrid.ts`) | The one thing in the game with a height, in a world whose collision is a flat 2D test. Run against the collider set, a flask would die on a table leg it visibly flew over — the maze already knows which cell edges are wall, doorway or open floor, and that is exactly the question a throw is asking. The preview line and the flight are the same integration, so the aim never lies. |
 | Gameplay feedback (alert wash, heartbeat, damage flash, health vignette) | **A DOM compositing layer** (`src/render/feedback.ts`), not an `EffectComposer` post stack | Every effect the design asks for is a full-screen blend. A DOM layer costs no render targets and no extra passes, and there is no *general* post-processing stack to justify one (see "Deliberately NOT built"). `render/` still owns it. If an effect ever needs the depth buffer, that is the moment to introduce a composer. |
 | Pathfinding | **A\* over the room graph + per-room waypoints** | The world is already a graph of rooms; hierarchical pathing on it is cheaper and more controllable than a navmesh, and makes "search a nearby room" trivial to express. |
 | State sync | **Seed + snapshots**, not full world replication | The map is a pure function of `(mapId, seed)`, so only entity state crosses the wire. |

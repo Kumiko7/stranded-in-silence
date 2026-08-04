@@ -94,6 +94,29 @@ export type NetMessage =
   | { t: 'chest'; id: string }
   | { t: 'take'; id: string }
   | { t: 'drop'; id: string; itemId: string; x: number; y: number; z: number }
+  /**
+   * A throw, as its release state. Every peer runs the same ballistics from
+   * this, so the arc, the landing and whatever it leaves behind never cross the
+   * wire at all - see `src/entities/projectile.ts`.
+   */
+  | {
+      t: 'throw';
+      id: string;
+      itemId: string;
+      owner: string;
+      x: number;
+      y: number;
+      z: number;
+      vx: number;
+      vy: number;
+      vz: number;
+    }
+  /** A door wedged shut, or the wedge coming off again with `seconds` of 0. */
+  | { t: 'barricade'; id: string; seconds: number }
+  /** Somebody used medicine on this player. They apply it and echo their health. */
+  | { t: 'heal'; id: string; toState: HealthState }
+  /** Coins into the shared run purse. Everyone keeps the same running total. */
+  | { t: 'coins'; amount: number }
   | { t: 'escaped'; id: string }
   /** Any peer may emit noise; the host feeds it all into one bus. */
   | { t: 'noise'; id: string; kind: NoiseKind; x: number; z: number }
@@ -127,6 +150,17 @@ export interface NetEvents {
   onChestOpened(chestId: string): void;
   onItemTaken(id: string): void;
   onItemDropped(id: string, itemId: string, x: number, y: number, z: number): void;
+  /** A peer threw something. Its arc is re-simulated locally, not replicated. */
+  onItemThrown(
+    id: string,
+    itemId: string,
+    owner: string,
+    from: { x: number; y: number; z: number },
+    velocity: { x: number; y: number; z: number },
+  ): void;
+  onBarricade(doorId: string, seconds: number): void;
+  onHealed(toState: HealthState): void;
+  onCoins(amount: number): void;
   onNoise(id: string, kind: NoiseKind, x: number, z: number): void;
   onEnemy(transform: EnemyTransform): void;
   /** The host caught this browser's player. */
@@ -451,6 +485,25 @@ export class Net {
         break;
       case 'drop':
         this.#events.onItemDropped(message.id, message.itemId, message.x, message.y, message.z);
+        break;
+      case 'throw':
+        this.#events.onItemThrown(
+          message.id,
+          message.itemId,
+          message.owner,
+          { x: message.x, y: message.y, z: message.z },
+          { x: message.vx, y: message.vy, z: message.vz },
+        );
+        break;
+      case 'barricade':
+        this.#events.onBarricade(message.id, message.seconds);
+        break;
+      case 'heal':
+        // Addressed, not broadcast: only the treated player applies it.
+        if (message.id === this.selfId) this.#events.onHealed(message.toState);
+        break;
+      case 'coins':
+        this.#events.onCoins(message.amount);
         break;
       case 'noise':
         this.#events.onNoise(message.id, message.kind, message.x, message.z);

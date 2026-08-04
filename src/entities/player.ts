@@ -56,12 +56,17 @@ export function applyLook(state: PlayerState, deltaX: number, deltaY: number, co
   state.pitch = Math.max(-clamp, Math.min(clamp, state.pitch));
 }
 
+/**
+ * `speedScale` is ground the player is fighting: a tar slick multiplies it down.
+ * It scales the target speed only, so acceleration and collision are unchanged.
+ */
 export function stepPlayer(
   state: PlayerState,
   intent: MoveIntent,
   dt: number,
   config: PlayerConfig,
   collision: CollisionWorld,
+  speedScale = 1,
 ): void {
   // A downed player is immobile on the floor. They are not dead, and not on a
   // timer - they are waiting for someone to come back for them.
@@ -75,7 +80,8 @@ export function stepPlayer(
       ? config.movement.sprintSpeed
       : config.movement.walkSpeed;
 
-  const speed = downed ? 0 : base * (state.health.state === 'injured' ? config.movement.injuredSpeedMultiplier : 1);
+  const speed =
+    downed ? 0 : base * (state.health.state === 'injured' ? config.movement.injuredSpeedMultiplier : 1) * speedScale;
 
   // Intent is in view space; rotate into world space by yaw.
   const sin = Math.sin(state.yaw);

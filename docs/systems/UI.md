@@ -68,7 +68,9 @@ a config change.
 | --- | --- |
 | Crosshair | Small dot; size/opacity from config |
 | Interact prompt | Verb + key from `input.json`, hold ring for hold-interactions. Text via `t('hud.interact.*')` |
+| Use prompt | A second line under it: what the **hand buttons** would do with what you are carrying — throw it, bandage someone, wedge a door — with its own hold ring. Deliberately dimmer than the interact prompt: E is what the world is offering, this is only what you brought. Text via `t('hud.use.*')` |
 | Hand slots | Two slots, left/right, item icon + name |
+| Run purse | Top right, and **absent until you have picked something up** — a permanent zero is one more number to learn to ignore (`hud.coins.showWhenEmpty`). Coins are a team total; the wardrobe in the lobby shows the banked one, because that is where it will be spent |
 | Health state | Vignette-driven by default (`mode: 'vignette-only'`) — no health bar. Your own state also reads off your line in the roster |
 | Teammate list | The **roster**, bottom left: every player as a heart (healthy / injured / downed, downed gets a flatline) with their name. Noise rings bloom off the heart whenever that player makes a sound — wider with the loudness, and **red** once the hunter is close enough to have heard it. A `loudness: 0` emitter draws nothing, because it genuinely is nothing. A **microphone** appears next to anyone talking and stays crossed out for anyone you have muted (`hud.teammateList.showVoiceIndicator`) |
 | Voice indicator | The pill under the roster: mode, whether the mic is open right now, and a five-segment input level. The one element written as **plain DOM** (`src/ui/hud/voiceIndicator.ts`) — the level moves every frame, so it must not go through the vdom |

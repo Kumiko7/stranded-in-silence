@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'preact/hooks';
 import type { HealthState, VoiceMode } from '@/config/types';
-import type { RosterEntry } from '@/game/Game';
+import type { RosterEntry, UseView } from '@/game/Game';
 import type { LobbyView } from '@/game/Lobby';
 import { t } from '@/i18n/index';
 import { LobbyPanel } from './screens/LobbyPanel';
@@ -46,6 +46,15 @@ export interface UiState {
   hands: { left: string | null; right: string | null };
   useLeftKey: string;
   useRightKey: string;
+  /** What the hand buttons are offering right now, or null. */
+  use: UseView | null;
+  /** Coins picked up this run. Only banked by a player who gets out. */
+  coins: number;
+  /** Coins banked across every run. What the wardrobe shows. */
+  bankedCoins: number;
+  /** `ui.json -> hud.coins`. */
+  showCoins: boolean;
+  showEmptyCoins: boolean;
   /** Transient objective line, e.g. "This door needs a key." */
   hint: string | null;
   health: HealthState;
@@ -128,6 +137,7 @@ export function App({
           <Wardrobe
             colours={state.colours}
             selected={state.colourId}
+            coins={state.bankedCoins}
             onSelect={callbacks.onColour}
             onClose={callbacks.onCloseWardrobe}
           />
@@ -288,9 +298,18 @@ function Hud({ state }: { state: UiState }) {
         </div>
       )}
 
+      {state.use && <UsePrompt use={state.use} />}
+
       {state.hint && <div class="hud__hint">{t(state.hint)}</div>}
 
       {state.health === 'downed' && <div class="hud__downed">{t('run.downedHint')}</div>}
+
+      {state.showCoins && (state.coins > 0 || state.showEmptyCoins) && (
+        <div class="hud__coins">
+          <span class="hud__coins-value">{state.coins}</span>
+          <span class="hud__coins-label">{t('hud.coins')}</span>
+        </div>
+      )}
 
       {state.showRoster && <Roster entries={state.roster} voice={state.voice} />}
 
@@ -298,6 +317,29 @@ function Hud({ state }: { state: UiState }) {
         <HandSlot nameKey={state.hands.left} useKey={state.useLeftKey} />
         <HandSlot nameKey={state.hands.right} useKey={state.useRightKey} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the hand buttons would do, under the E prompt. It is a second line
+ * rather than a replacement because the two are genuinely independent: you can
+ * be looking at a chest while holding a flask you are about to throw past it.
+ */
+function UsePrompt({ use }: { use: UseView }) {
+  return (
+    <div class="hud__use">
+      <span class="hud__use-verb">
+        {t(use.verbKey, use.itemNameKey ? { item: t(use.itemNameKey) } : undefined)}
+      </span>
+      <span class="hud__use-key">
+        {use.hintKey ? t(use.hintKey, { key: use.keyLabel }) : use.keyLabel}
+      </span>
+      {use.hold && use.progress > 0 && (
+        <div class="hud__progress">
+          <div class="hud__progress-fill" style={{ width: `${use.progress * 100}%` }} />
+        </div>
+      )}
     </div>
   );
 }

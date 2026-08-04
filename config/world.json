@@ -80,14 +80,27 @@
 
   "loot": {
     "$doc": "Weighted tables. Ids resolve against config/items.json; `empty` leaves the slot bare. The mandatory keys are placed separately and override whatever these rolled - see doors.lockedDoorCount / keySpareCount.",
-    "$note": "Only `key` has a behaviour and a model so far. medicine / brick / coin / flashGrenade / barricade come back into these tables with plan step 37.",
+    "$note": "`diamond` is deliberately absent from the floor table: the one item worth a fortune is only ever found by paying the price of opening a chest.",
     "chestTable": {
       "key": 8,
-      "empty": 92
+      "medicine": 11,
+      "flashbang": 8,
+      "alarmClock": 8,
+      "tarFlask": 7,
+      "barricade": 8,
+      "coinPile": 14,
+      "diamond": 2,
+      "empty": 34
     },
     "floorTable": {
       "key": 1,
-      "empty": 99
+      "medicine": 4,
+      "flashbang": 2,
+      "alarmClock": 3,
+      "tarFlask": 2,
+      "barricade": 3,
+      "coinPile": 6,
+      "empty": 79
     }
   },
 

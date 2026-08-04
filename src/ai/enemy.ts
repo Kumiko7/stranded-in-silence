@@ -55,6 +55,8 @@ export interface EnemyState {
   attackCooldown: number;
   windup: number;
   slowdown: number;
+  /** Seconds it is standing there doing nothing, from a flare going off in its face. */
+  stunFor: number;
   /** How long it has been scraping against something without getting anywhere. */
   stuckFor: number;
   /** A locker it WATCHED someone climb into. Searched first, and never rolled for. */
@@ -96,6 +98,8 @@ export interface EnemyContext {
   collision: CollisionWorld;
   config: EnemyArchetype;
   rng: Rng;
+  /** Ground multiplier at a position - a tar slick makes it wade. 1 when clear. */
+  slowAt(x: number, z: number): number;
   /** Opening a door is the enemy's own action: it toggles, replicates and is loud. */
   openDoor(doorId: string): void;
   /** Healthy -> injured, injured -> downed. The caller owns the health ladder. */
@@ -132,6 +136,7 @@ export function createEnemy(x: number, z: number): EnemyState {
     attackCooldown: 0,
     windup: 0,
     slowdown: 0,
+    stunFor: 0,
     stuckFor: 0,
     witnessedLocker: null,
     repathIn: 0,
@@ -145,7 +150,17 @@ export function updateEnemy(enemy: EnemyState, dt: number, ctx: EnemyContext): v
   enemy.time += dt;
   enemy.attackCooldown = Math.max(0, enemy.attackCooldown - dt);
   enemy.slowdown = Math.max(0, enemy.slowdown - dt);
+  enemy.stunFor = Math.max(0, enemy.stunFor - dt);
   enemy.visited.set(ctx.graph.cellAt(enemy.x, enemy.z), enemy.time);
+
+  // A flare in the face. It keeps whatever it was thinking - alert level, target,
+  // route - and simply cannot act on any of it, which is the whole window.
+  if (enemy.stunFor > 0) {
+    enemy.velocityX = 0;
+    enemy.velocityZ = 0;
+    enemy.doorWait = 0;
+    return;
+  }
 
   perceive(enemy, dt, ctx);
 
@@ -182,7 +197,9 @@ export function updateEnemy(enemy: EnemyState, dt: number, ctx: EnemyContext): v
       : enemy.state === 'patrol'
         ? config.movement.patrolSpeed
         : config.movement.searchSpeed) *
-    (enemy.slowdown > 0 ? config.movement.injuredPlayerSlowdownMultiplier : 1);
+    (enemy.slowdown > 0 ? config.movement.injuredPlayerSlowdownMultiplier : 1) *
+    // Tar does not care how fast it is meant to be.
+    ctx.slowAt(enemy.x, enemy.z);
 
   steer(enemy, dt, speed, ctx);
 }
@@ -558,6 +575,14 @@ function doorSeconds(enemy: EnemyState, ctx: EnemyContext): number {
 }
 
 /**
+ * What THIS door costs it. A barricade is priced in the one currency the hunter
+ * cannot cheat: standing still. It pays exactly what a player pays.
+ */
+function doorDelay(enemy: EnemyState, ctx: EnemyContext, door: Door): number {
+  return doorSeconds(enemy, ctx) + door.barricadeSeconds;
+}
+
+/**
  * Moves toward the head waypoint, waiting out any closed door on the way. The
  * wait is the single most important balance lever in the game - it is the only
  * thing a player can put between themselves and something faster than they are.
@@ -574,7 +599,7 @@ function steer(enemy: EnemyState, dt: number, speed: number, ctx: EnemyContext):
 
     if (door && !door.open && distance <= DOOR_STAND_OFF) {
       enemy.doorWait += dt;
-      if (enemy.doorWait >= doorSeconds(enemy, ctx)) {
+      if (enemy.doorWait >= doorDelay(enemy, ctx, door)) {
         enemy.doorWait = 0;
         // A locked door it cannot open is not a route; give up and re-plan.
         if (door.locked && !ctx.config.doors.canOpenLockedDoors) {

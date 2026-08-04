@@ -124,6 +124,15 @@ export interface ArtApi {
   setMark?(hex: string): void;
   /** `lobby.lever`: 0..1 along the lever's travel. */
   setLever?(t: number): void;
+  /** `vfx.throwArc`: the aim line, flattened as `[x, y, z, ...]` in world space. */
+  setArc?(points: readonly number[]): void;
+  /**
+   * How far along a timed piece is, 0..1: a tar slick spreading, a flare burning
+   * out. Driven every frame by logic; the art decides what that looks like.
+   */
+  setProgress?(t: number): void;
+  /** On/off for a piece with two states, e.g. `item.alarmClock` ringing. */
+  setActive?(on: boolean): void;
 }
 
 export interface BuiltArt extends BuiltPiece {

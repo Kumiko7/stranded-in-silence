@@ -64,7 +64,12 @@
     "lockerEnter": { "radius": 6.0, "loudness": 0.0 },
     "itemDrop": { "radius": 8.0, "loudness": 0.0 },
     "voice": { "radius": 12.0, "loudness": 0.6 },
-    "injured": { "radius": 14.0, "loudness": 1.0 }
+    "injured": { "radius": 14.0, "loudness": 1.0 },
+    "$items": "Thrown items are the only noise you get to AIM. `throwImpact` is anything landing; `alarm` is the clock re-emitting for as long as it rings; `blast` is the flashbang, which is loud enough to bring the hunter running if it was standing outside the blind radius; `wreck` is a player tearing a barricade off a door, which is exactly as quiet as it sounds.",
+    "throwImpact": { "radius": 14.0, "loudness": 0.7 },
+    "alarm": { "radius": 30.0, "loudness": 1.0 },
+    "blast": { "radius": 22.0, "loudness": 0.95 },
+    "wreck": { "radius": 24.0, "loudness": 0.9 }
   },
 
   "customisation": {

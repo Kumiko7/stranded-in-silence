@@ -41,6 +41,17 @@ export function applyHit(
   return health.state;
 }
 
+/**
+ * Medicine. Walks one rung back UP the ladder, and only from injured: a downed
+ * player is a revive, which is a teammate's time rather than an item.
+ * Returns the new state, or null when there was nothing to treat.
+ */
+export function applyHeal(health: Health, toState: HealthState): HealthState | null {
+  if (health.state !== 'injured') return null;
+  health.state = toState;
+  return health.state;
+}
+
 /** Revived players come back injured, not healthy - `health.revivedToState`. */
 export function applyRevive(health: Health, config: PlayerConfig): HealthState {
   health.state = config.health.revivedToState;
