@@ -75,8 +75,9 @@ Emitter values live in `config/player.json → noise` and `config/items.json`.
 
 Emitters (all in `src/game/Game.ts`, which is the only place that knows *when*):
 footsteps at `noise.footstepInterval*` while moving, `doorOpen` on opening a door
-and `doorSlam` on closing one, `chestOpen`, `lockerEnter` and `itemDrop`. Voice
-joins with plan step 28.
+and `doorSlam` on closing one, `chestOpen`, `lockerEnter` and `itemDrop`, plus
+`voice` every `net.json → voice.noiseIntervalSeconds` while someone is speaking
+above `voice.noiseThresholdDb`.
 
 Injury costs **speed, not stealth**: an injured player emits the same walk /
 sprint / crouch noise as a healthy one, so crouching while hurt is still worth
@@ -96,9 +97,15 @@ AND distance ≤ radius × hearing.rangeMultiplier
 ```
 
 **Distance only** — walls and closed doors do not muffle noise. Doors slow the enemy
-down; they do not hide you. Voice is special-cased: it is only audible to the enemy within
-`hearing.voiceRoomLimit` rooms (default 1 = same or adjacent). Players hear each
-other at `net.json → voice.hearingRange`, which is deliberately much further.
+down; they do not hide you. Voice is special-cased twice over: it is only audible to
+the enemy within `hearing.voiceRoomLimit` rooms (default 1 = same or adjacent), and
+only emitted at all above `net.json → voice.noiseThresholdDb`. Players hear each
+other at `voice.hearingRange` (22 m), which is deliberately much further.
+
+A **downed player's voice still emits**, which is the point: the hunter ignores them
+as a target (`attack.ignoresDownedPlayers`) but will come and search the room they
+are calling from. Being found by your team and keeping the hunter nearby are the
+same action.
 
 Heard events go to `INVESTIGATE` with a position jittered by
 `hearing.positionJitterMetres` — the enemy gets a direction, not a fix.

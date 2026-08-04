@@ -81,6 +81,11 @@ export class Audio {
     return this.#buses.node(id);
   }
 
+  /** Panner settings, so voice chat spatialises exactly like everything else. */
+  get spatial(): AudioConfig['spatial'] {
+    return this.#config.spatial;
+  }
+
   /** Renders every recipe and decodes every file present. Safe before a gesture. */
   init(): Promise<void> {
     this.#loading ??= this.#library.load(this.#context, this.#config.sounds).then(() => {

@@ -36,8 +36,12 @@ run something you have to *solve*. Slice 3 makes it something you can lose:
 
 - **Sound** (step 34) — the whole game is audible: every effect synthesised in
   Tone.js, positional, and a generative score that tightens as the hunter closes.
+- **Voice** (step 28) — proximity chat over a true peer mesh, generous to players
+  (22 m) and stingy to the hunter (an adjacent room, and only if you are properly
+  loud). Off / open mic / push-to-talk on one control, per-teammate mutes, and a
+  microphone on the roster line of whoever is talking. Solo runs never open a mic.
 
-Still missing: item roster beyond the key, voice chat, lobby, scoreboard.
+Still missing: item roster beyond the key, lobby, scoreboard.
 
 Because these are slices rather than a sequence of finished steps, several steps
 below are `◐` — the part the slice needed is done, the rest is not. Each one lists
@@ -162,7 +166,7 @@ the simulation is written host-authoritative from the start.*
 **Goal:** the spine described in [`ARCHITECTURE.md §8`](ARCHITECTURE.md).
 **Touches:** `src/ai/noiseBus.ts`, emitters in `src/game/Game.ts`.
 **Details:** `{ x, z, radius, loudness, kind, sourceId }` events from footsteps, doors, slams, chests, lockers and item drops, all replicated so the host hears every peer. Events live one tick.
-**Still missing:** voice (step 28), thrown items (step 37), and the debug visualiser. Emitters, the bus, config lookup and replication are done.
+**Still missing:** thrown items (step 37) and the debug visualiser. Emitters (voice included, step 28), the bus, config lookup and replication are done.
 
 ### ☑ 17. Enemy: navigation and patrol
 **Goal:** something walks the map.
@@ -200,7 +204,7 @@ the simulation is written host-authoritative from the start.*
 **Touches:** `src/ui/hud/*`.
 **Details:** every element in [`systems/UI.md`](systems/UI.md) — crosshair, hand slots, health vignette, teammate list, voice indicator, objective hints. Plain DOM, config-toggleable.
 **Done when:** all elements update correctly and each can be disabled from `config/ui.json`.
-**Still missing:** voice indicator, the remaining per-element `config/ui.json → hud` toggles, and the move out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots, the objective hint and the player roster (hearts + noise rings, toggled by `hud.teammateList.enabled`) render from `src/ui/App.tsx`; the health vignette is the feedback layer's (step 21).
+**Still missing:** the remaining per-element `config/ui.json → hud` toggles, and the move of the rest of the HUD out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots, the objective hint and the player roster (hearts, noise rings and speaking microphones) render from `src/ui/App.tsx`; the health vignette is the feedback layer's (step 21); the voice pill is the first element written the way this step wants them all — plain DOM in `src/ui/hud/voiceIndicator.ts`, because its level meter moves every frame.
 
 **Milestone: a complete single-player run is playable end to end.**
 
@@ -242,11 +246,15 @@ the simulation is written host-authoritative from the start.*
 **Details:** AI on host only, enemy transform + alert level replicated at `snapshotRateHz`, networked noise/injure/down/revive/escape, win and lose resolution.
 **Still missing:** verification with real peers — the enemy, noise, hit, health, revive and wipe messages are implemented and typed but have only been exercised solo (offline counts as host). Disconnect handling beyond removing the peer from `RunState` is not built.
 
-### ☐ 28. Proximity voice chat
+### ☑ 28. Proximity voice chat
 **Goal:** the reason the game works.
-**Touches:** `src/voice/{capture,peerAudio,attenuation,modes,vad}.ts`, pause-menu control.
+**Touches:** `src/voice/{index,capture,peerAudio,attenuation,modes,vad}.ts`, `src/net/index.ts`, `src/ui/hud/voiceIndicator.ts`, `src/ui/screens/VoicePanel.tsx`, `config/net.json → voice`.
 **Details:** mic capture, per-peer tracks and gain nodes, **distance-only** attenuation (walls and doors never muffle voice), off / open-mic / push-to-talk switched by one control, voice as a noise emitter, spectator channel separation.
 **Done when:** four players hear each other positionally, all three modes work, and the enemy reacts to speech only at close range.
+**Note:** voice is a **true mesh** over PeerJS media calls even though gameplay data is a star through the host — a call needs an id, not a data connection. The lower peer id dials and the higher answers, so each pair has exactly one bidirectional call. The outgoing track is a `MediaStreamAudioDestinationNode` created at boot and never renegotiated: every mode, mute and push-to-talk is a gain on it, so a denied microphone still sends a valid silent track and that player hears everyone normally.
+**Note:** three thresholds off one meter — `voiceActivityThresholdDb` opens the mic, `noiseThresholdDb` (much higher) is what the *hunter* needs before it gets a noise event, `speakingThresholdDb` lights the HUD icon. That gap is what stops an open mic giving you away. The `PannerNode` does direction only (rolloff off); the distance law is `attenuation.ts` reading `net.json → voice`, so `hearingRange` means what it says.
+**Note:** voice is off entirely in a **solo run** — the microphone is never requested and the HUD pill is hidden. `live` is recomputed from `net.players` each frame, so a peer joining mid-run turns it on.
+**Verified:** a solo run asks for no microphone and shows no pill; attenuation is 1 inside 4 m and exactly 0 at 22 m; the mode cycle wraps and each mode gates correctly; the activity gate holds for its full hangover; a speaking player emits a `voice` noise every `noiseIntervalSeconds` (roster ring included) **and still does so while downed**; a denied microphone leaves the run fully playable. Four-peer audio itself has not been exercised — it needs real browsers with real microphones.
 
 ### ☐ 29. Lobby scene and flow
 **Goal:** the pre-run experience.
@@ -288,7 +296,7 @@ floating under the plaster.
 **Details:** buses, distance-based spatial SFX (no occlusion), a generative four-layer score that cross-fades on the hunter's alert level, and the registry in `config/audio.json`.
 **Done when:** footsteps, doors, chests, the enemy and UI all make appropriate positional sound.
 **Note:** all 27 sounds are **synthesised with Tone.js** (`src/audio/recipes.ts`) and rendered to `AudioBuffer`s once at boot, so the game has a complete soundtrack with no assets and no licences. Each one also declares a file path: **drop a file into `assets/audio/` and it replaces the synthesised version**, no code or config change — see [`assets/audio/README.md`](../assets/audio/README.md). Music is generative too (`explore` / `tension` / `chase` / `menu` layers plus an ambience bed), and any layer can be replaced by a file the same way. Two things worth knowing: `unlock()` must wait for `init()` because `Tone.Offline` swaps the global context mid-render, and doors sound from their replicated **state** rather than from the noise bus so that a door the hunter opens is heard by every peer.
-**Still missing:** the options-menu volume sliders (step 35 — `audio.setBusVolume()` is the seam) and voice ducking (step 28).
+**Still missing:** the options-menu volume sliders (step 35 — `audio.setBusVolume()` is the seam). Voice ducking landed with step 28: `music.setVoiceDucking()` pulls the score down by `music.duckOnVoiceDb` while a teammate is *audible*, leaving ambience alone.
 
 ### ☐ 35. Save system + full options menus
 **Touches:** `src/save/`, `src/ui/screens/Options.tsx`, `src/ui/screens/Controls.tsx`.
@@ -348,5 +356,6 @@ floating under the plaster.
 | 2026-08-02 | **Slice 1 playable**: menu with lobby code / join / start, PeerJS multiplayer, generated 6×6 map from the test art pack, first-person movement with collision, door interaction, exit-door escape. Steps 7, 11, 12 done; 2–6, 8–10, 13, 23–25 partially. Signalling server deferred to step 23 (PeerJS public server for now), so `ws`/`tsx`/`concurrently` deps and the `signal` scripts were removed. |
 | 2026-08-03 | **Slice 3 playable**: the hunter. Noise bus, room-graph A\*, sight and hearing, the full patrol/investigate/search/chase/attack FSM, the health ladder with revive, the wipe condition and the horror feedback layer. Steps 17, 18, 19 done; 4 finished; 16, 20, 21, 27 advanced. Two decisions worth knowing: the feedback layer is a **DOM compositing layer**, not an `EffectComposer` post stack (every effect the design asks for is a full-screen blend — see [`ARCHITECTURE.md §10`](ARCHITECTURE.md)), and the FSM lives in one `enemy.ts` rather than a `states/` folder. `generate()` now takes the enemy's `spawn` block as a parameter so generation still reads one config file, and `PlacedRoom` carries world-space patrol points. |
 | 2026-08-03 | **Step 34 done — the game has sound.** All 27 effects are synthesised in Tone.js and rendered to buffers at boot; the score is generative and four-layered. Every sound also declares a file path, so `assets/audio/` is a drop-in override with no code change — that is the seam a sound composer works against. `config/audio.json` gained `cues` (which event fires what) and a rebuilt `music` block; `chaseTrackSuffix` was replaced by the explicit `music.layers` map. `heartbeatCloseness()` moved out of `render/feedback.ts` so the heartbeat you hear and the one you see ride the same curve. Step 21's audio half is now done. |
+| 2026-08-04 | **Step 28 done — proximity voice.** `src/voice/` (capture, per-peer audio, attenuation, modes, VAD) over PeerJS media calls, which makes voice a true mesh while gameplay data stays a star. `config/net.json → voice` gained `gainSmoothingSeconds`, `noiseThresholdDb`, `noiseIntervalSeconds`, `speakingThresholdDb` and `speakingHoldMs`; the enemy-facing threshold sits well above the open-mic gate, which is what makes an open mic safe. Voice emits `player.json → noise.voice` on an interval, downed players included — being heard is the point. Music now ducks (`music.setVoiceDucking()`), the roster grew a speaking microphone, the pause menu grew a one-control mode switch plus mutes, and the HUD grew a plain-DOM voice pill. `.claude/launch.json` / `vite.config.ts` learned `PORT`, so two dev servers can run side by side. |
 | 2026-08-04 | **Room review tool.** `tools/roomshot` renders every room of a pack through the real `Renderer` + `buildWorld` and writes a contact sheet per room to `shots/` (git-ignored) via a dev-only Vite middleware — see [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md). Nothing about the look is re-implemented, so a sheet is what the game shows. Its first pass over the mansion fixed four bugs the headless validator cannot see, listed under step 32. |
 | 2026-08-02 | **Slice 2 playable**: locked doors, keys, chests, lockers and the two-hand inventory. Generation now locks doors on the spanning-tree route *before* adding loops and forbids loops across a lock, which makes "always X locked doors, always enough keys" structural rather than checked — see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys". Steps 9, 13, 14, 15, 22, 26 advanced. `loot.chestTable` / `floorTable` were trimmed to `key` + `empty` until the item roster lands in step 37. |

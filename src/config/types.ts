@@ -234,8 +234,38 @@ export interface InputConfig {
   mouse: { sensitivity: number; invertY: boolean };
 }
 
+/** Off, open mic, or hold the key. One control switches between them. */
+export type VoiceMode = 'off' | 'voiceActivity' | 'pushToTalk';
+
+export interface VoiceConfig {
+  enabled: boolean;
+  defaultMode: VoiceMode;
+  modes: VoiceMode[];
+  /** Metres at which a teammate fades to silence. Far beyond the enemy's reach. */
+  hearingRange: number;
+  /** Inside this, no attenuation at all. */
+  fullVolumeRange: number;
+  falloff: string;
+  gainSmoothingSeconds: number;
+  voiceActivityThresholdDb: number;
+  voiceActivityHangoverMs: number;
+  emitsNoiseToEnemy: boolean;
+  /** Speak louder than this before the hunter gets a noise event at all. */
+  noiseThresholdDb: number;
+  noiseIntervalSeconds: number;
+  /** Level on a received track that counts as "they are talking", for the HUD. */
+  speakingThresholdDb: number;
+  speakingHoldMs: number;
+  echoCancellation: boolean;
+  noiseSuppression: boolean;
+  autoGainControl: boolean;
+  bitrateKbps: number;
+  spectatorChannelSeparate: boolean;
+}
+
 export interface NetConfig {
   simulation: { snapshotRateHz: number; interpolationDelayMs: number };
+  voice: VoiceConfig;
 }
 
 /**
@@ -310,7 +340,9 @@ export interface UiConfig {
   hud: {
     crosshair: { enabled: boolean; size: number; colour: string; opacity: number };
     /** The bottom-left player roster: hearts, names and noise rings. */
-    teammateList: { enabled: boolean };
+    teammateList: { enabled: boolean; showVoiceIndicator: boolean };
+    /** The voice pill above the roster: mode, transmitting state, input level. */
+    voiceIndicator: { enabled: boolean; showLevelMeter: boolean };
   };
 }
 

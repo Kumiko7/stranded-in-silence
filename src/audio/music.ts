@@ -37,6 +37,8 @@ export class MusicDirector {
   #started = false;
   #scene: MusicScene = 'none';
   #intensity = 0;
+  /** Linear multiplier applied to the musical layers while someone is talking. */
+  #duck = 1;
 
   constructor(music: AudioNode, ambience: AudioNode, config: AudioConfig['music']) {
     this.#config = config;
@@ -215,6 +217,18 @@ export class MusicDirector {
     return this.#config.proximityWeight;
   }
 
+  /**
+   * Pulls the score down by `music.duckOnVoiceDb` while a teammate is audible.
+   * Ambience is left alone - it is the room, and the room does not stop for a
+   * conversation.
+   */
+  setVoiceDucking(active: boolean): void {
+    const duck = active ? 10 ** (this.#config.duckOnVoiceDb / 20) : 1;
+    if (Math.abs(duck - this.#duck) < 0.001) return;
+    this.#duck = duck;
+    this.#apply();
+  }
+
   #apply(): void {
     if (!this.#started) return;
 
@@ -234,7 +248,10 @@ export class MusicDirector {
       const layer = this.#layers.get(id);
       if (!layer) continue;
       const volume = this.#config.layers[id]?.volume ?? 1;
-      layer.gain.rampTo(amount * volume, this.#config.crossfadeSeconds);
+      const duck = id === 'ambience' ? 1 : this.#duck;
+      // Ducking has to arrive faster than a cross-fade or the first word of a
+      // sentence is lost under the score.
+      layer.gain.rampTo(amount * volume * duck, this.#duck < 1 ? 0.15 : this.#config.crossfadeSeconds);
     }
   }
 }

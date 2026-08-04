@@ -5,10 +5,11 @@
  * No user-visible string here is a literal - every one is a t() key.
  */
 import { useEffect, useState } from 'preact/hooks';
-import type { HealthState } from '@/config/types';
+import type { HealthState, VoiceMode } from '@/config/types';
 import type { RosterEntry } from '@/game/Game';
 import { t } from '@/i18n/index';
 import { MainMenu } from './screens/MainMenu';
+import { VoicePanel } from './screens/VoicePanel';
 
 export type Screen = 'menu' | 'run' | 'paused' | 'escaped' | 'wiped';
 
@@ -34,6 +35,27 @@ export interface UiState {
   /** Everyone in the run: health, and the last noise each of them made. */
   roster: RosterEntry[];
   showRoster: boolean;
+  voice: VoiceUiState;
+}
+
+/**
+ * The vdom half of voice: booleans that change a few times a second. The input
+ * level moves every frame and is deliberately not here - it lives in the plain
+ * DOM pill (`src/ui/hud/voiceIndicator.ts`).
+ */
+export interface VoiceUiState {
+  mode: VoiceMode;
+  modes: VoiceMode[];
+  /** Peer ids currently talking, this player included. */
+  speaking: string[];
+  /** Peer ids this player has muted. */
+  muted: string[];
+  selfMuted: boolean;
+  /** Locale key of a capture failure, or null. */
+  errorKey: string | null;
+  pushToTalkKey: string;
+  /** Whether teammate rows show a microphone at all (`ui.json -> hud`). */
+  showInRoster: boolean;
 }
 
 export interface UiCallbacks {
@@ -41,6 +63,9 @@ export interface UiCallbacks {
   onJoin(code: string): void;
   onResume(): void;
   onLeave(): void;
+  onVoiceMode(mode: VoiceMode): void;
+  onVoiceSelfMute(): void;
+  onVoiceMutePeer(id: string): void;
 }
 
 /** Lets the game loop push state in without React-style re-render churn. */
@@ -76,11 +101,20 @@ export function App({
   if (state.screen === 'paused') {
     return (
       <div class="overlay">
-        <div class="overlay__panel">
+        <div class="overlay__panel overlay__panel--wide">
           <h2 class="overlay__title">{t('pause.title')}</h2>
           <button class="btn btn--primary" onClick={callbacks.onResume}>
             {t('pause.resume')}
           </button>
+
+          <VoicePanel
+            voice={state.voice}
+            roster={state.roster}
+            onMode={callbacks.onVoiceMode}
+            onSelfMute={callbacks.onVoiceSelfMute}
+            onMutePeer={callbacks.onVoiceMutePeer}
+          />
+
           <button class="btn" data-sfx="back" onClick={callbacks.onLeave}>
             {t('pause.leaveRun')}
           </button>
@@ -134,7 +168,7 @@ function Hud({ state }: { state: UiState }) {
 
       {state.health === 'downed' && <div class="hud__downed">{t('run.downedHint')}</div>}
 
-      {state.showRoster && <Roster entries={state.roster} />}
+      {state.showRoster && <Roster entries={state.roster} voice={state.voice} />}
 
       <div class="hud__hands">
         <HandSlot nameKey={state.hands.left} useKey={state.useLeftKey} />
@@ -148,33 +182,64 @@ function Hud({ state }: { state: UiState }) {
  * The team, bottom left. One line each: a heart that says how they are, their
  * name, and rings that bloom off the heart whenever they make a noise - larger
  * with the loudness, and red once the hunter is close enough to hear it.
+ *
+ * A microphone appears the moment someone speaks, and stays crossed out for
+ * anyone this player has muted - so who you can and cannot hear is never a
+ * guess.
  */
-function Roster({ entries }: { entries: RosterEntry[] }) {
+function Roster({ entries, voice }: { entries: RosterEntry[]; voice: VoiceUiState }) {
   return (
-    <div class="roster">
-      {entries.map((entry) => (
-        <div key={entry.id} class={entry.self ? 'roster__row roster__row--self' : 'roster__row'}>
-          <div class={`roster__heart roster__heart--${entry.health}`}>
-            {entry.pulse && (
-              <div
-                key={entry.pulse.token}
-                class={entry.pulse.heard ? 'roster__noise roster__noise--heard' : 'roster__noise'}
-                style={{ '--loudness': entry.pulse.loudness }}
-              >
-                <span />
-                <span />
-                <span />
-              </div>
+    <div class={voice.showInRoster ? 'roster roster--voice' : 'roster'}>
+      {entries.map((entry) => {
+        const muted = voice.muted.includes(entry.id);
+        const speaking = voice.showInRoster && voice.speaking.includes(entry.id);
+
+        return (
+          <div key={entry.id} class={entry.self ? 'roster__row roster__row--self' : 'roster__row'}>
+            <div class={`roster__heart roster__heart--${entry.health}`}>
+              {entry.pulse && (
+                <div
+                  key={entry.pulse.token}
+                  class={entry.pulse.heard ? 'roster__noise roster__noise--heard' : 'roster__noise'}
+                  style={{ '--loudness': entry.pulse.loudness }}
+                >
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              )}
+              <svg class="roster__heart-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 21s-8-5.1-8-10.4A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 3.6C20 15.9 12 21 12 21z" />
+              </svg>
+              {entry.health === 'downed' && <span class="roster__flatline" />}
+            </div>
+
+            <span class="roster__name">{t('hud.player.name', { n: entry.index })}</span>
+
+            {voice.showInRoster && (
+              <MicIcon
+                className={`roster__mic${speaking ? ' roster__mic--live' : ''}${muted ? ' roster__mic--muted' : ''}`}
+                muted={muted}
+              />
             )}
-            <svg class="roster__heart-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 21s-8-5.1-8-10.4A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8 3.6C20 15.9 12 21 12 21z" />
-            </svg>
-            {entry.health === 'downed' && <span class="roster__flatline" />}
           </div>
-          <span class="roster__name">{t('hud.player.name', { n: entry.index })}</span>
-        </div>
-      ))}
+        );
+      })}
     </div>
+  );
+}
+
+/** The one microphone glyph in the game. Used by the roster and the pause list. */
+export function MicIcon({ className, muted }: { className: string; muted: boolean }) {
+  return (
+    <svg class={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        class="mic__body"
+        d="M12 3.2a2.7 2.7 0 0 1 2.7 2.7v5.2a2.7 2.7 0 0 1-5.4 0V5.9A2.7 2.7 0 0 1 12 3.2z"
+      />
+      <path class="mic__arc" d="M6.6 10.9a5.4 5.4 0 0 0 10.8 0M12 16.6v3.2M9.2 19.8h5.6" />
+      {muted && <path class="mic__slash" d="M4.6 4.2 19.4 19.8" />}
+    </svg>
   );
 }
 

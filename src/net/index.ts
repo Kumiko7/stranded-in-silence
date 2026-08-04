@@ -9,10 +9,15 @@
  * transforms and door toggles are broadcast and trusted, which is fine with no
  * enemy and no items. The authoritative simulation and client prediction are
  * plan steps 25-27 - see docs/systems/NETWORKING.md.
+ *
+ * VOICE is the exception to the star: a media call needs only the other peer's
+ * id, not a data connection, so voice is a true mesh even though gameplay data
+ * still goes through the host. Nothing about voice is relayed or mixed here -
+ * this only carries the tracks (docs/systems/AUDIO_VOICE.md).
  */
-import Peer, { type DataConnection } from 'peerjs';
+import Peer, { type DataConnection, type MediaConnection } from 'peerjs';
 import type { NoiseKind } from '@/ai/noiseBus';
-import type { HealthState } from '@/config/types';
+import type { HealthState, VoiceConfig } from '@/config/types';
 
 /** Namespaced so a 6-character code cannot collide with another app on the public server. */
 const PEER_PREFIX = 'stranded-in-silence-';
@@ -76,6 +81,9 @@ export interface NetEvents {
   onRevive(id: string): void;
   onPeerEscaped(id: string): void;
   onWiped(): void;
+  /** A peer's voice track arrived. Attenuation is the listener's own business. */
+  onVoiceStream(id: string, stream: MediaStream): void;
+  onVoiceEnded(id: string): void;
   onStatus(status: string): void;
 }
 
@@ -83,8 +91,15 @@ export class Net {
   #peer: Peer | null = null;
   #connections = new Map<string, DataConnection>();
   #events: NetEvents;
+  #voice: VoiceConfig;
   #code = '';
   role: NetRole = 'offline';
+
+  /* --- voice mesh ---------------------------------------------------------- */
+  /** Everyone in the session, including peers this browser has no data link to. */
+  #players = new Set<string>();
+  #calls = new Map<string, MediaConnection>();
+  #voiceStream: MediaStream | null = null;
 
   /** Set by the host when a run starts, replayed to anyone who joins later. */
   #run: { mapId: string; seed: number } | null = null;
@@ -92,8 +107,9 @@ export class Net {
   #slots = new Map<string, number>();
   #nextSlot = 1;
 
-  constructor(events: NetEvents) {
+  constructor(events: NetEvents, voice: VoiceConfig) {
     this.#events = events;
+    this.#voice = voice;
   }
 
   get code(): string {
@@ -106,6 +122,15 @@ export class Net {
 
   get peerIds(): string[] {
     return [...this.#connections.keys()];
+  }
+
+  /**
+   * Everyone else in the session, including peers this browser has no data link
+   * to. Not the same as `peerIds`: in the star topology a client is connected
+   * only to the host, but it can still see - and call - the other players.
+   */
+  get players(): string[] {
+    return [...this.#players];
   }
 
   /** Registers this browser with the signalling server and claims a lobby code. */
@@ -130,6 +155,12 @@ export class Net {
       peer.once('error', onError);
 
       peer.on('connection', (connection) => this.#accept(connection));
+      // Answering with our own track makes one call carry both directions, so
+      // only one side ever needs to place it (see `#callPeer`).
+      peer.on('call', (call) => {
+        call.answer(this.#voiceStream ?? undefined);
+        this.#registerCall(shortId(call.peer), call);
+      });
       peer.on('disconnected', () => this.#events.onStatus('disconnected'));
     });
   }
@@ -182,7 +213,7 @@ export class Net {
       // No run yet? They stay connected and hostRun() will pull them in.
       if (this.#run) this.#sendWelcome(id);
       this.#relay({ t: 'join', id }, id);
-      this.#events.onPeerJoin(id);
+      this.#addPlayer(id);
     });
   }
 
@@ -209,7 +240,7 @@ export class Net {
     connection.on('data', (data) => this.#receive(id, data as NetMessage));
     connection.on('close', () => {
       this.#connections.delete(id);
-      this.#events.onPeerLeave(id);
+      this.#removePlayer(id);
       if (this.role === 'host') this.#relay({ t: 'leave', id }, id);
     });
   }
@@ -221,14 +252,14 @@ export class Net {
         // The run has to exist before remotes can be added to it.
         this.#events.onRunStart(message.mapId, message.seed, message.slot);
         // The host is a player too, and it is not in its own peer list.
-        this.#events.onPeerJoin(message.host);
-        for (const peerId of message.peers) this.#events.onPeerJoin(peerId);
+        this.#addPlayer(message.host);
+        for (const peerId of message.peers) this.#addPlayer(peerId);
         break;
       case 'join':
-        this.#events.onPeerJoin(message.id);
+        this.#addPlayer(message.id);
         break;
       case 'leave':
-        this.#events.onPeerLeave(message.id);
+        this.#removePlayer(message.id);
         break;
       case 'move':
         this.#events.onPeerMove(message.id, message);
@@ -276,6 +307,86 @@ export class Net {
     if (this.role === 'host' && message.t !== 'welcome') this.#relay(message, from);
   }
 
+  /* --- voice --------------------------------------------------------------- */
+
+  /**
+   * Hands voice the outgoing track, or `null` to hang up. The track is created
+   * once and lives for the session, so this is called on entering and leaving a
+   * run - never on a mode change, which is only the gain on that track.
+   */
+  setVoiceStream(stream: MediaStream | null): void {
+    this.#voiceStream = stream;
+
+    if (!stream) {
+      for (const call of this.#calls.values()) call.close();
+      this.#calls.clear();
+      return;
+    }
+    for (const id of this.#players) this.#callPeer(id);
+  }
+
+  /**
+   * Places the call for a pair, exactly once. Both sides would otherwise ring
+   * each other and every word would arrive twice, so the lower id always dials
+   * and the higher always answers.
+   */
+  #callPeer(id: string): void {
+    const peer = this.#peer;
+    const stream = this.#voiceStream;
+    if (!peer || !stream || this.#calls.has(id) || this.selfId >= id) return;
+
+    this.#registerCall(id, peer.call(PEER_PREFIX + id, stream));
+  }
+
+  #registerCall(id: string, call: MediaConnection): void {
+    this.#calls.get(id)?.close();
+    this.#calls.set(id, call);
+
+    call.on('stream', (remote: MediaStream) => {
+      this.#limitBitrate(call);
+      this.#events.onVoiceStream(id, remote);
+    });
+    call.on('close', () => {
+      if (this.#calls.get(id) === call) this.#calls.delete(id);
+      this.#events.onVoiceEnded(id);
+    });
+    call.on('error', (error: Error) => {
+      console.warn('[net] voice call failed', id, error);
+      this.#events.onVoiceEnded(id);
+    });
+  }
+
+  /**
+   * Speech does not need more than `voice.bitrateKbps`, and the gameplay data
+   * channels share the same connection - a voice track that grabs the bandwidth
+   * would cost everyone their position updates.
+   */
+  #limitBitrate(call: MediaConnection): void {
+    for (const sender of call.peerConnection?.getSenders() ?? []) {
+      if (sender.track?.kind !== 'audio') continue;
+      const parameters = sender.getParameters();
+      parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
+      for (const encoding of parameters.encodings) encoding.maxBitrate = this.#voice.bitrateKbps * 1000;
+      void sender.setParameters(parameters).catch((error: unknown) => {
+        console.warn('[net] could not cap voice bitrate', error);
+      });
+    }
+  }
+
+  #addPlayer(id: string): void {
+    this.#players.add(id);
+    this.#events.onPeerJoin(id);
+    this.#callPeer(id);
+  }
+
+  #removePlayer(id: string): void {
+    this.#players.delete(id);
+    this.#calls.get(id)?.close();
+    this.#calls.delete(id);
+    this.#events.onVoiceEnded(id);
+    this.#events.onPeerLeave(id);
+  }
+
   #relay(message: NetMessage, exceptId: string): void {
     for (const [id, connection] of this.#connections) {
       if (id !== exceptId) this.#send(connection, message);
@@ -296,6 +407,9 @@ export class Net {
   }
 
   async #dispose(): Promise<void> {
+    for (const call of this.#calls.values()) call.close();
+    this.#calls.clear();
+    this.#players.clear();
     for (const connection of this.#connections.values()) connection.close();
     this.#connections.clear();
     this.#peer?.destroy();

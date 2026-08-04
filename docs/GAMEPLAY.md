@@ -84,10 +84,20 @@ distortion that ramp with proximity (`player.json → effects`).
 
 Proximity-based and generous — `net.json → voice.hearingRange` (22 m) versus the
 enemy's much shorter voice hearing. Three modes, switchable from the pause menu with
-one control: **off / open mic / push-to-talk**.
+one control: **off / open mic / push-to-talk**. You can also mute any teammate; the
+mute is yours alone and they are never told.
+
+A **solo run has no voice at all** — the microphone is never even asked for. There
+is nobody to hear you, so all it could do is cost you.
+
+Only real speech reaches the hunter: it takes `voice.noiseThresholdDb` to emit a
+noise event at all, well above the level that opens an open mic. Breathing into your
+microphone costs you nothing; shouting does.
 
 Escaped and dead players spectate and can hear each other and whoever they are
-watching; live players cannot hear them. Downed players are still live players.
+watching; live players cannot hear them. Downed players are still live players — and
+a downed player calling out is the intended way to be found, at the price of giving
+the hunter somewhere to keep searching.
 
 ## 6. Win and lose
 

@@ -28,7 +28,7 @@
     "handSlots": { "enabled": true, "position": "bottom-center" },
     "healthState": { "enabled": true, "mode": "vignette-only" },
     "teammateList": { "enabled": true, "position": "bottom-left", "showVoiceIndicator": true },
-    "voiceIndicator": { "enabled": true, "position": "bottom-left" },
+    "voiceIndicator": { "enabled": true, "position": "bottom-left", "showLevelMeter": true },
     "objectiveHint": { "enabled": true, "durationSeconds": 5 },
     "subtitles": { "enabled": false }
   },

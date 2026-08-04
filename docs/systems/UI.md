@@ -53,7 +53,7 @@ later is a one-variable change. Do not build a scale setting now.
 | `Lobby` | Player list, ready state, countdown, code + copy button. Map voting happens **in the 3D lobby** on posters, not here |
 | `Options` | Tabs: Gameplay / Graphics / Audio / Controls / Voice. Writes to the save profile |
 | `Controls` | Rebinding. Click an action, press a key. Conflicts are shown, not silently overwritten |
-| `Pause` | Resume / Options / Voice mode toggle / Abandon run. **Voice mode is one control, per the design brief** |
+| `Pause` | Resume / Options / Voice / Abandon run. **Voice mode is one control, per the design brief** — a segmented `off / open mic / push to talk` (`src/ui/screens/VoicePanel.tsx`), with self-mute and a per-teammate mute under it. Mutes are local; nothing is sent and the muted player is never told |
 | `Scoreboard` | Per-player rows × categories from `game.json → scoring.categories`. Best value in each category gets the green ring |
 | `Spectate` | Minimal chrome: whose view, next/prev |
 
@@ -68,8 +68,8 @@ a config change.
 | Interact prompt | Verb + key from `input.json`, hold ring for hold-interactions. Text via `t('hud.interact.*')` |
 | Hand slots | Two slots, left/right, item icon + name |
 | Health state | Vignette-driven by default (`mode: 'vignette-only'`) — no health bar. Your own state also reads off your line in the roster |
-| Teammate list | The **roster**, bottom left: every player as a heart (healthy / injured / downed, downed gets a flatline) with their name. Noise rings bloom off the heart whenever that player makes a sound — wider with the loudness, and **red** once the hunter is close enough to have heard it. A `loudness: 0` emitter draws nothing, because it genuinely is nothing. Speaking indicator lands with voice (step 28) |
-| Voice indicator | Current mode, transmitting state |
+| Teammate list | The **roster**, bottom left: every player as a heart (healthy / injured / downed, downed gets a flatline) with their name. Noise rings bloom off the heart whenever that player makes a sound — wider with the loudness, and **red** once the hunter is close enough to have heard it. A `loudness: 0` emitter draws nothing, because it genuinely is nothing. A **microphone** appears next to anyone talking and stays crossed out for anyone you have muted (`hud.teammateList.showVoiceIndicator`) |
+| Voice indicator | The pill under the roster: mode, whether the mic is open right now, and a five-segment input level. The one element written as **plain DOM** (`src/ui/hud/voiceIndicator.ts`) — the level moves every frame, so it must not go through the vdom |
 | Objective hint | Transient line, e.g. "This door needs a key" |
 
 ## Rules

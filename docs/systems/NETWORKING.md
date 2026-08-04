@@ -15,6 +15,13 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 > authoritative simulation, prediction and our own signalling server are plan steps
 > 23–27. The rest of this document describes that target design.
 >
+> **Voice is the exception to the star.** A PeerJS media call needs only the other
+> peer's id, not a data connection, so `src/net/` places one call per pair
+> (`setVoiceStream`, `onVoiceStream`) and voice is a **true mesh** while gameplay
+> data still relays through the host. The lower peer id dials, the higher answers,
+> so each pair has exactly one bidirectional call. Nothing about voice is relayed,
+> mixed or arbitrated here — see [`AUDIO_VOICE.md`](AUDIO_VOICE.md).
+>
 > **The enemy is already host-only**, which is the shape step 27 wants:
 >
 > | Message | Direction | Purpose |
@@ -68,7 +75,8 @@ Per `config/net.json → channels`, two data channels per peer:
 | `state` | unordered, `maxRetransmits: 0` | Snapshots and input frames. Stale data is worthless — never retransmit it. |
 | `events` | ordered, reliable | Door opened, item picked up, player downed, run started/ended, chat. Must arrive exactly once, in order. |
 
-Plus one audio track per peer for voice ([`AUDIO_VOICE.md`](AUDIO_VOICE.md)).
+Plus one audio track per peer for voice ([`AUDIO_VOICE.md`](AUDIO_VOICE.md)). That
+track is created once and never renegotiated — every voice mode is a gain on it.
 
 ## Simulation split
 
