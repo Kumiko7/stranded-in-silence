@@ -64,7 +64,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // PORT lets a second dev server run alongside the first without a clash.
+    port: Number(process.env['PORT']) || 5173,
     strictPort: false,
   },
   build: {

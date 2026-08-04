@@ -15,7 +15,9 @@ import { Input } from './input/index';
 import { Audio } from './audio/index';
 import { attachUiSounds } from './audio/uiSounds';
 import { Net, makeLobbyCode } from './net/index';
+import { VoiceChat } from './voice/index';
 import { Game } from './game/Game';
+import { mountVoiceIndicator } from './ui/hud/voiceIndicator';
 import { App, type UiCallbacks, type UiPush, type UiState } from './ui/App';
 
 const bootRoot = document.getElementById('boot-root');
@@ -30,7 +32,8 @@ function fail(reason: string, error?: unknown): void {
 async function boot(): Promise<void> {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement | null;
   const screenRoot = document.getElementById('screen-root');
-  if (!canvas || !screenRoot) throw new Error('missing #game-canvas or #screen-root');
+  const hudRoot = document.getElementById('hud-root');
+  if (!canvas || !screenRoot || !hudRoot) throw new Error('missing #game-canvas, #screen-root or #hud-root');
 
   // Probe on a throwaway canvas: the first getContext call fixes the context
   // attributes for the life of a canvas, so probing the real one would silently
@@ -78,6 +81,16 @@ async function boot(): Promise<void> {
     health: 'healthy',
     roster: [],
     showRoster: config.ui.hud.teammateList.enabled,
+    voice: {
+      mode: config.net.voice.enabled ? config.net.voice.defaultMode : 'off',
+      modes: config.net.voice.modes,
+      speaking: [],
+      muted: [],
+      selfMuted: false,
+      errorKey: null,
+      pushToTalkKey: input.labelFor('pushToTalk'),
+      showInRoster: config.ui.hud.teammateList.showVoiceIndicator,
+    },
   };
 
   const set = (patch: Partial<UiState>): void => {
@@ -104,12 +117,19 @@ async function boot(): Promise<void> {
     onRevive: () => game.reviveLocal(),
     onPeerEscaped: (id) => game.markEscaped(id),
     onWiped: () => game.endWiped(),
+    onVoiceStream: (id, stream) => voice.addPeer(id, stream),
+    onVoiceEnded: (id) => voice.removePeer(id),
     onStatus: (status) => console.info('[net]', status),
-  });
+  }, config.net.voice);
+
+  /* --- voice -------------------------------------------------------------- */
+
+  const voice = new VoiceChat(config.net.voice, audio, net);
+  const voiceHud = mountVoiceIndicator(hudRoot, config.ui.hud.voiceIndicator);
 
   /* --- game --------------------------------------------------------------- */
 
-  const game = new Game(config, renderer, input, net, audio, {
+  const game = new Game(config, renderer, input, net, audio, voice, {
     onInteractTargetChange: (target) =>
       set({
         promptVerbKey: target?.verbKey ?? null,
@@ -178,7 +198,44 @@ async function boot(): Promise<void> {
       input.requestPointerLock();
     },
     onLeave: leaveRun,
+    onVoiceMode: (mode) => {
+      voice.setMode(mode);
+      pushVoice();
+    },
+    onVoiceSelfMute: () => {
+      voice.toggleSelfMute();
+      pushVoice();
+    },
+    onVoiceMutePeer: (id) => {
+      voice.toggleMute(id);
+      pushVoice();
+    },
   };
+
+  /**
+   * Voice state reaches the vdom only when it actually changed - who is talking
+   * flips a few times a second, and the input level (which moves every frame)
+   * goes to the plain-DOM pill instead.
+   */
+  let voiceSignature = '';
+
+  function pushVoice(): void {
+    const status = voice.status();
+    const signature = [status.mode, status.selfMuted, status.errorKey, ...status.speaking, '|', ...status.muted].join();
+    if (signature === voiceSignature) return;
+
+    voiceSignature = signature;
+    set({
+      voice: {
+        ...state.voice,
+        mode: status.mode,
+        speaking: status.speaking,
+        muted: status.muted,
+        selfMuted: status.selfMuted,
+        errorKey: status.errorKey,
+      },
+    });
+  }
 
   render(
     <App initial={state} callbacks={callbacks} bind={(fn) => { push = fn; }} />,
@@ -212,7 +269,7 @@ async function boot(): Promise<void> {
 
   // Dev-only inspection handle. Stripped from production builds.
   if (import.meta.env.DEV) {
-    Object.assign(window, { __stranded: { config, renderer, game, net, input, audio, state, THREE } });
+    Object.assign(window, { __stranded: { config, renderer, game, net, input, audio, voice, state, THREE } });
   }
 
   const loop = new Loop({ tickRateHz: 60, maxSubStepsPerFrame: 5 });
@@ -222,6 +279,12 @@ async function boot(): Promise<void> {
     },
     render: () => {
       renderer.render();
+      // The pill shows while voice can actually do something - a solo run has
+      // nobody to talk to, so it says nothing at all. The pause menu counts as
+      // showing: you can still be heard while the world is standing still.
+      const status = voice.status();
+      voiceHud.update(status, game.active && status.live, state.voice.pushToTalkKey);
+      pushVoice();
       input.endFrame();
     },
   });
@@ -230,6 +293,8 @@ async function boot(): Promise<void> {
   addEventListener('beforeunload', () => {
     detachInput();
     detachUiSounds();
+    voiceHud.unmount();
+    voice.dispose();
     void net.close();
   });
 }

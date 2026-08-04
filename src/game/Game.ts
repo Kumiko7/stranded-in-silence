@@ -33,6 +33,7 @@ import type { Input } from '@/input/index';
 import type { EnemyTransform, Net } from '@/net/index';
 import type { Renderer } from '@/render/Renderer';
 import { heartbeatCloseness, type AlertLevel } from '@/render/feedback';
+import type { VoiceChat } from '@/voice/index';
 import { generate, type RunLayout } from '@/world/generation';
 import { toggleDoor, unlockDoor, updateDoors, type Door } from '@/world/doors';
 import { updateChests, updateLockers, type Locker } from '@/world/containers';
@@ -91,6 +92,7 @@ export class Game {
   #input: Input;
   #net: Net;
   #audio: Audio;
+  #voice: VoiceChat;
   #hooks: RunHooks;
 
   #world: BuiltWorld | null = null;
@@ -125,6 +127,8 @@ export class Game {
   #enemyRng: Rng = stream(0, 'enemy');
   #enemyTimer = 0;
   #footstepTimer = 0;
+  /** Speaking re-emits on this interval; noise events only live one tick. */
+  #voiceNoiseTimer = 0;
   #run = new RunState();
   #over = false;
 
@@ -139,12 +143,21 @@ export class Game {
   #listenerForward = new THREE.Vector3();
   #listenerUp = new THREE.Vector3();
 
-  constructor(config: Config, renderer: Renderer, input: Input, net: Net, audio: Audio, hooks: RunHooks) {
+  constructor(
+    config: Config,
+    renderer: Renderer,
+    input: Input,
+    net: Net,
+    audio: Audio,
+    voice: VoiceChat,
+    hooks: RunHooks,
+  ) {
     this.#config = config;
     this.#renderer = renderer;
     this.#input = input;
     this.#net = net;
     this.#audio = audio;
+    this.#voice = voice;
     this.#hooks = hooks;
   }
 
@@ -223,11 +236,16 @@ export class Game {
 
     this.#audio.stopSustains();
     this.#audio.music.setScene('run');
+
+    // The microphone is only asked for once someone is actually in a run.
+    this.#voiceNoiseTimer = 0;
+    this.#voice.setActive(true);
   }
 
   end(): void {
     this.#audio.stopSustains();
     this.#audio.music.setScene('menu');
+    this.#voice.setActive(false);
     if (this.#world) {
       this.#renderer.scene.remove(this.#world.root);
       this.#world.dispose();
@@ -562,6 +580,7 @@ export class Game {
     this.#updateInteraction(dt, controlsEnabled);
     if (controlsEnabled) this.#updateHands(player);
     this.#updateFootsteps(dt, player);
+    this.#updateVoice(dt, player);
 
     const { doors, containers } = this.#config.world;
     updateDoors(world.doors, dt, doors.openSeconds, doors.closeSeconds);
@@ -605,6 +624,41 @@ export class Game {
     // Injury costs speed, not stealth: an injured player is exactly as loud as a
     // healthy one, so crouching is still worth doing when you are hurt.
     this.#emitNoise(footstepKind(player.sprinting, player.crouching), player.x, player.z);
+  }
+
+  /**
+   * Attenuation for every teammate, and the one thing speaking costs you.
+   *
+   * Voice is the only noise a downed player can still make, and it is meant to
+   * be made: it is how they are found. It is also how the hunter is pulled back
+   * to them, which is why `voice.noiseThresholdDb` exists - talking carries to
+   * the team well below the level the enemy gets anything from.
+   */
+  #updateVoice(dt: number, player: PlayerState): void {
+    const spectator = this.#escaped || player.health.state === 'dead';
+
+    this.#voice.update(dt, {
+      pushToTalk: this.#input.isDown('pushToTalk'),
+      listener: { x: player.x, z: player.z },
+      spectator,
+      peers: [...this.#remotes].map(([id, remote]) => ({
+        id,
+        x: remote.target.x,
+        z: remote.target.z,
+        spectator: this.#run.isSpectator(id),
+      })),
+    });
+
+    if (this.#input.justPressed('toggleVoiceMute')) this.#voice.toggleSelfMute();
+
+    // Out of the run is out of the hunter's world: an escaped player shouting is
+    // no longer standing anywhere it could go and look.
+    this.#voiceNoiseTimer -= dt;
+    if (spectator || !this.#voice.emittingNoise) return;
+    if (this.#voiceNoiseTimer > 0) return;
+
+    this.#voiceNoiseTimer = this.#config.net.voice.noiseIntervalSeconds;
+    this.#emitNoise('voice', player.x, player.z);
   }
 
   /* --- the hunter ----------------------------------------------------------- */

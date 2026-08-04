@@ -46,14 +46,21 @@
     "hearingRange": 22.0,
     "fullVolumeRange": 4.0,
     "falloff": "inverse",
+    "gainSmoothingSeconds": 0.08,
     "voiceActivityThresholdDb": -45,
     "voiceActivityHangoverMs": 350,
+    "$note2": "The enemy only gets a noise event above `noiseThresholdDb` - well above the open-mic gate, so a whisper carries to your team and not to the hunter. Speaking re-emits every `noiseIntervalSeconds`; noise events live one tick.",
+    "emitsNoiseToEnemy": true,
+    "noiseThresholdDb": -30,
+    "noiseIntervalSeconds": 0.4,
+    "$note3": "Speaking indicators: what counts as audible on a received track, and how long the icon lingers so it does not flicker between words.",
+    "speakingThresholdDb": -58,
+    "speakingHoldMs": 260,
     "echoCancellation": true,
     "noiseSuppression": true,
     "autoGainControl": true,
     "bitrateKbps": 24,
-    "spectatorChannelSeparate": true,
-    "emitsNoiseToEnemy": true
+    "spectatorChannelSeparate": true
   },
 
   "steam": {

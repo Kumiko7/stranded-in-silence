@@ -58,7 +58,7 @@ stranded/
 | `entities/` | Player, item, container, door, trap state + behaviour | `world`, `config` |
 | `ai/` | Enemy state machine, perception (sight/hearing), pathfinding, noise bus | `world`, `entities`, `config` |
 | `net/` | WebRTC mesh, host/client sim split, snapshots, prediction, reconciliation, lobby codes | `shared`, `core`, `config` |
-| `voice/` | Mic capture, per-peer audio tracks, proximity attenuation, PTT/VAD modes | `net`, `config` |
+| `voice/` | Mic capture, per-peer audio tracks, proximity attenuation, PTT/VAD modes | `net`, `config`, `audio` (its context, `voice` bus and panner settings) |
 | `audio/` | Mixer buses, spatial SFX, music/ambience, sound registry | `config`, `assets` |
 | `ui/` | Preact screens (`screens/`), per-frame HUD (`hud/`), theme from `config/ui.json` | `i18n`, `config`, `core` |
 | `game/` | Run orchestration: owns the world, local player, remotes and the per-frame update while a run is live | everything below |
@@ -184,7 +184,9 @@ hearing.
 
 **Voice deliberately carries further for players than for the enemy** — players hear
 each other at `net.json → voice.hearingRange` (22 m), the enemy only within
-`hearing.voiceRoomLimit` rooms. Full detail in [`systems/AI.md`](systems/AI.md).
+`hearing.voiceRoomLimit` rooms, and only above `voice.noiseThresholdDb`, so an open
+mic picking up small sounds cannot give you away. Full detail in
+[`systems/AI.md`](systems/AI.md).
 
 ---
 

@@ -49,6 +49,12 @@ export class RunState {
     return [...this.#players.values()];
   }
 
+  /** Out of the run, one way or the other: the spectator side of voice chat. */
+  isSpectator(id: string): boolean {
+    const player = this.#players.get(id);
+    return !!player && (player.escaped || player.health === 'dead');
+  }
+
   /** A player still able to act: not escaped, not on the floor. */
   isActive(id: string): boolean {
     const player = this.#players.get(id);

@@ -49,7 +49,8 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Which sound a game event fires | `audio.json` | `cues.*` — noise kinds, alert stings, hold loops |
 | How the score reacts to the hunter | `audio.json` | `music.intensityByAlert`, `.proximityWeight`, `.chaseLayerThreshold` |
 | Default key bindings | `input.json` | `actions.*` |
-| Voice chat range and modes | `net.json` | `voice.*` |
+| Voice chat range and modes | `net.json` | `voice.hearingRange`, `.fullVolumeRange`, `.falloff`, `.modes` |
+| How quiet you can talk without the hunter noticing | `net.json` | `voice.noiseThresholdDb` (and `voice.voiceActivityThresholdDb` for the open-mic gate) |
 | Tick rate, interpolation, signalling URL | `net.json` | `simulation.*`, `signalling.*` |
 | Lobby countdown, player cap, run rules | `game.json` | `lobby.*`, `session.*`, `run.*` |
 | UI colours, fonts, HUD layout | `ui.json` | `theme.*`, `hud.*` |
