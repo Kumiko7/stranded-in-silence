@@ -652,9 +652,9 @@ export class Game {
     if (this.#input.justPressed('toggleVoiceMute')) this.#voice.toggleSelfMute();
 
     // Out of the run is out of the hunter's world: an escaped player shouting is
-    // no longer standing anywhere it could go and look.
+    // no longer standing anywhere it could go and look. Also ignore downed players.
     this.#voiceNoiseTimer -= dt;
-    if (spectator || !this.#voice.emittingNoise) return;
+    if (spectator || isDown(player.health.state) || !this.#voice.emittingNoise) return;
     if (this.#voiceNoiseTimer > 0) return;
 
     this.#voiceNoiseTimer = this.#config.net.voice.noiseIntervalSeconds;
