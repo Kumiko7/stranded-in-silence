@@ -110,7 +110,7 @@ Boot → MainMenu → Lobby → Loading → InRun → Scoreboard → Lobby
 | --- | --- |
 | `MainMenu` | ui, render, audio |
 | `Lobby` | + net (connected), voice, world (`lobbyScene`), entities (player) |
-| `Loading` | world generation, art pack load, seed sync |
+| `Loading` | world generation, art pack load, seed sync. **The whole team leaves it together**: each peer reports `ready` and the host holds everyone until the last one is in, or until `net.json → connection.loadTimeoutSeconds` — see [`systems/NETWORKING.md`](systems/NETWORKING.md) → "Starting together" |
 | `InRun` | everything |
 | `Spectating` | as `InRun` minus local player control |
 | `Scoreboard` | ui, audio, net (stats exchange). **Every peer counts its own stats** and broadcasts the whole block; nobody arbitrates, because a player's own client is the only thing that sees every one of their footsteps and a scoreboard is not worth a protocol |
@@ -274,9 +274,10 @@ being simple.
 | **Post-processing beyond gameplay feedback** | Only the effects the design calls for exist (alert state, heartbeat proximity, damage). No general bloom/grain/aberration stack. |
 | **Accessibility settings** (UI scale, reduce flashing, colourblind modes) | UI sizes derive from one base; effects are driven through a single feedback module. |
 | **Config-mismatch detection between peers** | Peers ship `(mapId, seed)` and are assumed to share a build. Hashing config is additive. |
-| **Reconnecting after a disconnect** | A dropped player is marked `disconnected` and the run continues. |
+| **Reconnecting after a disconnect** | A dropped player is marked `disconnected`, their items fall where they stood and the run continues. |
 | **Host migration** | If the host drops, the run ends. `net.json → hostMigration.enabled` marks the seam. |
 | **Anti-cheat** | A host-authoritative P2P game trusts the host. Fine for co-op with friends. |
+| **Host-owned movement** (input frames, prediction, reconciliation) | Each peer moves its own player; the host arbitrates only what can be *contested* — items, doors, locks, the hunter, the outcome. `stepPlayer()` is a pure `(state, input, dt)` function, which is the whole seam. Reasons in [`systems/NETWORKING.md`](systems/NETWORKING.md) → "What the host does not own". |
 | **Vertical maps** | `world.json → grid.levels` exists but only `1` is supported. |
 | **Save format versioning** | No migration path is maintained yet, by explicit decision. |
 

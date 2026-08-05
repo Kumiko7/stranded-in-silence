@@ -54,6 +54,7 @@
   "lobby.everyoneVoted": "所有人都已选择",
   "lobby.yourPick": "你的选择",
   "lobby.loading": "下降中",
+  "loading.waiting": "正在等待其他玩家 {ready}/{total}",
 
   "hud.interact.pickMap": "选择{item}",
   "hud.interact.pickMapAgain": "改选{item}",
@@ -147,6 +148,7 @@
   "hud.status.downed": "倒地",
   "hud.status.dead": "死亡",
   "hud.status.escaped": "已逃出",
+  "hud.status.disconnected": "已断开",
   "hud.voice.muted": "已静音",
   "hud.voice.pushToTalk": "按键说话",
   "hud.voice.holdHint": "长按 {key}",

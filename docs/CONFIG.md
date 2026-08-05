@@ -67,6 +67,9 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Voice chat range and modes | `net.json` | `voice.hearingRange`, `.fullVolumeRange`, `.falloff`, `.modes` |
 | How quiet you can talk without the hunter noticing | `net.json` | `voice.noiseThresholdDb` (and `voice.voiceActivityThresholdDb` for the open-mic gate) |
 | Tick rate, interpolation, signalling URL | `net.json` | `simulation.*`, `signalling.*` |
+| How smooth remote players and the hunter look | `net.json` | `simulation.interpolationDelayMs`, `.maxExtrapolationMs` — playback runs that far in the past so there is always a sample to interpolate toward |
+| How fast a dead peer is noticed | `net.json` | `connection.heartbeatSeconds`, `.timeoutSeconds` |
+| How long the host waits at the loading screen | `net.json` | `connection.loadTimeoutSeconds` — after this the run starts without whoever is missing |
 | Lobby countdown, player cap, run rules | `game.json` | `lobby.*`, `session.*`, `run.*` |
 | How many frames the poster wall has | `game.json` | `lobby.posterSlots` — slots past the map list hang blank |
 | What the lobby wardrobe offers | `player.json` | `customisation.colours`, `.defaultColourId` |

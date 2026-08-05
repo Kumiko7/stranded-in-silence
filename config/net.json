@@ -32,6 +32,14 @@
     "events": { "ordered": true, "reliable": true }
   },
 
+  "connection": {
+    "$doc": "Liveness and the load gate. A browser tab closed without a goodbye never sends one, so peers are dropped on silence rather than on a close event.",
+    "heartbeatSeconds": 2,
+    "timeoutSeconds": 8,
+    "$note": "Everyone generates the map at their own speed. The host holds the run at the loading screen until every peer reports in, or until this expires - a peer that crashed loading must not strand the rest at a spinner.",
+    "loadTimeoutSeconds": 25
+  },
+
   "hostMigration": {
     "enabled": false,
     "$note": "Not implemented in v1. If the host drops, the run ends and everyone returns to the main menu."

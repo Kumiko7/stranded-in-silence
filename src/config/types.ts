@@ -326,7 +326,18 @@ export interface VoiceConfig {
 }
 
 export interface NetConfig {
-  simulation: { snapshotRateHz: number; interpolationDelayMs: number };
+  simulation: {
+    snapshotRateHz: number;
+    /** How far in the past remote bodies are drawn, so there is always a gap to fill. */
+    interpolationDelayMs: number;
+    /** How long a body keeps moving on its last known velocity before it freezes. */
+    maxExtrapolationMs: number;
+  };
+  connection: {
+    heartbeatSeconds: number;
+    timeoutSeconds: number;
+    loadTimeoutSeconds: number;
+  };
   voice: VoiceConfig;
 }
 

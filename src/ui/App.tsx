@@ -39,6 +39,9 @@ export interface UiState {
   maxPlayers: number;
   /** The expedition panel's contents. Null until the cabin is up. */
   lobby: LobbyView | null;
+  /** How many peers have finished loading, and how many there are. */
+  loadingReady: number;
+  loadingTotal: number;
   colours: readonly ColourOption[];
   colourId: string;
   promptVerbKey: string | null;
@@ -238,15 +241,7 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
     );
   }
 
-  if (state.screen === 'loading') {
-    return (
-      <div class="overlay overlay--quiet">
-        <div class="overlay__panel">
-          <h2 class="overlay__title">{t('lobby.loading')}</h2>
-        </div>
-      </div>
-    );
-  }
+  if (state.screen === 'loading') return <Loading state={state} />;
 
   if (state.screen === 'paused') {
     return (
@@ -282,6 +277,40 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
   }
 
   return <Hud state={state} />;
+}
+
+/**
+ * The card between the cabin and the map. It stays up after this browser has
+ * finished building the world, because the run does not start until everybody
+ * has: a bar with one pip per player says who is still coming, so a wait of a
+ * few seconds reads as the team assembling rather than as the game hanging.
+ *
+ * Solo, and for the last person in, it is on screen for one frame.
+ */
+function Loading({ state }: { state: UiState }) {
+  const total = Math.max(1, state.loadingTotal);
+  const pips = Array.from({ length: total }, (_, index) => index < state.loadingReady);
+
+  return (
+    <div class="overlay overlay--quiet">
+      <div class="overlay__panel loading">
+        <h2 class="overlay__title">{t('lobby.loading')}</h2>
+
+        {total > 1 && (
+          <>
+            <div class="loading__pips">
+              {pips.map((ready, index) => (
+                <span key={index} class={ready ? 'loading__pip loading__pip--in' : 'loading__pip'} />
+              ))}
+            </div>
+            <p class="loading__note">
+              {t('loading.waiting', { ready: state.loadingReady, total })}
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -430,10 +459,19 @@ function Roster({ entries, voice }: { entries: RosterEntry[]; voice: VoiceUiStat
     <div class={voice.showInRoster ? 'roster roster--voice' : 'roster'}>
       {entries.map((entry) => {
         const muted = voice.muted.includes(entry.id);
-        const speaking = voice.showInRoster && voice.speaking.includes(entry.id);
+        const speaking = voice.showInRoster && !entry.disconnected && voice.speaking.includes(entry.id);
+        const row = [
+          'roster__row',
+          entry.self ? 'roster__row--self' : '',
+          // Greyed rather than removed: a team that becomes smaller should look
+          // like it, and the line is where their name was a moment ago.
+          entry.disconnected ? 'roster__row--gone' : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
 
         return (
-          <div key={entry.id} class={entry.self ? 'roster__row roster__row--self' : 'roster__row'}>
+          <div key={entry.id} class={row}>
             <div class={`roster__heart roster__heart--${entry.health}`}>
               {entry.pulse && (
                 <div
@@ -454,7 +492,7 @@ function Roster({ entries, voice }: { entries: RosterEntry[]; voice: VoiceUiStat
 
             <span class="roster__name">{t('hud.player.name', { n: entry.index })}</span>
 
-            {voice.showInRoster && (
+            {voice.showInRoster && !entry.disconnected && (
               <MicIcon
                 className={`roster__mic${speaking ? ' roster__mic--live' : ''}${muted ? ' roster__mic--muted' : ''}`}
                 muted={muted}

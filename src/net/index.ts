@@ -5,10 +5,15 @@
  * is the smallest thing that works for 4 players and it keeps the host as the
  * single source of truth for the run seed.
  *
- * Scope note: right now the host is only authoritative over the SEED. Player
- * transforms and door toggles are broadcast and trusted, which is fine with no
- * enemy and no items. The authoritative simulation and client prediction are
- * plan steps 25-27 - see docs/systems/NETWORKING.md.
+ * The host is authoritative over everything two players can disagree about: the
+ * run seed, the hunter, door state, and every contested claim on a single thing
+ * in the world (an item, a chest, a lock, a door to wedge). Requests go up as
+ * `claim` / `doorRequest` and the answer comes back down as `granted` / `denied`
+ * / `door`, which is why those four are the only messages the host does NOT
+ * relay: it consumes them and publishes its own decision instead.
+ *
+ * Movement is deliberately still owned by each peer (see docs/systems/
+ * NETWORKING.md, "What the host does not own"). Nothing else is trusted.
  *
  * VOICE is the exception to the star: a media call needs only the other peer's
  * id, not a data connection, so voice is a true mesh even though gameplay data
@@ -17,7 +22,7 @@
  */
 import Peer, { type DataConnection, type MediaConnection } from 'peerjs';
 import type { NoiseKind } from '@/ai/noiseBus';
-import type { HealthState, VoiceConfig } from '@/config/types';
+import type { HealthState, NetConfig } from '@/config/types';
 import type { PlayerStats } from '@/world/runStats';
 
 /** Namespaced so a 6-character code cannot collide with another app on the public server. */
@@ -31,7 +36,25 @@ export interface PlayerTransform {
   /** Hidden players cannot be seen by the enemy - but a searched locker finds them. */
   hiding: boolean;
   health: HealthState;
+  /**
+   * What is in each hand. It rides along with the transform for one reason:
+   * when a peer drops out, the host has to put whatever they were carrying back
+   * on the floor - a key that leaves with a closed tab would strand the run.
+   */
+  left: string | null;
+  right: string | null;
 }
+
+/**
+ * Something only one player may have. Every one of these is a request to the
+ * host, which answers `granted` to everybody or `denied` to the loser alone.
+ *
+ * `take`      a world item, including a pile of coins
+ * `chest`     the first hold on a chest is the one that opens it
+ * `unlock`    a lock is spent once, so only one key is
+ * `barricade` one set of planks per door
+ */
+export type ClaimKind = 'take' | 'chest' | 'unlock' | 'barricade';
 
 /** The enemy runs on the host; everyone else just receives this. */
 export interface EnemyTransform {
@@ -85,15 +108,42 @@ export type NetMessage =
   | { t: 'setDifficulty'; difficultyId: string }
   /** Host -> all. The countdown finished, or a solo player pressed E. */
   | { t: 'runStart'; run: RunStart }
+  /* --- the load gate ------------------------------------------------------ */
+  /** Any -> host. "My map is built." Nobody moves until everybody has said it. */
+  | { t: 'ready'; id: string }
+  /** Host -> all. How many are in, for the loading screen. */
+  | { t: 'loading'; ready: number; total: number }
+  /** Host -> all. Everyone is in, or the load timeout ran out. Play. */
+  | { t: 'runGo' }
+  /** Any -> all, on an interval. Silence for `timeoutSeconds` is a disconnect. */
+  | { t: 'ping'; id: string }
   | { t: 'lobbyMove'; id: string; x: number; z: number; yaw: number }
   /** Any -> all, on change and on anyone joining. Voice reads it across scenes. */
   | { t: 'scene'; id: string; scene: Scene }
   | { t: 'cosmetic'; id: string; colourId: string }
-  | { t: 'move'; id: string; x: number; z: number; yaw: number; height: number; hiding: boolean; health: HealthState }
+  | {
+      t: 'move';
+      id: string;
+      x: number;
+      z: number;
+      yaw: number;
+      height: number;
+      hiding: boolean;
+      health: HealthState;
+      left: string | null;
+      right: string | null;
+    }
+  /* --- host authority ------------------------------------------------------ */
+  /** Any -> host. `value` carries whatever the result needs, e.g. barricade seconds. */
+  | { t: 'claim'; kind: ClaimKind; id: string; by: string; value: number }
+  /** Host -> all. `by` won it; everybody applies the result. */
+  | { t: 'granted'; kind: ClaimKind; id: string; by: string; value: number }
+  /** Host -> the loser alone. Whatever they showed optimistically comes back off. */
+  | { t: 'denied'; kind: ClaimKind; id: string; by: string }
+  /** Any -> host. "I want this door like this." The host answers with `door`. */
+  | { t: 'doorRequest'; id: string; open: boolean }
+  /** Host -> all. The door's authoritative state. Clients apply it as given. */
   | { t: 'door'; id: string; open: boolean }
-  | { t: 'unlock'; id: string }
-  | { t: 'chest'; id: string }
-  | { t: 'take'; id: string }
   | { t: 'drop'; id: string; itemId: string; x: number; y: number; z: number }
   /**
    * A throw, as its release state. Every peer runs the same ballistics from
@@ -139,6 +189,15 @@ export type NetRole = 'offline' | 'host' | 'client';
 export interface NetEvents {
   /** `slot` picks which spawn point in the shared start room this player uses. */
   onRunStart(run: RunStart, slot: number): void;
+  /** How many peers have finished loading. Only the loading screen reads it. */
+  onLoading(ready: number, total: number): void;
+  /** Everybody is in. Until this arrives the world is built but frozen. */
+  onRunGo(): void;
+  /**
+   * The host is gone. There is no migration by design, so the session is over -
+   * see docs/ARCHITECTURE.md, "Deliberately NOT built".
+   */
+  onHostLost(): void;
   /** This browser is now a client of `host`, standing in their lobby. */
   onLobbyJoined(slot: number): void;
   /** The host's view of the lobby changed. Clients apply it wholesale. */
@@ -152,10 +211,18 @@ export interface NetEvents {
   onPeerJoin(id: string): void;
   onPeerLeave(id: string): void;
   onPeerMove(id: string, transform: PlayerTransform): void;
+  /** A peer moved between the cabin and a run. Both worlds drop bodies that left. */
+  onScene(id: string, scene: Scene): void;
+  /** The host's word on a door. Whatever this browser showed gives way to it. */
   onDoor(doorId: string, open: boolean): void;
-  onDoorUnlocked(doorId: string): void;
-  onChestOpened(chestId: string): void;
-  onItemTaken(id: string): void;
+  /** Host only: a peer wants a door open or shut. */
+  onDoorRequest(doorId: string, open: boolean): void;
+  /** Host only: decide a contested claim. `true` grants it. */
+  onClaim(kind: ClaimKind, id: string, by: string, value: number): boolean;
+  /** `by` won the claim. Every peer applies the result, winner included. */
+  onGranted(kind: ClaimKind, id: string, by: string, value: number): void;
+  /** This browser lost. Take back whatever it showed in the meantime. */
+  onDenied(kind: ClaimKind, id: string): void;
   onItemDropped(id: string, itemId: string, x: number, y: number, z: number): void;
   /** A peer threw something. Its arc is re-simulated locally, not replicated. */
   onItemThrown(
@@ -184,13 +251,43 @@ export interface NetEvents {
   onStatus(status: string): void;
 }
 
+/**
+ * Requests the host answers rather than passes on. Relaying one would let a
+ * client's opinion reach another client without the host ever deciding, which
+ * is exactly what authority is for. `ping` is per-connection liveness and means
+ * nothing to a third party.
+ */
+const NOT_RELAYED: ReadonlySet<NetMessage['t']> = new Set([
+  'welcome',
+  'pick',
+  'setDifficulty',
+  'claim',
+  'doorRequest',
+  'ready',
+  'ping',
+]);
+
 export class Net {
   #peer: Peer | null = null;
   #connections = new Map<string, DataConnection>();
   #events: NetEvents;
-  #voice: VoiceConfig;
+  #config: NetConfig;
   #code = '';
   role: NetRole = 'offline';
+
+  /* --- liveness ------------------------------------------------------------ */
+  /** Seconds since anything at all arrived from each peer. */
+  #silence = new Map<string, number>();
+  #pingTimer = 0;
+
+  /* --- the load gate ------------------------------------------------------- */
+  /** Host only: who has finished building the map. */
+  #ready = new Set<string>();
+  /** Whether a run is currently being held at the loading screen. */
+  #gateOpen = false;
+  /** Whether the run has been let out of it. */
+  #going = false;
+  #loadTimer = 0;
 
   /* --- voice mesh ---------------------------------------------------------- */
   /** Everyone in the session, including peers this browser has no data link to. */
@@ -222,9 +319,9 @@ export class Net {
   #cosmetic = '';
   #cosmetics = new Map<string, string>();
 
-  constructor(events: NetEvents, voice: VoiceConfig) {
+  constructor(events: NetEvents, config: NetConfig) {
     this.#events = events;
-    this.#voice = voice;
+    this.#config = config;
   }
 
   get code(): string {
@@ -297,12 +394,145 @@ export class Net {
    */
   startRun(run: RunStart): void {
     this.#run = run;
+    this.#openGate();
     this.broadcast({ t: 'runStart', run });
   }
 
   /** Host only. The run is over; the code goes back to being a lobby code. */
   endRun(): void {
     this.#run = null;
+    this.#gateOpen = false;
+    this.#going = false;
+    this.#ready.clear();
+  }
+
+  /* --- the load gate ------------------------------------------------------- */
+
+  /**
+   * Everybody builds the same map from the same seed, but not at the same
+   * speed - a slower machine can be twenty seconds behind. Letting each peer in
+   * as it finishes drops them into a run already underway, alone, with the
+   * hunter awake. So the world is built, this is called, and nothing moves
+   * until the host says everyone is in.
+   */
+  reportReady(): void {
+    if (this.role === 'offline') {
+      this.#going = true;
+      this.#events.onRunGo();
+      return;
+    }
+    // Belt and braces: a run entered by any route other than `startRun` still
+    // gets a gate, because a loading screen that never lifts is the worst thing
+    // this could do.
+    if (!this.#gateOpen && !this.#going) this.#openGate();
+
+    if (this.role === 'host') {
+      this.#markReady(this.selfId);
+      return;
+    }
+    this.broadcast({ t: 'ready', id: this.selfId });
+  }
+
+  #openGate(): void {
+    this.#ready.clear();
+    this.#gateOpen = true;
+    this.#going = false;
+    this.#loadTimer = this.#config.connection.loadTimeoutSeconds;
+  }
+
+  /** Host only. */
+  #markReady(id: string): void {
+    this.#ready.add(id);
+
+    // A peer that turned up after the gate opened is not being waited for -
+    // they were handed the run in their welcome and can walk straight in.
+    if (this.#going) {
+      if (id !== this.selfId) this.#sendTo(id, { t: 'runGo' });
+      return;
+    }
+
+    this.broadcast({ t: 'loading', ready: this.#ready.size, total: this.#connections.size + 1 });
+    this.#events.onLoading(this.#ready.size, this.#connections.size + 1);
+    this.#checkGate();
+  }
+
+  /** Host only. Opens the run once nobody is left to wait for. */
+  #checkGate(): void {
+    if (this.#going || !this.#gateOpen) return;
+    if (this.#ready.size < this.#connections.size + 1) return;
+    this.#letEveryoneIn();
+  }
+
+  #letEveryoneIn(): void {
+    this.#gateOpen = false;
+    this.#going = true;
+    this.broadcast({ t: 'runGo' });
+    this.#events.onRunGo();
+  }
+
+  /* --- liveness ------------------------------------------------------------ */
+
+  /**
+   * Heartbeats out, silence measured in. A browser tab that is closed, crashes
+   * or loses its network never sends a goodbye and WebRTC can take the best
+   * part of a minute to admit it, so a peer nothing has been heard from for
+   * `timeoutSeconds` is treated as gone. The cost of being wrong is one
+   * reconnect; the cost of not doing it is a body standing in a corridor for
+   * the rest of the run.
+   */
+  tick(dt: number): void {
+    if (this.role === 'offline') return;
+    const { heartbeatSeconds, timeoutSeconds } = this.#config.connection;
+
+    this.#pingTimer -= dt;
+    if (this.#pingTimer <= 0) {
+      this.#pingTimer = heartbeatSeconds;
+      this.broadcast({ t: 'ping', id: this.selfId });
+    }
+
+    for (const id of [...this.#connections.keys()]) {
+      const silence = (this.#silence.get(id) ?? 0) + dt;
+      this.#silence.set(id, silence);
+      if (silence < timeoutSeconds) continue;
+      console.warn('[net] no word from', id, 'for', timeoutSeconds, 'seconds - dropping');
+      this.#close(id);
+    }
+
+    // Nobody is stranded at a spinner by one peer who never finished loading.
+    if (this.role !== 'host' || !this.#gateOpen) return;
+    this.#loadTimer -= dt;
+    if (this.#loadTimer <= 0) {
+      console.warn('[net] load timeout - starting without everyone');
+      this.#letEveryoneIn();
+    }
+  }
+
+  /** Hangs up on a peer and puts everyone else in the same position. */
+  #close(id: string): void {
+    const connection = this.#connections.get(id);
+    this.#connections.delete(id);
+    this.#silence.delete(id);
+    connection?.close();
+    this.#onLost(id);
+  }
+
+  /**
+   * A connection is gone, however it went. On a client that connection is the
+   * host, and losing it ends the session; on the host it is one player, and the
+   * run carries on without them.
+   */
+  #onLost(id: string): void {
+    this.#removePlayer(id);
+
+    if (this.role === 'client') {
+      this.#events.onHostLost();
+      return;
+    }
+    if (this.role !== 'host') return;
+
+    this.#relay({ t: 'leave', id }, id);
+    this.#ready.delete(id);
+    this.#checkGate();
   }
 
   get lobby(): LobbySnapshot {
@@ -423,12 +653,22 @@ export class Net {
   #register(connection: DataConnection): void {
     const id = shortId(connection.peer);
     this.#connections.set(id, connection);
+    this.#silence.set(id, 0);
 
-    connection.on('data', (data) => this.#receive(id, data as NetMessage));
-    connection.on('close', () => {
+    connection.on('data', (data) => {
+      this.#silence.set(id, 0);
+      this.#receive(id, data as NetMessage);
+    });
+    const lost = (): void => {
+      if (this.#connections.get(id) !== connection) return;
       this.#connections.delete(id);
-      this.#removePlayer(id);
-      if (this.role === 'host') this.#relay({ t: 'leave', id }, id);
+      this.#silence.delete(id);
+      this.#onLost(id);
+    };
+    connection.on('close', lost);
+    connection.on('error', (error) => {
+      console.warn('[net] connection error', id, error);
+      lost();
     });
   }
 
@@ -467,13 +707,29 @@ export class Net {
         break;
       case 'runStart':
         this.#run = message.run;
+        this.#gateOpen = false;
+        this.#going = false;
         this.#events.onRunStart(message.run, this.#mySlot);
+        break;
+      case 'ready':
+        if (this.role === 'host') this.#markReady(message.id);
+        break;
+      case 'loading':
+        this.#events.onLoading(message.ready, message.total);
+        break;
+      case 'runGo':
+        this.#going = true;
+        this.#events.onRunGo();
+        break;
+      case 'ping':
+        // The arrival is the whole message. Silence is what it prevents.
         break;
       case 'lobbyMove':
         this.#events.onLobbyMove(message.id, message.x, message.z, message.yaw);
         break;
       case 'scene':
         this.#scenes.set(message.id, message.scene);
+        this.#events.onScene(message.id, message.scene);
         break;
       case 'cosmetic':
         this.#cosmetics.set(message.id, message.colourId);
@@ -485,14 +741,18 @@ export class Net {
       case 'door':
         this.#events.onDoor(message.id, message.open);
         break;
-      case 'unlock':
-        this.#events.onDoorUnlocked(message.id);
+      case 'doorRequest':
+        if (this.role === 'host') this.#events.onDoorRequest(message.id, message.open);
         break;
-      case 'chest':
-        this.#events.onChestOpened(message.id);
+      case 'claim':
+        this.#resolveClaim(message.kind, message.id, message.by, message.value);
         break;
-      case 'take':
-        this.#events.onItemTaken(message.id);
+      case 'granted':
+        this.#events.onGranted(message.kind, message.id, message.by, message.value);
+        break;
+      case 'denied':
+        // Addressed, not broadcast: only the peer that lost has anything to undo.
+        if (message.by === this.selfId) this.#events.onDenied(message.kind, message.id);
         break;
       case 'drop':
         this.#events.onItemDropped(message.id, message.itemId, message.x, message.y, message.z);
@@ -543,8 +803,43 @@ export class Net {
         break;
     }
 
-    // The host is the only path between clients, so pass it along.
-    if (this.role === 'host' && message.t !== 'welcome') this.#relay(message, from);
+    // The host is the only path between clients, so pass it along - unless it
+    // was a request addressed to the host, which it answers rather than repeats.
+    if (this.role === 'host' && !NOT_RELAYED.has(message.t)) this.#relay(message, from);
+  }
+
+  /* --- host authority ------------------------------------------------------ */
+
+  /**
+   * The one place a contested thing is decided. Everything the answer depends
+   * on - is that item still there, is that door still locked - is world state
+   * the host already has, so there is no claim ledger to keep in step: granting
+   * a claim is what makes the next one for the same thing fail.
+   */
+  #resolveClaim(kind: ClaimKind, id: string, by: string, value: number): void {
+    if (this.role === 'client') return;
+
+    if (!this.#events.onClaim(kind, id, by, value)) {
+      if (by === this.selfId) this.#events.onDenied(kind, id);
+      else this.#sendTo(by, { t: 'denied', kind, id, by });
+      return;
+    }
+
+    this.broadcast({ t: 'granted', kind, id, by, value });
+    this.#events.onGranted(kind, id, by, value);
+  }
+
+  /**
+   * Asks the host for something only one player can have. Offline and on the
+   * host this resolves in place, so a solo run never notices there is a
+   * protocol at all.
+   */
+  claim(kind: ClaimKind, id: string, value = 0): void {
+    if (this.role === 'client') {
+      this.broadcast({ t: 'claim', kind, id, by: this.selfId, value });
+      return;
+    }
+    this.#resolveClaim(kind, id, this.selfId, value);
   }
 
   /* --- voice --------------------------------------------------------------- */
@@ -606,7 +901,7 @@ export class Net {
       if (sender.track?.kind !== 'audio') continue;
       const parameters = sender.getParameters();
       parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}];
-      for (const encoding of parameters.encodings) encoding.maxBitrate = this.#voice.bitrateKbps * 1000;
+      for (const encoding of parameters.encodings) encoding.maxBitrate = this.#config.voice.bitrateKbps * 1000;
       void sender.setParameters(parameters).catch((error: unknown) => {
         console.warn('[net] could not cap voice bitrate', error);
       });
@@ -648,6 +943,12 @@ export class Net {
     for (const connection of this.#connections.values()) this.#send(connection, message);
   }
 
+  /** Host -> one peer. Used where an answer concerns nobody else. */
+  #sendTo(id: string, message: NetMessage): void {
+    const connection = this.#connections.get(id);
+    if (connection) this.#send(connection, message);
+  }
+
   #send(connection: DataConnection, message: NetMessage): void {
     if (!connection.open) return;
     try {
@@ -663,6 +964,10 @@ export class Net {
     this.#players.clear();
     this.#scenes.clear();
     this.#cosmetics.clear();
+    this.#silence.clear();
+    this.#ready.clear();
+    this.#gateOpen = false;
+    this.#going = false;
     for (const connection of this.#connections.values()) connection.close();
     this.#connections.clear();
     this.#peer?.destroy();
@@ -687,6 +992,10 @@ export class Net {
     this.#scene = 'lobby';
     this.#slots.clear();
     this.#nextSlot = 1;
+    this.#silence.clear();
+    this.#ready.clear();
+    this.#gateOpen = false;
+    this.#going = false;
     for (const call of this.#calls.values()) call.close();
     this.#calls.clear();
     for (const id of [...this.#players]) this.#removePlayer(id);

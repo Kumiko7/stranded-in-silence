@@ -270,6 +270,36 @@ body {
   backdrop-filter: blur(2px);
 }
 
+.loading {
+  min-width: min(22rem, 88vw);
+}
+
+/* One pip per player, filling as each one finishes building the map. A count on
+   its own reads as a progress bar that has stalled; four lamps read as people. */
+.loading__pips {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.loading__pip {
+  width: 2.4rem;
+  height: 0.22rem;
+  background: #ffffff1f;
+  transition: background 220ms ease, box-shadow 220ms ease;
+}
+
+.loading__pip--in {
+  background: var(--c-accent);
+  box-shadow: 0 0 0.5rem #d8593c66;
+}
+
+.loading__note {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  color: var(--c-text-dim);
+}
+
 /* --- lobby: the expedition panel ------------------------------------------ */
 /* Top right. Readable from anywhere in the cabin, including facing the fire. */
 
@@ -1355,7 +1385,8 @@ body {
 }
 
 .card__stage--downed .figure,
-.card__stage--dead .figure {
+.card__stage--dead .figure,
+.card__stage--disconnected .figure {
   filter: grayscale(0.8);
   opacity: 0.55;
 }
@@ -1415,6 +1446,8 @@ body {
 .chip--injured { color: var(--c-warn); }
 .chip--downed,
 .chip--dead { color: var(--c-bad); }
+/* Not an outcome, just an absence - so it stays the dimmest thing on the card. */
+.chip--disconnected { opacity: 0.6; }
 
 .card__stats {
   margin: 0;
@@ -1703,6 +1736,12 @@ body {
 
 .roster__row--self {
   border-left-color: var(--c-accent);
+}
+
+/* Gone, but still on the list: you should be able to see the team get smaller. */
+.roster__row--gone {
+  opacity: 0.4;
+  filter: grayscale(1);
 }
 
 .roster__heart {

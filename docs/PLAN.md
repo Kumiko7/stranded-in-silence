@@ -54,6 +54,13 @@ run something you have to *solve*. Slice 3 makes it something you can lose:
   brightness, shadows, five volume sliders, full key rebinding and six languages,
   over a save profile with a real schema.
 
+- **Host authority** (steps 24–27) — the four things two players can want at once
+  (an item, a chest, a lock, a door to wedge) go through one claim protocol the host
+  answers from world state, so nothing can be taken twice; doors are requested and
+  corrected; remote bodies are drawn from a snapshot buffer instead of chased; the
+  team leaves the loading screen together; and a peer who drops leaves their key on
+  the floor rather than taking it home.
+
 Still missing: nothing in Slice 3. Steps 33, 38 and Phase 4 are what remain.
 
 Because these are slices rather than a sequence of finished steps, several steps
@@ -234,30 +241,38 @@ the simulation is written host-authoritative from the start.*
 
 ### ◐ 24. Peer mesh + transport
 **Goal:** reliable plumbing between peers.
-**Touches:** `src/net/{peerMesh,channels,transport,serialization}.ts`.
-**Details:** full mesh `RTCPeerConnection`s, the two data channels from `config/net.json → channels`, connection lifecycle and error surfaces, compact binary snapshot encoding.
+**Touches:** `src/net/index.ts`, `config/net.json → connection`.
+**Details:** connection lifecycle, error surfaces, heartbeats and disconnect detection.
 **Done when:** 4 tabs connect, exchange heartbeats, and disconnects are detected and reported.
-**Still missing:** full mesh (slice 1 is a **star** with the host relaying), the separate unreliable state channel, and binary encoding — messages are JSON on one reliable channel. Connect/join/leave and peer tracking work.
+**Still missing:** the **full mesh** (this is a star with the host relaying), the separate unreliable `state` channel, and binary encoding — messages are JSON on one reliable channel. All three are deliberate: 4 players relaying through one host is a few hundred bytes a tick, and the star is what makes "the host decides" a single place in the code rather than a consensus problem. Revisit if player count or message size grows.
+**Note:** liveness landed here — `ping` every `connection.heartbeatSeconds`, and a peer nothing has been heard from for `connection.timeoutSeconds` is dropped. A closed tab never sends a goodbye and WebRTC can take a minute to notice, which is the whole reason this exists rather than trusting the `close` event.
 
 ### ◐ 25. Host-authoritative simulation + prediction
 **Goal:** everyone sees the same world.
-**Touches:** `src/net/{host,client,prediction,reconciliation,interpolation}.ts`.
-**Details:** input frames up, snapshots down, client prediction reusing the step-11 movement function, reconciliation thresholds, interpolation delay, `(mapId, seed)` run start.
+**Touches:** `src/net/interpolation.ts`, `src/game/Game.ts`.
+**Details:** snapshots down, interpolation delay, `(mapId, seed)` run start, the load gate.
 **Done when:** four players walk around one generated map with smooth remote motion under simulated 100 ms latency.
-**Still missing:** all of the authority. Slice 1 broadcasts each player's own transform and interpolates remotes — there is no authoritative sim, no input frames, no reconciliation. The host owns only the run seed. `stepPlayer()` is already a pure `(state, input, dt)` function so prediction can reuse it verbatim.
+**Still missing:** input frames, prediction and position reconciliation — **by decision, not by omission**. See [`systems/NETWORKING.md`](systems/NETWORKING.md) → "What the host does not own": the host arbitrates everything that can be *contested*, and a position cannot be (two players may stand in the same doorway). Anti-cheat is explicitly not built. `stepPlayer()` remains a pure `(state, input, dt)` function, which is the only seam a change of mind would need.
+**Note:** what did land is the presentation half — remote players and, on a client, the hunter are drawn from a snapshot buffer that plays back `simulation.interpolationDelayMs` in the past and extrapolates at most `maxExtrapolationMs` before holding still. Chasing the latest packet with a lerp is what made remote motion rubbery; this is what fixes it, and it finally reads two config values that had never been read.
 
-### ◐ 26. Networked world interactions
+### ☑ 26. Networked world interactions
 **Goal:** doors, chests, items and the exit work for everyone.
-**Touches:** `src/net/replication/`, entity modules from steps 13–15.
-**Details:** host-decided interaction results on the `events` channel, optimistic local feedback, item ownership and hand slots, exit progress.
+**Touches:** `src/net/index.ts`, `src/game/Game.ts`.
+**Details:** host-decided interaction results, optimistic local feedback, item ownership and hand slots.
 **Done when:** two players cannot dupe an item, and door state is consistent for all four.
-**Still missing:** all of the authority. Unlocks, chest openings and item pickup/drop are broadcast and trusted, exactly like doors — two players can still take the same item. Deterministic item ids (`item:x,y:i`, `chest:x,y:i:loot`, `drop:<peer>:<n>`) are in place, so adding host arbitration is a change of who decides, not of what is sent.
+**Note:** four things can only have one owner — an item (`take`), a chest, a lock (`unlock`) and a door to wedge (`barricade`) — and all four go through one three-message protocol: `claim` up, `granted` to everyone, `denied` to the loser alone. **The host keeps no ledger:** every answer is read off world state it already has, so granting a claim is exactly what makes the next claim on the same thing fail.
+**Note:** **only a pick-up is optimistic**, because it is the only one that is a press — a hand that filled a round trip later would feel broken. It is also never rolled *back into the world*: a take is denied only because somebody else already has it. Everything else follows a hold, so the key, the planks and the chest are spent on the grant and there is nothing to undo.
+**Note:** doors are the same idea without a denial — `doorRequest` up, `door` down carrying the state the host actually reached, so a door that turned out to be locked corrects itself within a round trip.
+**Note:** **coins stopped being a message.** A pile's value is rolled from `(seed, item id)`, so every peer that sees the grant reaches the same number; `coins` survives only for treasure banked at the exit. A message that cannot be lost beats one that has to be resent.
+**Verified:** two tabs, one map. The client took a coin pile and both purses moved to the same total; the host then claimed the same pile and was denied, purses unchanged. Reversed the order and got the reverse result. A `doorRequest` on an ordinary door came back `open: true`; the same request on a locked one came back `open: false` — the host correcting the client.
 
-### ◐ 27. Networked enemy and run state
+### ☑ 27. Networked enemy and run state
 **Goal:** the hunter is shared.
-**Touches:** `src/net/index.ts`, `src/world/runState.ts`.
-**Details:** AI on host only, enemy transform + alert level replicated at `snapshotRateHz`, networked noise/injure/down/revive/escape, win and lose resolution.
-**Still missing:** verification with real peers — the enemy, noise, hit, health, revive and wipe messages are implemented and typed but have only been exercised solo (offline counts as host). Disconnect handling beyond removing the peer from `RunState` is not built.
+**Touches:** `src/net/index.ts`, `src/world/runState.ts`, `src/game/Game.ts`.
+**Details:** AI on host only, enemy transform + alert level replicated at `snapshotRateHz`, networked noise/injure/down/revive/escape, win and lose resolution, disconnect handling.
+**Note:** a peer who drops **leaves their things behind**. `move` carries both hands for exactly this reason: the host puts whatever they were carrying on the floor where they stood, because a key that leaves the map inside a closed tab is a run nobody can finish. Their `RunState` entry is marked `disconnected` rather than deleted, so they still count against the wipe condition and still get a roster line and a scoreboard column — greyed, but there.
+**Note:** **leaving a run back to the cabin is a disconnect too.** Peers announce their `scene`, and a peer who is no longer in `run` is dropped from it by the same path — otherwise their body stood in a corridor for as long as everybody else kept playing.
+**Verified:** two tabs. A client silenced mid-run was dropped by the host's timeout, its line greyed and the player count fell; the client, hung up on, landed back on the main menu with the localised "the host left". A peer holding a key and a bandage had both spawned at their last position on every peer when they went.
 
 ### ☑ 28. Proximity voice chat
 **Goal:** the reason the game works.
@@ -395,4 +410,5 @@ floating under the plaster.
 | 2026-08-04 | **Room review tool.** `tools/roomshot` renders every room of a pack through the real `Renderer` + `buildWorld` and writes a contact sheet per room to `shots/` (git-ignored) via a dev-only Vite middleware — see [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md). Nothing about the look is re-implemented, so a sheet is what the game shows. Its first pass over the mansion fixed four bugs the headless validator cannot see, listed under step 32. |
 | 2026-08-05 | **Steps 35 and 36 — options and the run report.** The save profile has a real schema (`src/save/{index,options}.ts`) whose every default is read from `config/`, so reset-to-defaults means "whatever the config files say"; every stored value is validated on the way in, which is what stands in for format versioning. Options is deliberately the basics — sensitivity, invert Y, FOV, brightness, shadows, five volumes — and is **not** a config merge layer: `applyOptions()` in `main.tsx` hands the values to the renderer, input and audio at boot and on every change, through one code path. `config/game.json → scoring.categories` was rewritten to the five counters logic actually keeps (`src/world/runStats.ts`); **`noiseMade` accumulates loudness and is the one where less is better**. Every peer counts its own stats and broadcasts the block whole (`t: 'stats'`) — no arbitration, because a scoreboard is not worth one. Three UI decisions came with it: the reusable `Slider`/`Switch`/`Tabs` set (`src/ui/components/Controls.tsx`), a **viewport-relative base font size** on `.layer` so the whole interface scales with the display, and `.overlay` becoming `position: fixed` so a screen layered over another does not stack below the viewport. `screen: 'escaped' \| 'wiped'` collapsed into one `'scoreboard'`, which works out its own outcome. |
 | 2026-08-05 | **Step 35 finished — rebinding and six languages.** Key rebinding with conflict display (`src/ui/screens/Controls.tsx`), a language selector, and `npm run validate:locales`. The game now ships in English, Japanese, Simplified Chinese, Russian, Spanish and Brazilian Portuguese; the language lives in the save profile and switching applies without a reload, which moved `save.load()` **ahead of** `initI18n()` in the boot sequence. Bindings now reach the UI as **raw codes** (`Input.labelFor` → `bindingFor`) and are drawn rather than named: a key cap, or a small mouse with the pressed button lit — "LMB" is jargon that means nothing in five of the six languages. `{key}` is substituted by *splitting* the translated string rather than filling it, so Japanese can put the cap first; the words on the caps live in `input.json → keyLabels`. Two things fell out of it: `src/ui/theme.ts` finally exists, because `ui.json → theme` had never been read by anything and the CJK/Cyrillic font fallbacks had to reach the page; and the HUD's three prompt blocks became one stacked column, because at fixed screen percentages they landed on top of each other the moment a translation was longer. The `Select` dropdown built for the language picker was replaced by a wrapping `Choice` chip group — a floating list is clipped by the options panel's own scroll container. |
+| 2026-08-05 | **Steps 26 and 27 done, 24 and 25 advanced — the host actually decides.** Four contested things (`take` / `chest` / `unlock` / `barricade`) share one `claim` → `granted` / `denied` protocol, answered from world state rather than from a ledger of claims, so granting one is what makes the next fail. Doors became `doorRequest` up and an authoritative `door` down. **Only a pick-up is optimistic** — every other claim follows a hold, so the result lands inside the animation and nothing needs rolling back. `coins` stopped being sent for piles: the value is rolled from `(seed, item id)` and every peer that sees the grant reaches the same number. Remote players and the hunter are now drawn from a snapshot buffer (`src/net/interpolation.ts`) that plays back `interpolationDelayMs` in the past and extrapolates at most `maxExtrapolationMs` — two config values that had never been read. A **load gate** holds the whole team at the loading card until everybody's map is built (`ready` / `loading` / `runGo`, with `connection.loadTimeoutSeconds` as the escape hatch); a world that is built but not released presents without running, so the hunter cannot get a head start on whoever loaded last and the conversation over the top of it is never cut. Disconnects are detected by heartbeat rather than by trusting `close`, a dropped peer's hands are emptied onto the floor by the host (which is why `move` carries them), and leaving a run for the cabin is treated as one. Host-owned *movement* was deliberately not built — the reasons are in [`systems/NETWORKING.md`](systems/NETWORKING.md) → "What the host does not own". |
 | 2026-08-02 | **Slice 2 playable**: locked doors, keys, chests, lockers and the two-hand inventory. Generation now locks doors on the spanning-tree route *before* adding loops and forbids loops across a lock, which makes "always X locked doors, always enough keys" structural rather than checked — see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys". Steps 9, 13, 14, 15, 22, 26 advanced. `loot.chestTable` / `floorTable` were trimmed to `key` + `empty` until the item roster lands in step 37. |
