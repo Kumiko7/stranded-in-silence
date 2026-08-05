@@ -183,7 +183,6 @@
   "options.fov": "Field of view",
   "options.degrees": "{value}°",
   "options.brightness": "Brightness",
-  "options.brightnessNote": "There is no torch. This is the only light you control.",
   "options.shadows": "Shadows",
   "options.sensitivity": "Mouse sensitivity",
   "options.invertY": "Invert vertical look",

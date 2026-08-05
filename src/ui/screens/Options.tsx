@@ -105,9 +105,6 @@ export function Options({ options, ranges, buses, onChange, onReset, onClose }: 
                 offLabel={t('common.off')}
                 onChange={(shadows) => onChange({ graphics: { ...options.graphics, shadows } })}
               />
-              {/* The one thing worth saying out loud: there is no flashlight, so
-                  this slider is the only way to make the game brighter. */}
-              <p class="panel__note">{t('options.brightnessNote')}</p>
             </FieldGroup>
           )}
 
