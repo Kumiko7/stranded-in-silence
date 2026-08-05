@@ -21,7 +21,9 @@
   },
 
   "camera": {
+    "$note": "`fovDegrees` and `invertY` are the DEFAULTS the options menu starts from; `fovRange` is how far its slider may be dragged. `mouseSensitivity` is radians per pixel - the options slider scales it (input.json -> mouse.sensitivity), it does not replace it.",
     "fovDegrees": 75,
+    "fovRange": [65, 110],
     "mouseSensitivity": 0.0022,
     "invertY": false,
     "pitchClampDegrees": 88

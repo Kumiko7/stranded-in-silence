@@ -5,12 +5,15 @@
  * No user-visible string here is a literal - every one is a t() key.
  */
 import { useEffect, useState } from 'preact/hooks';
-import type { HealthState, VoiceMode } from '@/config/types';
-import type { RosterEntry, UseView } from '@/game/Game';
+import type { AudioConfig, GameConfig, HealthState, VoiceMode } from '@/config/types';
+import type { RosterEntry, ScoreRow, UseView } from '@/game/Game';
 import type { LobbyView } from '@/game/Lobby';
+import type { Options as OptionValues, OptionRanges } from '@/save/index';
 import { t } from '@/i18n/index';
 import { LobbyPanel } from './screens/LobbyPanel';
 import { MainMenu } from './screens/MainMenu';
+import { Options } from './screens/Options';
+import { Scoreboard } from './screens/Scoreboard';
 import { VoicePanel } from './screens/VoicePanel';
 import { Wardrobe, type ColourOption } from './screens/Wardrobe';
 
@@ -22,8 +25,8 @@ export type Screen =
   | 'loading'
   | 'run'
   | 'paused'
-  | 'escaped'
-  | 'wiped';
+  /** The run is over for this player, win or lose. The scoreboard says which. */
+  | 'scoreboard';
 
 export interface UiState {
   screen: Screen;
@@ -62,6 +65,19 @@ export interface UiState {
   roster: RosterEntry[];
   showRoster: boolean;
   voice: VoiceUiState;
+  /** One card per player once the run is over. Empty until then. */
+  scoreboard: ScoreRow[];
+  /** `game.json -> scoring.categories`: which rows a card shows, in order. */
+  categories: GameConfig['scoring']['categories'];
+  /**
+   * The options menu lays over whatever screen is up rather than replacing it,
+   * so backing out of it always lands where you opened it from.
+   */
+  optionsOpen: boolean;
+  options: OptionValues;
+  optionRanges: OptionRanges;
+  /** `audio.json -> buses`. A bus with a `labelKey` gets a volume slider. */
+  buses: AudioConfig['buses'];
 }
 
 /**
@@ -97,6 +113,11 @@ export interface UiCallbacks {
   onVoiceMode(mode: VoiceMode): void;
   onVoiceSelfMute(): void;
   onVoiceMutePeer(id: string): void;
+  onOpenOptions(): void;
+  onCloseOptions(): void;
+  /** Applied and persisted immediately - there is no Apply button. */
+  onOptionsChange(patch: Partial<OptionValues>): void;
+  onOptionsReset(): void;
 }
 
 /** Lets the game loop push state in without React-style re-render churn. */
@@ -117,6 +138,26 @@ export function App({
     bind((patch) => setState((current) => ({ ...current, ...patch })));
   }, [bind]);
 
+  return (
+    <>
+      <CurrentScreen state={state} callbacks={callbacks} />
+      {/* Layered over whatever is behind it, so backing out of options always
+          lands where it was opened from - menu, pause or the cabin. */}
+      {state.optionsOpen && (
+        <Options
+          options={state.options}
+          ranges={state.optionRanges}
+          buses={state.buses}
+          onChange={callbacks.onOptionsChange}
+          onReset={callbacks.onOptionsReset}
+          onClose={callbacks.onCloseOptions}
+        />
+      )}
+    </>
+  );
+}
+
+function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
   if (state.screen === 'menu') {
     return (
       <MainMenu
@@ -125,6 +166,7 @@ export function App({
         error={state.error}
         onStart={callbacks.onStart}
         onJoin={callbacks.onJoin}
+        onOptions={callbacks.onOpenOptions}
       />
     );
   }
@@ -166,6 +208,10 @@ export function App({
             onMutePeer={callbacks.onVoiceMutePeer}
           />
 
+          <button class="btn" onClick={callbacks.onOpenOptions}>
+            {t('pause.options')}
+          </button>
+
           <button class="btn" data-sfx="back" onClick={callbacks.onLeaveLobby}>
             {t('pause.leaveLobby')}
           </button>
@@ -201,6 +247,10 @@ export function App({
             onMutePeer={callbacks.onVoiceMutePeer}
           />
 
+          <button class="btn" onClick={callbacks.onOpenOptions}>
+            {t('pause.options')}
+          </button>
+
           <button class="btn" data-sfx="back" onClick={callbacks.onLeave}>
             {t('pause.leaveRun')}
           </button>
@@ -209,17 +259,8 @@ export function App({
     );
   }
 
-  if (state.screen === 'escaped' || state.screen === 'wiped') {
-    return (
-      <div class="overlay">
-        <div class="overlay__panel">
-          <h2 class="overlay__title">{t(state.screen === 'escaped' ? 'run.escaped' : 'run.wiped')}</h2>
-          <button class="btn btn--primary" onClick={callbacks.onLeave}>
-            {t('scoreboard.continue')}
-          </button>
-        </div>
-      </div>
-    );
+  if (state.screen === 'scoreboard') {
+    return <Scoreboard rows={state.scoreboard} categories={state.categories} onContinue={callbacks.onLeave} />;
   }
 
   return <Hud state={state} />;

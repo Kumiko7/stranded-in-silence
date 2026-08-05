@@ -15,7 +15,7 @@ import { Input } from './input/index';
 import { Audio } from './audio/index';
 import { attachUiSounds } from './audio/uiSounds';
 import { Net, makeLobbyCode, type RunStart } from './net/index';
-import { Save } from './save/index';
+import { Save, type Options } from './save/index';
 import { VoiceChat } from './voice/index';
 import { Game } from './game/Game';
 import { Lobby } from './game/Lobby';
@@ -32,7 +32,7 @@ function fail(reason: string, error?: unknown): void {
 }
 
 /** Screens where the player is in the session and voice should be running. */
-const IN_SESSION: readonly Screen[] = ['lobby', 'lobbyPaused', 'wardrobe', 'loading', 'run', 'paused', 'escaped', 'wiped'];
+const IN_SESSION: readonly Screen[] = ['lobby', 'lobbyPaused', 'wardrobe', 'loading', 'run', 'paused', 'scoreboard'];
 
 async function boot(): Promise<void> {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement | null;
@@ -51,7 +51,7 @@ async function boot(): Promise<void> {
   const config = loadConfig();
   initI18n();
 
-  const save = new Save();
+  const save = new Save(config);
   save.load();
 
   const renderer = new Renderer(canvas, config.graphics, config.player);
@@ -65,6 +65,25 @@ async function boot(): Promise<void> {
   void audio.init().catch((error: unknown) => console.warn('[audio] failed to load', error));
   const detachUiSounds = attachUiSounds(audio, screenRoot);
   audio.music.setScene('menu');
+
+  /**
+   * The one place the saved options become live settings. Called at boot and on
+   * every change, so "apply" and "restore on load" are the same code path and
+   * cannot drift apart.
+   *
+   * It lives here rather than in `save/` because these are three different
+   * subsystems and `save/` is not allowed to know about any of them - it holds
+   * the numbers, this owns the boot order that hands them out.
+   */
+  function applyOptions(options: Options): void {
+    for (const [bus, volume] of Object.entries(options.volumes)) audio.setBusVolume(bus, volume);
+    renderer.setFov(options.graphics.fovDegrees);
+    renderer.setBrightness(options.graphics.brightness);
+    renderer.setShadows(options.graphics.shadows);
+    input.setMouse(options.controls);
+  }
+
+  applyOptions(save.options);
 
   bootRoot?.remove();
 
@@ -98,6 +117,12 @@ async function boot(): Promise<void> {
     health: 'healthy',
     roster: [],
     showRoster: config.ui.hud.teammateList.enabled,
+    scoreboard: [],
+    categories: config.game.scoring.categories,
+    optionsOpen: false,
+    options: save.options,
+    optionRanges: save.ranges,
+    buses: config.audio.buses,
     voice: {
       mode: config.net.voice.enabled ? config.net.voice.defaultMode : 'off',
       modes: config.net.voice.modes,
@@ -155,6 +180,7 @@ async function boot(): Promise<void> {
     onHealth: (id, health) => game.setRemoteHealth(id, health),
     onRevive: () => game.reviveLocal(),
     onPeerEscaped: (id) => game.markEscaped(id),
+    onStats: (id, stats) => game.setStats(id, stats),
     onWiped: () => game.endWiped(),
     onVoiceStream: (id, stream) => voice.addPeer(id, stream),
     onVoiceEnded: (id) => voice.removePeer(id),
@@ -193,14 +219,17 @@ async function boot(): Promise<void> {
       if (currentRun) save.markCompleted(currentRun.mapId);
       save.addCoins(coins);
       input.releasePointerLock();
-      set({ screen: 'escaped', bankedCoins: save.profile.coins, use: null });
+      set({ screen: 'scoreboard', bankedCoins: save.profile.coins, use: null });
     },
     onPlayerCountChange: (count) => set({ players: count }),
     onHealthChange: (health) => set({ health }),
     onRosterChange: (roster) => set({ roster }),
+    // Fired again as late tallies arrive, so a column cannot sit at zero
+    // because a teammate's last message was still in flight.
+    onScoreboard: (rows) => set({ scoreboard: rows }),
     onWiped: () => {
       input.releasePointerLock();
-      set({ screen: 'wiped' });
+      set({ screen: 'scoreboard' });
     },
   });
 
@@ -232,6 +261,7 @@ async function boot(): Promise<void> {
     lobby.start(slot, enabledMapIds());
     set({
       screen: 'lobby',
+      optionsOpen: false,
       promptVerbKey: null,
       promptItemKey: null,
       holdProgress: 0,
@@ -240,6 +270,7 @@ async function boot(): Promise<void> {
       use: null,
       coins: 0,
       bankedCoins: save.profile.coins,
+      scoreboard: [],
     });
     input.requestPointerLock();
   }
@@ -263,6 +294,8 @@ async function boot(): Promise<void> {
     set({
       screen: 'run',
       lobby: null,
+      optionsOpen: false,
+      scoreboard: [],
       promptVerbKey: null,
       promptItemKey: null,
       holdProgress: 0,
@@ -288,7 +321,18 @@ async function boot(): Promise<void> {
     net.leave();
     renderer.applyGraphics(config.graphics);
     input.releasePointerLock();
-    set({ screen: 'menu', lobby: null, players: 1, promptVerbKey: null, hint: null, health: 'healthy', use: null, coins: 0 });
+    set({
+      screen: 'menu',
+      lobby: null,
+      players: 1,
+      optionsOpen: false,
+      scoreboard: [],
+      promptVerbKey: null,
+      hint: null,
+      health: 'healthy',
+      use: null,
+      coins: 0,
+    });
   }
 
   /* --- screens ------------------------------------------------------------ */
@@ -335,6 +379,22 @@ async function boot(): Promise<void> {
       voice.toggleMute(id);
       pushVoice();
     },
+    onOpenOptions: () => {
+      // Opening options from inside a run drops pointer lock, which is already
+      // how the pause menu was reached - so there is nothing to release here.
+      set({ optionsOpen: true });
+    },
+    onCloseOptions: () => set({ optionsOpen: false }),
+    onOptionsChange: (patch) => {
+      const options = save.setOptions(patch);
+      applyOptions(options);
+      set({ options });
+    },
+    onOptionsReset: () => {
+      const options = save.resetOptions();
+      applyOptions(options);
+      set({ options });
+    },
   };
 
   /**
@@ -375,6 +435,15 @@ async function boot(): Promise<void> {
     else if (state.screen === 'lobby') set({ screen: 'lobbyPaused' });
   };
 
+  // Every screen must be exitable by keyboard (docs/systems/UI.md). Options is
+  // the only one layered over another, so it is the only one that needs its own
+  // Escape - the rest ride the pointer-lock cue above.
+  addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !state.optionsOpen) return;
+    event.preventDefault();
+    set({ optionsOpen: false });
+  });
+
   document.addEventListener('pointerlockerror', () => {
     if (state.screen === 'run') {
       console.warn('[input] Pointer lock denied (missing user gesture). Falling back to pause menu.');
@@ -400,9 +469,11 @@ async function boot(): Promise<void> {
 
   /* --- loop --------------------------------------------------------------- */
 
-  // Dev-only inspection handle. Stripped from production builds.
+  // Dev-only inspection handle. Stripped from production builds. `set` is on it
+  // so a screen that only exists after a full run - the scoreboard - can be put
+  // up and looked at without playing one.
   if (import.meta.env.DEV) {
-    Object.assign(window, { __stranded: { config, renderer, game, lobby, net, input, audio, voice, save, state, THREE } });
+    Object.assign(window, { __stranded: { config, renderer, game, lobby, net, input, audio, voice, save, state, set, THREE } });
   }
 
   const loop = new Loop({ tickRateHz: 60, maxSubStepsPerFrame: 5 });

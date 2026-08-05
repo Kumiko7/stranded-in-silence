@@ -3,12 +3,13 @@
 
   "$note": "Every sound has BOTH a `synth` recipe (rendered by Tone.js at boot, see src/audio/recipes.ts) and a `files` list. A file wins whenever it is actually present under assets/audio/ - drop one in and it replaces the synthesised version with no code change. An entry with neither is legal: it logs once and plays nothing.",
 
+  "$buses": "A bus with a `labelKey` gets a slider in the options menu, in this order. `ui` has none on purpose - menu clicks ride master and a slider of their own is clutter.",
   "buses": {
-    "master": { "defaultVolume": 0.8 },
-    "music": { "defaultVolume": 0.5, "parent": "master" },
-    "sfx": { "defaultVolume": 0.9, "parent": "master" },
-    "ambience": { "defaultVolume": 0.6, "parent": "master" },
-    "voice": { "defaultVolume": 1.0, "parent": "master" },
+    "master": { "defaultVolume": 0.8, "labelKey": "options.volume.master" },
+    "music": { "defaultVolume": 0.5, "parent": "master", "labelKey": "options.volume.music" },
+    "sfx": { "defaultVolume": 0.9, "parent": "master", "labelKey": "options.volume.sfx" },
+    "ambience": { "defaultVolume": 0.6, "parent": "master", "labelKey": "options.volume.ambience" },
+    "voice": { "defaultVolume": 1.0, "parent": "master", "labelKey": "options.volume.voice" },
     "ui": { "defaultVolume": 0.7, "parent": "master" }
   },
 

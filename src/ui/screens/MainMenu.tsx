@@ -7,9 +7,10 @@ interface Props {
   error: string | null;
   onStart(): void;
   onJoin(code: string): void;
+  onOptions(): void;
 }
 
-export function MainMenu({ code, status, error, onStart, onJoin }: Props) {
+export function MainMenu({ code, status, error, onStart, onJoin, onOptions }: Props) {
   const [joinCode, setJoinCode] = useState('');
   const [copied, setCopied] = useState(false);
   const ready = status === 'ready';
@@ -27,8 +28,14 @@ export function MainMenu({ code, status, error, onStart, onJoin }: Props) {
       <p class="menu__tagline">{t('game.tagline')}</p>
 
       <div class="menu__panel">
-        <button class="btn btn--primary" disabled={!ready} onClick={onStart}>
+        {/* The two things you can always do, stacked and the same width, with
+            the code and join rows underneath them. */}
+        <button class="btn btn--primary menu__action" disabled={!ready} onClick={onStart}>
           {t('menu.play')}
+        </button>
+
+        <button class="btn menu__action" onClick={onOptions}>
+          {t('menu.options')}
         </button>
 
         <div class="menu__row">

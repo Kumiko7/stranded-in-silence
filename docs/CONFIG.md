@@ -21,7 +21,8 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | I want to change… | File | Key |
 | --- | --- | --- |
 | How fast players walk / sprint / crouch | `player.json` | `movement.*` |
-| FOV, mouse sensitivity | `player.json` | `camera.*` |
+| Default FOV, mouse sensitivity, invert Y | `player.json` | `camera.*` — these are what the options menu *starts from* and what "reset to defaults" returns to |
+| How far the FOV slider may be dragged | `player.json` | `camera.fovRange` |
 | Revive time, injured/downed rules | `player.json` | `health.*` |
 | Camera height while downed | `player.json` | `body.downedEyeHeight` |
 | How much slower an injured player is | `player.json` | `movement.injuredSpeedMultiplier` |
@@ -50,6 +51,10 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Which maps exist | `maps.json` | `maps.*` |
 | A map's lobby poster | `maps.json` | `maps.<id>.posterArtId` — an art id from `art/shared/index.ts`; unset or unregistered hangs a blank |
 | Lighting, fog, shadows, draw distance | `graphics.json` | top level |
+| How far the brightness slider may be dragged | `graphics.json` | `brightnessRange` — the slider multiplies `exposure`, it does not replace it |
+| How far the sensitivity slider may be dragged | `input.json` | `mouse.sensitivityRange` |
+| Which buses get a volume slider | `audio.json` | `buses.<id>.labelKey` — a bus without one is not offered (`ui` deliberately has none) |
+| Which stats the scoreboard shows, and which way is better | `game.json` | `scoring.categories` — ids must be counters `src/world/runStats.ts` keeps |
 | How the lobby cabin is lit | `graphics.json` | `lobby.*` — merged over the block above while the lobby is up |
 | Volumes, spatial audio, sound registry | `audio.json` | `buses.*`, `spatial.*`, `sounds.*` |
 | Which sound a game event fires | `audio.json` | `cues.*` — noise kinds, alert stings, hold loops |
@@ -76,6 +81,15 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 3. difficulty.json → modes.<id>.overrides  applied when a run starts
 4. player save profile                     options-menu changes (volume, sensitivity, binds)
 ```
+
+Layer 4 is **not a merge layer**. The options menu writes a small block into the save
+profile (`src/save/options.ts`) and `main.tsx` hands those values to the renderer,
+input and audio at boot and on every change — the same code path both times, so
+"apply" and "restore on load" cannot drift apart. It works that way because these
+settings belong to *live subsystems*, not to a run's config snapshot: a volume that
+had to be re-merged and re-read would not move while you dragged the slider. Every
+default it falls back to is still read from the files above, which is what makes
+"reset to defaults" mean exactly "whatever `config/` says".
 
 Layers 2 and 3 are **pure data overlays** — this is why adding a difficulty or a map
 requires zero code. The merge is generic, so further overlay layers can be slotted in

@@ -49,6 +49,10 @@ export class RunState {
     return [...this.#players.values()];
   }
 
+  get(id: string): RunPlayer | undefined {
+    return this.#players.get(id);
+  }
+
   /** Out of the run, one way or the other: the spectator side of voice chat. */
   isSpectator(id: string): boolean {
     const player = this.#players.get(id);

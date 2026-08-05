@@ -51,7 +51,7 @@ stranded/
 | `config/` | Loading, layering, validating `config/*.json`; typed accessors | `core` |
 | `i18n/` | `t()`, locale loading, key fallback | `config` |
 | `shared/` | Types and constants used by BOTH client and signalling server: net message shapes, event names, enums | nothing |
-| `save/` | Persistence. `localStorage` in browser, OS save dir when packaged. Options, binds, meta progress | `config` |
+| `save/` | Persistence. `localStorage` in browser, OS save dir when packaged. Options, binds, meta progress. **Holds the numbers; never applies them** — `main.tsx` hands them to `render`/`input`/`audio`, which `save/` is not allowed to know about | `config` |
 | `input/` | Raw device → **action** ids, rebinding, pointer lock | `config`, `save` |
 | `render/` | `WebGLRenderer`, camera rig, lighting rig, post-processing, room streaming, material cache | `config`, `art` |
 | `world/` | Map generation, room graph, grid ↔ world transforms, collision, doors, containers, spawns | `config`, `art` (blueprints only), `core` |
@@ -108,7 +108,7 @@ Boot → MainMenu → Lobby → Loading → InRun → Scoreboard → Lobby
 | `Loading` | world generation, art pack load, seed sync |
 | `InRun` | everything |
 | `Spectating` | as `InRun` minus local player control |
-| `Scoreboard` | ui, audio, net (stats exchange) |
+| `Scoreboard` | ui, audio, net (stats exchange). **Every peer counts its own stats** and broadcasts the whole block; nobody arbitrates, because a player's own client is the only thing that sees every one of their footsteps and a scoreboard is not worth a protocol |
 
 **Voice follows the session, not the run.** It is turned on when a player enters the
 lobby and stays on through `Loading` and out the other side, because the load is
@@ -226,7 +226,8 @@ mic picking up small sounds cannot give you away. Full detail in
 | Add a sound | `config/audio.json → sounds` + a recipe in `src/audio/recipes.ts` or a file in `assets/audio/` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |
 | Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
 | Add a difficulty | `config/difficulty.json` only |
-| Add a save field | `src/save/index.ts` (a real schema lands with step 35) |
+| Add a save field | `src/save/index.ts`; an *options* field is `src/save/options.ts` plus a control in `src/ui/screens/Options.tsx` and a line in `applyOptions()` in `src/main.tsx` |
+| Add a scoreboard stat | `src/world/runStats.ts` (`STAT_IDS`), a `#count()` call in `src/game/Game.ts`, a category in `game.json → scoring`, a `scoreboard.category.*` locale key |
 | Change what a run pays out | `config/items.json → items.coinPile / items.diamond`; banking is `Game.#cashInTreasure()` → `Save.addCoins()` |
 
 ---

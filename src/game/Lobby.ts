@@ -546,7 +546,7 @@ export class Lobby {
 
     if (walking) {
       const look = this.#input.consumeLook();
-      applyLook(player, look.x, look.y, this.#config.player, this.#input.mouseSensitivity);
+      applyLook(player, look.x, look.y, this.#config.player, this.#input.mouseSensitivity, this.#input.invertY);
       stepPlayer(
         player,
         {

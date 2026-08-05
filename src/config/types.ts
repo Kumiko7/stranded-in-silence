@@ -20,6 +20,12 @@ export interface GameConfig {
     /** How many frames the poster wall has. Slots past the map list hang blank. */
     posterSlots: number;
   };
+  /** The post-run scoreboard: which counters it shows, in order. */
+  scoring: {
+    enabled: boolean;
+    /** `id` names a counter in `src/world/runStats.ts`. */
+    categories: { id: string; higherIsBetter: boolean }[];
+  };
 }
 
 export interface PlayerConfig {
@@ -42,6 +48,8 @@ export interface PlayerConfig {
   };
   camera: {
     fovDegrees: number;
+    /** How far the options-menu field-of-view slider may be dragged. */
+    fovRange?: [number, number];
     mouseSensitivity: number;
     invertY: boolean;
     pitchClampDegrees: number;
@@ -258,6 +266,8 @@ export interface GraphicsConfig {
   pixelRatioCap: number;
   antialias: boolean;
   exposure: number;
+  /** How far the options-menu brightness slider may be dragged. It multiplies `exposure`. */
+  brightnessRange?: [number, number];
   ambientIntensity: number;
   ambientColor: string;
   minAmbientFloor: number;
@@ -270,7 +280,13 @@ export interface GraphicsConfig {
 
 export interface InputConfig {
   actions: Record<string, { labelKey: string; keys: string[]; mode?: string; rebindable?: boolean }>;
-  mouse: { sensitivity: number; invertY: boolean };
+  mouse: {
+    /** Scales `player.json -> camera.mouseSensitivity`. The options slider writes this. */
+    sensitivity: number;
+    invertY: boolean;
+    /** How far the options-menu sensitivity slider may be dragged. */
+    sensitivityRange?: [number, number];
+  };
 }
 
 /** Off, open mic, or hold the key. One control switches between them. */
@@ -330,7 +346,8 @@ export interface MusicLayerDef {
 }
 
 export interface AudioConfig {
-  buses: Record<string, { defaultVolume: number; parent?: string }>;
+  /** A bus with a `labelKey` gets a volume slider in the options menu, in this order. */
+  buses: Record<string, { defaultVolume: number; parent?: string; labelKey?: string }>;
   spatial: {
     distanceModel: DistanceModelType;
     refDistance: number;

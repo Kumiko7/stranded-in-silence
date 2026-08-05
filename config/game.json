@@ -39,16 +39,15 @@
   },
 
   "scoring": {
+    "$doc": "The post-run scoreboard. Rows are these categories in this order, and the best value in each gets the green ring - but only when there is more than one player to be better than. `id` must be one of the counters logic keeps (src/world/runStats.ts); a category naming anything else reads as zero.",
+    "$note": "`noiseMade` is the one where LESS is better, and it is loudness accumulated rather than a count of sounds - a run measured in footstep events would call a sprinter and a crouching player equally loud.",
     "enabled": true,
     "categories": [
       { "id": "doorsOpened", "higherIsBetter": true },
-      { "id": "itemsFound", "higherIsBetter": true },
-      { "id": "chestsOpened", "higherIsBetter": true },
-      { "id": "revivesPerformed", "higherIsBetter": true },
-      { "id": "roomsVisited", "higherIsBetter": true },
-      { "id": "treasureValue", "higherIsBetter": true },
-      { "id": "timesInjured", "higherIsBetter": false },
-      { "id": "distanceTravelled", "higherIsBetter": true }
+      { "id": "itemsUsed", "higherIsBetter": true },
+      { "id": "heals", "higherIsBetter": true },
+      { "id": "goldCollected", "higherIsBetter": true },
+      { "id": "noiseMade", "higherIsBetter": false }
     ]
   },
 
