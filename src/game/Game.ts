@@ -186,6 +186,12 @@ interface PendingClaim {
   /** The item put in a hand optimistically, and which hand it went into. */
   itemId?: string;
   hand?: Hand;
+  /**
+   * What that hand was holding before. It does not hit the floor until the
+   * pick-up is granted, so a swap the host refuses leaves both hands as they
+   * were rather than costing you the item you already had.
+   */
+  displaced?: string | null;
 }
 
 /** The one item id logic names directly: E on a locked door has to find it. */
@@ -707,10 +713,11 @@ export class Game {
     const pending = this.#takePending(kind, id);
     if (kind !== 'take' || !pending?.hand || !pending.itemId) return;
 
-    // The item is NOT put back: a take is only ever denied because it is
-    // already in somebody else's hand.
+    // The hand goes back exactly as it was, holding whatever the pick-up
+    // displaced. The item itself is NOT put back on the floor: a take is only
+    // ever denied because it is already in somebody else's hand.
     if (this.#inventory[pending.hand] !== pending.itemId) return;
-    dropFrom(this.#inventory, pending.hand);
+    this.#inventory[pending.hand] = pending.displaced ?? null;
     this.#pushHands();
   }
 
@@ -735,6 +742,10 @@ export class Game {
 
     const def = itemDef(this.#config.items, itemId);
     if (def && def.occupiesSlot === false) this.#collect(worldItemId, def, by, at);
+
+    // Only now does the hand this went into let go of what it was holding.
+    const player = this.#player;
+    if (pending?.displaced && player) this.#dropIntoWorld(pending.displaced, player);
   }
 
   /* --- replicated world events -------------------------------------------- */
@@ -1640,8 +1651,7 @@ export class Game {
 
   #pickUp(worldItemId: string): void {
     const world = this.#world;
-    const player = this.#player;
-    if (!world || !player) return;
+    if (!world || !this.#player) return;
 
     const item = world.items.get(worldItemId);
     if (!item) return;
@@ -1661,10 +1671,16 @@ export class Game {
     // later would feel broken every single time.
     this.#audio.play('item.pickup');
     const { hand, displaced } = takeItem(this.#inventory, item.itemId);
-    world.removeItem(worldItemId);
-    if (displaced) this.#dropIntoWorld(displaced, player);
     this.#pushHands();
-    this.#claim('take', worldItemId, 0, { itemId: item.itemId, hand });
+
+    // The claim goes out BEFORE the item leaves this browser's world, because on
+    // the host this browser IS the arbiter: taking it off the floor first would
+    // have it rule that the item was already gone and deny its own pick-up.
+    // A displaced item waits for the answer too, so a refused swap costs nothing.
+    this.#claim('take', worldItemId, 0, { itemId: item.itemId, hand, displaced });
+
+    // A client shows it gone at once; on the host the grant has already done it.
+    world.removeItem(worldItemId);
   }
 
   /**
