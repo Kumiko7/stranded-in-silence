@@ -54,6 +54,7 @@
   "lobby.everyoneVoted": "Todos já escolheram",
   "lobby.yourPick": "Sua escolha",
   "lobby.loading": "Descendo",
+  "loading.waiting": "Aguardando os jogadores {ready}/{total}",
 
   "hud.interact.pickMap": "Escolher {item}",
   "hud.interact.pickMapAgain": "Mudar para {item}",
@@ -147,6 +148,7 @@
   "hud.status.downed": "Caído",
   "hud.status.dead": "Morto",
   "hud.status.escaped": "Escapou",
+  "hud.status.disconnected": "Desconectado",
   "hud.voice.muted": "Sem som",
   "hud.voice.pushToTalk": "Aperte para falar",
   "hud.voice.holdHint": "Segure {key}",

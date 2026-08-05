@@ -107,6 +107,8 @@ async function boot(): Promise<void> {
     players: 1,
     maxPlayers: config.game.session.maxPlayers,
     lobby: null,
+    loadingReady: 0,
+    loadingTotal: 1,
     colours: config.player.customisation.colours,
     colourId: save.profile.colourId ?? config.player.customisation.defaultColourId,
     promptVerbKey: null,
@@ -160,6 +162,9 @@ async function boot(): Promise<void> {
   // from `net` - inference would go round in a circle.
   const net: Net = new Net({
     onRunStart: (run, slot) => startRun(run, slot),
+    onLoading: (ready, total) => set({ loadingReady: ready, loadingTotal: total }),
+    onRunGo: () => releaseRun(),
+    onHostLost: () => hostLost(),
     onLobbyJoined: (slot) => enterLobby(slot),
     onLobbyState: (lobbyState) => lobby.applyState(lobbyState),
     onPick: (id, mapId) => lobby.applyPick(id, mapId),
@@ -176,10 +181,17 @@ async function boot(): Promise<void> {
       game.removeRemote(id);
     },
     onPeerMove: (id, transform) => game.moveRemote(id, transform),
+    // A peer who walked back to the cabin has left this world, and one who has
+    // just arrived in it will be added by their first transform.
+    onScene: (id, scene) => {
+      if (scene !== 'run') game.removeRemote(id);
+      if (scene !== 'lobby') lobby.removeRemote(id);
+    },
     onDoor: (doorId, open) => game.setDoor(doorId, open),
-    onDoorUnlocked: (doorId) => game.setDoorUnlocked(doorId),
-    onChestOpened: (chestId) => game.openChest(chestId),
-    onItemTaken: (id) => game.takeWorldItem(id),
+    onDoorRequest: (doorId, open) => game.applyDoorRequest(doorId, open),
+    onClaim: (kind, id) => game.arbitrate(kind, id),
+    onGranted: (kind, id, by, value) => game.applyGrant(kind, id, by, value),
+    onDenied: (kind, id) => game.applyDeny(kind, id),
     onItemDropped: (id, itemId, x, y, z) => game.dropWorldItem(id, itemId, x, y, z),
     onItemThrown: (id, itemId, owner, from, velocity) => game.throwItem(id, itemId, owner, from, velocity),
     onBarricade: (doorId, seconds) => game.setDoorBarricade(doorId, seconds),
@@ -196,7 +208,7 @@ async function boot(): Promise<void> {
     onVoiceStream: (id, stream) => voice.addPeer(id, stream),
     onVoiceEnded: (id) => voice.removePeer(id),
     onStatus: (status) => console.info('[net]', status),
-  }, config.net.voice);
+  }, config.net);
 
   /* --- voice -------------------------------------------------------------- */
 
@@ -287,13 +299,25 @@ async function boot(): Promise<void> {
   }
 
   /**
+   * The load gate. Everybody generates the same map from the same seed, but not
+   * at the same speed, so the world is built behind the loading card and then
+   * held there until the host says everyone is in (`src/net/index.ts`). Nothing
+   * simulates in the meantime: dropping into a run already underway, alone,
+   * with the hunter awake, is the one thing a shared start has to prevent.
+   */
+  let worldBuilt = false;
+  let goGiven = false;
+
+  /**
    * Leaves the cabin standing for one paint so the loading card is on screen
    * before the map generator blocks the thread. Voice is untouched throughout -
    * that is the whole point of it following the session rather than the run.
    */
   function startRun(run: RunStart, slot = net.slot): void {
     if (state.screen === 'loading' || state.screen === 'run') return;
-    set({ screen: 'loading' });
+    worldBuilt = false;
+    goGiven = false;
+    set({ screen: 'loading', loadingReady: 0, loadingTotal: state.players });
     requestAnimationFrame(() => beginRun(run, slot));
   }
 
@@ -303,7 +327,6 @@ async function boot(): Promise<void> {
     net.setScene('run');
     game.start(run.mapId, run.seed, slot);
     set({
-      screen: 'run',
       lobby: null,
       optionsOpen: false,
       scoreboard: [],
@@ -315,7 +338,26 @@ async function boot(): Promise<void> {
       use: null,
       coins: 0,
     });
+
+    worldBuilt = true;
+    // Solo and on the host with nobody else waiting, this comes straight back.
+    net.reportReady();
+    if (goGiven) releaseRun();
+  }
+
+  /** Everyone is in. The card lifts and the run actually starts running. */
+  function releaseRun(): void {
+    goGiven = true;
+    if (!worldBuilt || state.screen !== 'loading') return;
+    set({ screen: 'run' });
     input.requestPointerLock();
+  }
+
+  /** No host, no session: there is no migration, by design. */
+  function hostLost(): void {
+    if (state.screen === 'menu') return;
+    leaveSession();
+    set({ error: t('lobby.hostLeft') });
   }
 
   /** Out of a run and back to the cabin, which is where the next one is chosen. */
@@ -521,15 +563,25 @@ async function boot(): Promise<void> {
 
   // Dev-only inspection handle. Stripped from production builds. `set` is on it
   // so a screen that only exists after a full run - the scoreboard - can be put
-  // up and looked at without playing one.
+  // up and looked at without playing one, and `startRun` so a map can be
+  // dropped into without walking the cabin first.
   if (import.meta.env.DEV) {
-    Object.assign(window, { __stranded: { config, renderer, game, lobby, net, input, audio, voice, save, state, set, THREE } });
+    Object.assign(window, {
+      __stranded: { config, renderer, game, lobby, net, input, audio, voice, save, state, set, startRun, enterLobby, THREE },
+    });
   }
 
   const loop = new Loop({ tickRateHz: 60, maxSubStepsPerFrame: 5 });
   loop.add({
     fixedUpdate: (dt) => {
-      if (game.active) game.update(dt, state.screen === 'run');
+      // Heartbeats, dead-peer detection and the load timeout. It runs in every
+      // screen, because a peer can drop while you are staring at a menu.
+      net.tick(dt);
+
+      // A world that is built but still behind the loading card presents but
+      // does not run: the hunter must not have a head start on whoever loaded
+      // last, and the conversation over the top of it must not stop either.
+      if (game.active) game.update(dt, state.screen === 'run', goGiven);
       else if (lobby.active) lobby.update(dt, state.screen === 'lobby' || state.screen === 'wardrobe');
 
       // The microphone follows the SESSION, not the run: it opens when you enter

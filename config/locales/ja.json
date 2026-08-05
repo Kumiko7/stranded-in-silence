@@ -54,6 +54,7 @@
   "lobby.everyoneVoted": "全員が選びました",
   "lobby.yourPick": "あなたの選択",
   "lobby.loading": "潜行中",
+  "loading.waiting": "プレイヤーを待っています {ready}/{total}",
 
   "hud.interact.pickMap": "{item} を選ぶ",
   "hud.interact.pickMapAgain": "{item} に変更する",
@@ -147,6 +148,7 @@
   "hud.status.downed": "行動不能",
   "hud.status.dead": "死亡",
   "hud.status.escaped": "脱出",
+  "hud.status.disconnected": "切断",
   "hud.voice.muted": "ミュート中",
   "hud.voice.pushToTalk": "押して話す",
   "hud.voice.holdHint": "{key} 長押し",

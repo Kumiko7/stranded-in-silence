@@ -54,6 +54,7 @@
   "lobby.everyoneVoted": "Все выбрали",
   "lobby.yourPick": "Ваш выбор",
   "lobby.loading": "Спуск",
+  "loading.waiting": "Ждём игроков {ready}/{total}",
 
   "hud.interact.pickMap": "Выбрать: {item}",
   "hud.interact.pickMapAgain": "Сменить на: {item}",
@@ -147,6 +148,7 @@
   "hud.status.downed": "Обездвижен",
   "hud.status.dead": "Мёртв",
   "hud.status.escaped": "Ушёл",
+  "hud.status.disconnected": "Отключился",
   "hud.voice.muted": "Микрофон выкл",
   "hud.voice.pushToTalk": "Рация",
   "hud.voice.holdHint": "Удерживайте {key}",

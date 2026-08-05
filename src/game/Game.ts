@@ -40,7 +40,8 @@ import type { PerceptionTarget } from '@/ai/perception';
 import { RoomGraph } from '@/ai/roomGraph';
 import type { Audio } from '@/audio/index';
 import type { Input } from '@/input/index';
-import type { EnemyTransform, Net } from '@/net/index';
+import type { ClaimKind, EnemyTransform, Net } from '@/net/index';
+import { shortestAngle, TransformBuffer } from '@/net/interpolation';
 import type { Renderer } from '@/render/Renderer';
 import { heartbeatCloseness, type AlertLevel } from '@/render/feedback';
 import type { VoiceChat } from '@/voice/index';
@@ -106,6 +107,8 @@ export interface RosterEntry {
   index: number;
   health: HealthState;
   self: boolean;
+  /** They dropped out. The line stays, greyed: a team of three should look like one. */
+  disconnected: boolean;
   pulse: { loudness: number; heard: boolean; token: number } | null;
 }
 
@@ -121,7 +124,7 @@ export interface ScoreRow {
   /** Their wardrobe colour, so the figure on their card is the one they wore. */
   colourHex: string;
   /** `escaped` outranks health: getting out is how a run ends well. */
-  status: 'escaped' | HealthState;
+  status: 'escaped' | 'disconnected' | HealthState;
   stats: PlayerStats;
 }
 
@@ -154,7 +157,35 @@ interface RemotePlayer {
   /** The body clones its material per player, so it has to be freed per player. */
   dispose?(): void;
   setColour(hex: string): void;
-  target: { x: number; z: number; yaw: number; height: number; hiding: boolean; health: HealthState };
+  /** The latest transform received. The SIMULATION reads this one. */
+  target: {
+    x: number;
+    z: number;
+    yaw: number;
+    height: number;
+    hiding: boolean;
+    health: HealthState;
+    left: string | null;
+    right: string | null;
+  };
+  /** Where the body is DRAWN: the same transforms, played back a little late. */
+  buffer: TransformBuffer;
+}
+
+/**
+ * A claim sent to the host that has not been answered yet.
+ *
+ * Only `take` shows anything before the answer arrives - it has to, because a
+ * pick-up is a press and a hand that fills a round trip later feels broken.
+ * Everything else here follows a hold, where the ring finishing is the feedback
+ * and the result landing 50 ms after it is invisible.
+ */
+interface PendingClaim {
+  kind: ClaimKind;
+  id: string;
+  /** The item put in a hand optimistically, and which hand it went into. */
+  itemId?: string;
+  hand?: Hand;
 }
 
 /** The one item id logic names directly: E on a locked door has to find it. */
@@ -215,6 +246,11 @@ export class Game {
   #moveTimer = 0;
   #dropCount = 0;
   #dims: RoomDims | null = null;
+  /**
+   * Claims sent and not yet answered, keyed `kind:id`. It is also what stops a
+   * second request going out for the same thing while the first is in flight.
+   */
+  #pending = new Map<string, PendingClaim>();
 
   /* --- items in hand ------------------------------------------------------- */
   /** Where a throw is allowed to stop. Walls and doors only - never furniture. */
@@ -243,8 +279,10 @@ export class Game {
   #doorsById = new Map<string, Door>();
   #enemy: EnemyState | null = null;
   #enemyArt: { object: THREE.Object3D; root: THREE.Object3D; setAlert?: (level: string) => void } | null = null;
-  /** What clients interpolate toward; the host writes it from its own sim. */
+  /** The latest known enemy transform. The host writes it from its own sim. */
   #enemyView: EnemyTransform = { x: 0, z: 0, yaw: 0, alert: 'calm' };
+  /** Playback of those snapshots, so a client draws it moving rather than jumping. */
+  #enemyBuffer: TransformBuffer | null = null;
   #enemyAlert = '';
   /** Tracked separately from the art's, so a sting does not need art to exist. */
   #audioAlert = '';
@@ -338,6 +376,7 @@ export class Game {
     this.#inventory = createInventory();
     this.#escaped = false;
     this.#over = false;
+    this.#pending.clear();
     this.#resetHold();
     this.#clearItemState();
     this.#walls = new WallGrid(layout);
@@ -347,7 +386,6 @@ export class Game {
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
     this.#hooks.onHealthChange('healthy');
     this.#pulses.clear();
-    this.#pushRoster();
 
     // --- the hunter --------------------------------------------------------
     this.#graph = new RoomGraph(layout);
@@ -356,9 +394,12 @@ export class Game {
     this.#footstepTimer = 0;
     this.#enemyRng = stream(seed, 'enemy');
 
+    // Rebuilt from who is actually here: last run's dropouts are not this
+    // run's problem, and the roster is drawn from this.
     this.#run.clear();
     this.#run.add(this.#net.selfId);
     for (const id of this.#remotes.keys()) this.#run.add(id);
+    this.#pushRoster();
 
     this.#stats.clear();
     this.#statsTimer = 0;
@@ -366,6 +407,8 @@ export class Game {
     const [ex, ez] = layout.enemySpawn.position;
     this.#enemy = createEnemy(ex, ez);
     this.#enemyView = { x: ex, z: ez, yaw: 0, alert: 'calm' };
+    this.#enemyBuffer = new TransformBuffer(config.net.simulation);
+    this.#enemyBuffer.reset({ x: ex, z: ez, yaw: 0, height: 0 }, now());
     this.#enemyAlert = '';
     this.#audioAlert = '';
     this.#spawnEnemyArt();
@@ -402,8 +445,10 @@ export class Game {
     this.#look = null;
     this.#hiding = null;
     this.#enemy = null;
+    this.#enemyBuffer = null;
     this.#graph = null;
     this.#doorsById.clear();
+    this.#pending.clear();
     this.#run.clear();
   }
 
@@ -464,7 +509,9 @@ export class Game {
   /* --- remote players ----------------------------------------------------- */
 
   addRemote(id: string): void {
-    if (this.#remotes.has(id) || !this.#dims) return;
+    // No world means no run: a transform from a peer already down a hole must
+    // not put a body in the cabin behind you.
+    if (this.#remotes.has(id) || !this.#dims || !this.#world) return;
 
     const art = resolveArt('player.masked')({
       materials: this.#world?.materials ?? getArtPack('test').createMaterials(),
@@ -483,11 +530,14 @@ export class Game {
       root,
       ...(art.dispose ? { dispose: art.dispose.bind(art) } : {}),
       setColour: art.api?.setColour?.bind(art.api) ?? ((): void => {}),
-      target: { x: 0, z: 0, yaw: 0, height: 1.8, hiding: false, health: 'healthy' },
+      target: { x: 0, z: 0, yaw: 0, height: 1.8, hiding: false, health: 'healthy', left: null, right: null },
+      buffer: new TransformBuffer(this.#config.net.simulation),
     };
     remote.setColour(this.#colourHex(this.#net.cosmeticOf(id)));
     this.#remotes.set(id, remote);
-    this.#run.add(id);
+    // Somebody standing in front of you is not disconnected, whatever an
+    // earlier drop-out left behind.
+    this.#run.add(id).disconnected = false;
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
     this.#pushRoster();
   }
@@ -508,14 +558,38 @@ export class Game {
     remote.dispose?.();
   }
 
+  /**
+   * A teammate is gone - a closed tab, a dead connection, or they walked out of
+   * the run back to the cabin. Either way their body leaves and their line stays:
+   * a run they were part of should still show what they did with it.
+   */
   removeRemote(id: string): void {
     const remote = this.#remotes.get(id);
     if (!remote) return;
+
+    // Whatever they were holding falls where they stood. A key that leaves the
+    // map inside a closed tab is a run nobody can finish, and the host is the
+    // only peer allowed to put it back so it lands in exactly one place.
+    if (this.#isHost) this.#dropRemoteItems(remote);
+
     this.#disposeRemote(remote);
     this.#remotes.delete(id);
-    this.#run.remove(id);
+    this.#run.setDisconnected(id);
     this.#hooks.onPlayerCountChange(this.#remotes.size + 1);
     this.#pushRoster();
+    // Losing the last player still on their feet is a wipe like any other.
+    if (this.#isHost) this.#checkRunOver();
+    if (this.#over || this.#escaped) this.#pushScoreboard();
+  }
+
+  #dropRemoteItems(remote: RemotePlayer): void {
+    for (const hand of HANDS) {
+      const itemId = remote.target[hand];
+      if (!itemId) continue;
+      const id = `drop:${this.#net.selfId}:lost:${this.#dropCount++}`;
+      this.dropWorldItem(id, itemId, remote.target.x, 0, remote.target.z);
+      this.#net.broadcast({ t: 'drop', id, itemId, x: remote.target.x, y: 0, z: remote.target.z });
+    }
   }
 
   moveRemote(id: string, transform: RemotePlayer['target']): void {
@@ -539,12 +613,133 @@ export class Game {
 
     const healthChanged = remote.target.health !== transform.health;
     remote.target = transform;
+    remote.buffer.push({ x: transform.x, z: transform.z, yaw: transform.yaw, height: transform.height }, now());
     this.#run.setHealth(id, transform.health);
     if (healthChanged) this.#pushRoster();
   }
 
+  /* --- host authority ------------------------------------------------------ */
+
+  /**
+   * Asks for something only one player can have. On the host - and offline -
+   * this resolves in the same call, so nothing about a solo run goes near the
+   * wire; on a client it goes up and the answer comes back as a grant or a
+   * denial.
+   *
+   * One request per thing at a time: `#pending` is both the record of what to
+   * undo and the guard against a second press sending a second claim.
+   */
+  #claim(kind: ClaimKind, id: string, value = 0, optimistic?: Omit<PendingClaim, 'kind' | 'id'>): void {
+    const key = `${kind}:${id}`;
+    if (this.#pending.has(key)) return;
+    this.#pending.set(key, { kind, id, ...optimistic });
+    this.#net.claim(kind, id, value);
+  }
+
+  /**
+   * Host only: the decision itself. Every answer comes from world state the
+   * host already holds, so granting one claim is exactly what makes the next
+   * claim on the same thing fail - there is no ledger to keep in step.
+   */
+  arbitrate(kind: ClaimKind, id: string): boolean {
+    const world = this.#world;
+    if (!world) return false;
+
+    switch (kind) {
+      case 'take':
+        return world.items.has(id);
+      case 'chest':
+        return world.chests.some((chest) => chest.id === id && !chest.opened);
+      case 'unlock': {
+        const door = this.#doorById(id);
+        return door?.locked === true;
+      }
+      case 'barricade': {
+        const door = this.#doorById(id);
+        return door !== undefined && !door.open && !isBarricaded(door);
+      }
+    }
+  }
+
+  /** The host's word. Every peer applies this, the winner included. */
+  applyGrant(kind: ClaimKind, id: string, by: string, value: number): void {
+    const pending = this.#takePending(kind, id);
+    const self = by === this.#net.selfId;
+
+    switch (kind) {
+      case 'take':
+        this.#applyTake(id, by, pending);
+        break;
+      case 'chest':
+        this.#openChest(id);
+        break;
+      case 'unlock': {
+        const door = this.#doorById(id);
+        if (!door) break;
+        unlockDoor(door);
+        this.#audio.play('door.unlock', { at: { x: door.x, z: door.z } });
+        // The key is spent here and nowhere else, so a lock somebody else got
+        // to first costs you nothing but the time you spent turning it.
+        if (self && pending?.hand && this.#inventory[pending.hand] === KEY_ITEM) {
+          dropFrom(this.#inventory, pending.hand);
+          this.#pushHands();
+          this.#count('itemsUsed');
+        }
+        break;
+      }
+      case 'barricade':
+        this.#applyBarricade(id, value);
+        if (self && pending?.hand && this.#inventory[pending.hand] === pending.itemId) {
+          dropFrom(this.#inventory, pending.hand);
+          this.#pushHands();
+          this.#count('itemsUsed');
+        }
+        break;
+    }
+  }
+
+  /**
+   * Somebody else got there first. Only a pick-up has anything to undo: a lock
+   * still has its key and a barricade still has its planks, because neither is
+   * spent until the grant arrives.
+   */
+  applyDeny(kind: ClaimKind, id: string): void {
+    const pending = this.#takePending(kind, id);
+    if (kind !== 'take' || !pending?.hand || !pending.itemId) return;
+
+    // The item is NOT put back: a take is only ever denied because it is
+    // already in somebody else's hand.
+    if (this.#inventory[pending.hand] !== pending.itemId) return;
+    dropFrom(this.#inventory, pending.hand);
+    this.#pushHands();
+  }
+
+  #takePending(kind: ClaimKind, id: string): PendingClaim | undefined {
+    const key = `${kind}:${id}`;
+    const pending = this.#pending.get(key);
+    this.#pending.delete(key);
+    return pending;
+  }
+
+  /**
+   * A pick-up, settled. The taker already has it in hand; everyone else simply
+   * watches it leave the floor. Coins are the exception - they belong to the
+   * team, so every peer adds the same amount, derived from the run seed rather
+   * than sent, which is why a lost `coins` message can no longer cost the purse.
+   */
+  #applyTake(worldItemId: string, by: string, pending: PendingClaim | undefined): void {
+    const item = this.#world?.items.get(worldItemId);
+    const itemId = item?.itemId ?? pending?.itemId ?? null;
+    const at = item ? { x: item.x, z: item.z } : null;
+    this.#world?.removeItem(worldItemId);
+
+    const def = itemDef(this.#config.items, itemId);
+    if (def && def.occupiesSlot === false) this.#collect(worldItemId, def, by, at);
+  }
+
   /* --- replicated world events -------------------------------------------- */
 
+  /** The host's word on a door. Whatever this browser was showing gives way. */
   setDoor(doorId: string, open: boolean): void {
     const door = this.#doorById(doorId);
     if (!door) return;
@@ -553,11 +748,32 @@ export class Game {
     if (door.open !== was) this.#playDoor(door);
   }
 
-  setDoorUnlocked(doorId: string): void {
+  /**
+   * Host only: a client wants a door open or shut. It is applied here and the
+   * result published to everyone - including back to the peer that asked, whose
+   * optimistic swing is corrected if the door turned out to be locked or wedged
+   * on this side of the wire.
+   */
+  applyDoorRequest(doorId: string, open: boolean): void {
     const door = this.#doorById(doorId);
     if (!door) return;
-    unlockDoor(door);
-    this.#audio.play('door.unlock', { at: { x: door.x, z: door.z } });
+    const was = door.open;
+    toggleDoor(door, open);
+    if (door.open !== was) this.#playDoor(door);
+    this.#net.broadcast({ t: 'door', id: door.id, open: door.open });
+  }
+
+  /**
+   * Opens a door on this browser and gets the host's ruling on it. The swing
+   * starts at once either way: a door that waited a round trip before moving
+   * would feel broken, and the host's own `door` message puts it right within
+   * one if it disagrees.
+   */
+  #requestDoor(door: Door, open: boolean): void {
+    toggleDoor(door, open);
+    this.#playDoor(door);
+    if (this.#isHost) this.#net.broadcast({ t: 'door', id: door.id, open: door.open });
+    else this.#net.broadcast({ t: 'doorRequest', id: door.id, open });
   }
 
   /**
@@ -568,7 +784,8 @@ export class Game {
     this.#audio.play(door.open ? 'door.open' : 'door.close', { at: { x: door.x, z: door.z } });
   }
 
-  openChest(chestId: string): void {
+  /** Only ever reached through a granted `chest` claim - one lid, one lot of loot. */
+  #openChest(chestId: string): void {
     const chest = this.#world?.chests.find((candidate) => candidate.id === chestId);
     if (!chest || chest.opened) return;
 
@@ -579,10 +796,6 @@ export class Game {
     const anchor = chest.contentsAnchor.getWorldPosition(new THREE.Vector3());
     this.#world?.spawnItem(`${chest.id}:loot`, chest.contents, anchor.x, anchor.y, anchor.z);
     chest.contents = null;
-  }
-
-  takeWorldItem(itemId: string): void {
-    this.#world?.removeItem(itemId);
   }
 
   dropWorldItem(id: string, itemId: string, x: number, y: number, z: number): void {
@@ -639,19 +852,35 @@ export class Game {
     return Math.hypot(this.#enemyView.x - x, this.#enemyView.z - z) <= radius * hearing.rangeMultiplier;
   }
 
-  #pushRoster(): void {
-    const entry = (id: string, health: HealthState, self: boolean): RosterEntry => {
-      let index = this.#playerIndex.get(id);
-      if (index === undefined) {
-        // Slot 1 is always yours, whichever order peers turned up in.
-        index = self ? 1 : Math.max(2, this.#playerIndex.size + 1);
-        this.#playerIndex.set(id, index);
-      }
-      return { id, index, health, self, pulse: this.#pulses.get(id) ?? null };
-    };
+  /**
+   * Numbering is stable for the life of the session: a teammate keeps their
+   * line whether they are standing next to you or gone, and slot 1 is always
+   * yours whichever order people turned up in.
+   */
+  #indexOf(id: string, self: boolean): number {
+    let index = this.#playerIndex.get(id);
+    if (index === undefined) {
+      index = self ? 1 : Math.max(2, this.#playerIndex.size + 1);
+      this.#playerIndex.set(id, index);
+    }
+    return index;
+  }
 
-    const roster = [entry(this.#net.selfId, this.#player?.health.state ?? 'healthy', true)];
-    for (const [id, remote] of this.#remotes) roster.push(entry(id, remote.target.health, false));
+  /**
+   * The roster runs off `RunState` rather than off the bodies in the scene, so
+   * somebody who dropped out keeps their line - greyed, but there. A team of
+   * four that becomes a team of three should be able to see that happen.
+   */
+  #pushRoster(): void {
+    const self = this.#net.selfId;
+    const roster: RosterEntry[] = this.#run.players.map((player) => ({
+      id: player.id,
+      index: this.#indexOf(player.id, player.id === self),
+      health: player.id === self ? (this.#player?.health.state ?? 'healthy') : player.health,
+      self: player.id === self,
+      disconnected: player.disconnected,
+      pulse: this.#pulses.get(player.id) ?? null,
+    }));
     roster.sort((a, b) => a.index - b.index);
 
     this.#hooks.onRosterChange(roster);
@@ -660,6 +889,7 @@ export class Game {
   /** Host -> client enemy transform. Clients never simulate the enemy. */
   setEnemyTransform(transform: EnemyTransform): void {
     this.#enemyView = transform;
+    this.#enemyBuffer?.push({ x: transform.x, z: transform.z, yaw: transform.yaw, height: 0 }, now());
   }
 
   /** The enemy caught the local player. */
@@ -759,21 +989,25 @@ export class Game {
    * inputs (health, escaped, tallies) all live somewhere else already.
    */
   scoreboard(): ScoreRow[] {
-    const row = (id: string, self: boolean): ScoreRow => {
-      const player = this.#run.get(id);
-      const health = self ? (this.#player?.health.state ?? 'healthy') : (this.#remotes.get(id)?.target.health ?? 'healthy');
-      return {
-        id,
-        index: this.#playerIndex.get(id) ?? (self ? 1 : 2),
-        self,
-        colourHex: this.#colourHex(this.#net.cosmeticOf(id)),
-        status: player?.escaped ? 'escaped' : health,
-        stats: this.#stats.get(id),
-      };
-    };
+    const self = this.#net.selfId;
 
-    const rows = [row(this.#net.selfId, true)];
-    for (const id of this.#remotes.keys()) rows.push(row(id, false));
+    // Off `RunState`, so a player who dropped out halfway still gets a column.
+    // Their tally was arriving every second until the moment they went.
+    const rows: ScoreRow[] = this.#run.players.map((player) => {
+      const mine = player.id === self;
+      const health = mine ? (this.#player?.health.state ?? 'healthy') : player.health;
+      // Getting out outranks everything; leaving outranks how you were when you did.
+      const status = player.escaped ? 'escaped' : player.disconnected ? 'disconnected' : health;
+      return {
+        id: player.id,
+        index: this.#indexOf(player.id, mine),
+        self: mine,
+        colourHex: this.#colourHex(this.#net.cosmeticOf(player.id)),
+        status,
+        stats: this.#stats.get(player.id),
+      };
+    });
+
     rows.sort((a, b) => a.index - b.index);
     return rows;
   }
@@ -806,7 +1040,15 @@ export class Game {
 
   /* --- frame -------------------------------------------------------------- */
 
-  update(dt: number, controlsEnabled: boolean): void {
+  /**
+   * `live` is false while the world is built but the run is still held at the
+   * loading screen waiting for the rest of the team. Everything still presents -
+   * the camera is in the room you will start in, the conversation carries on -
+   * but the hunter does not move and nothing can be touched. The one thing a
+   * shared start has to prevent is somebody being hunted while a teammate is
+   * still generating the map.
+   */
+  update(dt: number, controlsEnabled: boolean, live = true): void {
     const world = this.#world;
     const player = this.#player;
     if (!world || !player) return;
@@ -814,7 +1056,7 @@ export class Game {
     // A flare in the face takes the controls away, not the camera: you are stood
     // there, blind, listening to something decide what to do about you.
     this.#stunFor = Math.max(0, this.#stunFor - dt);
-    const active = controlsEnabled && this.#stunFor <= 0;
+    const active = controlsEnabled && live && this.#stunFor <= 0;
 
     if (active) {
       const look = this.#input.consumeLook();
@@ -855,7 +1097,7 @@ export class Game {
 
     this.#updateProjectiles(dt);
     this.#updateEffects(dt);
-    this.#updateEnemy(dt, player);
+    this.#updateEnemy(dt, player, live);
     // One tick, one chance to be heard or seen. Nothing here ages.
     this.#noise.clear();
     this.#lockerEntries.length = 0;
@@ -936,13 +1178,13 @@ export class Game {
 
   /* --- the hunter ----------------------------------------------------------- */
 
-  #updateEnemy(dt: number, player: PlayerState): void {
+  #updateEnemy(dt: number, player: PlayerState, live: boolean): void {
     const world = this.#world;
     const enemy = this.#enemy;
     const graph = this.#graph;
     if (!world || !enemy || !graph) return;
 
-    if (this.#isHost) {
+    if (this.#isHost && live) {
       updateEnemy(enemy, dt, {
         targets: this.#perceptionTargets(player),
         noise: this.#noise.events,
@@ -964,7 +1206,7 @@ export class Game {
       this.#checkRunOver();
     }
 
-    this.#drawEnemy(dt);
+    this.#drawEnemy();
     this.#updateFeedback(dt, player);
   }
 
@@ -1079,20 +1321,17 @@ export class Game {
   }
 
   /** Presentation only: the sim never reads back from the art. */
-  #drawEnemy(dt: number): void {
+  #drawEnemy(): void {
     const art = this.#enemyArt;
     if (!art) return;
 
-    // The host owns the sim, so it draws exactly where the enemy is; clients
-    // only ever have snapshots, so they interpolate toward the last one.
-    const blend = this.#isHost ? 1 : Math.min(1, dt * 12);
-    art.object.position.x += (this.#enemyView.x - art.object.position.x) * blend;
-    art.object.position.z += (this.#enemyView.z - art.object.position.z) * blend;
-
-    let delta = this.#enemyView.yaw - art.root.rotation.y;
-    while (delta > Math.PI) delta -= Math.PI * 2;
-    while (delta < -Math.PI) delta += Math.PI * 2;
-    art.root.rotation.y += delta * blend;
+    // The host owns the sim, so it draws exactly where the enemy is. A client
+    // has only snapshots, so it plays them back through the same buffer the
+    // remote players use.
+    const view = this.#isHost ? this.#enemyView : (this.#enemyBuffer?.sample(now()) ?? this.#enemyView);
+    art.object.position.x = view.x;
+    art.object.position.z = view.z;
+    art.root.rotation.y = view.yaw;
 
     if (this.#enemyAlert !== this.#enemyView.alert) {
       this.#enemyAlert = this.#enemyView.alert;
@@ -1302,9 +1541,7 @@ export class Game {
       case 'door': {
         const door = this.#doorById(target.id);
         if (!door) break;
-        toggleDoor(door);
-        this.#playDoor(door);
-        this.#net.broadcast({ t: 'door', id: door.id, open: door.open });
+        this.#requestDoor(door, !door.open);
         if (door.open) this.#count('doorsOpened');
         // Closing a door behind you is a slam - louder than opening one, and
         // sometimes worth it anyway.
@@ -1315,13 +1552,9 @@ export class Game {
         const door = this.#doorById(target.id);
         const used = hand ?? this.#keyHand();
         if (!door || !used) break;
-        unlockDoor(door);
-        this.#audio.play('door.unlock', { at: { x: door.x, z: door.z } });
-        dropFrom(this.#inventory, used);
-        this.#pushHands();
-        this.#net.broadcast({ t: 'unlock', id: door.id });
-        // A key is an item, spent. The door it opens is counted when it swings.
-        this.#count('itemsUsed');
+        // The key stays in the hand until the host confirms the lock was still
+        // there to turn. Two people with keys must not both spend one on it.
+        this.#claim('unlock', door.id, 0, { itemId: KEY_ITEM, hand: used });
         break;
       }
       case 'forceOpen': {
@@ -1329,9 +1562,7 @@ export class Game {
         if (!door || !isBarricaded(door)) break;
         this.#clearBarricade(door.id);
         this.#net.broadcast({ t: 'barricade', id: door.id, seconds: 0 });
-        toggleDoor(door, true);
-        this.#playDoor(door);
-        this.#net.broadcast({ t: 'door', id: door.id, open: true });
+        this.#requestDoor(door, true);
         this.#count('doorsOpened');
         // Nails out of timber. The single loudest thing a player can do to a door.
         this.#emitNoise('wreck', door.x, door.z);
@@ -1356,9 +1587,10 @@ export class Game {
         break;
       case 'chest': {
         const chest = world.chests.find((candidate) => candidate.id === target.id);
-        this.openChest(target.id);
-        this.#net.broadcast({ t: 'chest', id: target.id });
-        // The loudest thing in the game, and where most of the keys are.
+        // The lid is the host's to lift, so one chest yields one lot of loot.
+        this.#claim('chest', target.id);
+        // The noise is not: you wrenched at it whether or not you were first,
+        // and the whole map heard you do it.
         if (chest) this.#emitNoise('chestOpen', chest.x, chest.z);
         break;
       }
@@ -1414,25 +1646,33 @@ export class Game {
     const item = world.items.get(worldItemId);
     if (!item) return;
 
-    world.removeItem(worldItemId);
-    this.#net.broadcast({ t: 'take', id: worldItemId });
-
     // Coins never reach a hand. Nobody should have to decide whether picking
-    // money up is worth a slot, and nobody should have to argue about who did.
+    // money up is worth a slot, and nobody should have to argue about who did -
+    // so there is nothing to show early either, and they simply wait for the
+    // host's word.
     const def = itemDef(this.#config.items, item.itemId);
     if (def && def.occupiesSlot === false) {
-      this.#collect(worldItemId, def);
+      this.#claim('take', worldItemId, 0, { itemId: item.itemId });
       return;
     }
 
+    // Into the hand at once, and back out again if the host says somebody else
+    // reached it first. A pick-up is a press: a hand that filled a round trip
+    // later would feel broken every single time.
     this.#audio.play('item.pickup');
-    const { displaced } = takeItem(this.#inventory, item.itemId);
+    const { hand, displaced } = takeItem(this.#inventory, item.itemId);
+    world.removeItem(worldItemId);
     if (displaced) this.#dropIntoWorld(displaced, player);
     this.#pushHands();
+    this.#claim('take', worldItemId, 0, { itemId: item.itemId, hand });
   }
 
-  /** A pile of coins, spent the instant it is touched. */
-  #collect(worldItemId: string, def: ItemDef): void {
+  /**
+   * A pile of coins, spent the instant it is touched. Every peer runs this off
+   * the same grant and reaches the same number, so the purse needs no message
+   * of its own and cannot drift when one goes missing.
+   */
+  #collect(worldItemId: string, def: ItemDef, by: string, at: { x: number; z: number } | null): void {
     const min = Math.round(itemParam(def, 'minValue', 0));
     const max = Math.round(itemParam(def, 'maxValue', min));
     // Derived from the run seed and the item's own id, so the pile in the cellar
@@ -1440,12 +1680,13 @@ export class Game {
     const rng = stream(this.#layout?.seed ?? 0, `coinValue:${worldItemId}`);
     const amount = Math.max(1, rangeInt(rng, min, max + 1));
 
-    this.#audio.play('item.coins');
+    // In your own hands, or over where they picked it up.
+    const self = by === this.#net.selfId;
+    this.#audio.play('item.coins', self || !at ? {} : { at });
     this.#addCoins(amount);
     // The purse is shared, but who bent down for it is not - the scoreboard
     // credits the pile to whoever walked into it.
-    this.#count('goldCollected', amount);
-    this.#net.broadcast({ t: 'coins', amount });
+    if (self) this.#count('goldCollected', amount);
   }
 
   /** Coins anyone in the team picked up. One purse, one number, no arguing. */
@@ -1672,16 +1913,19 @@ export class Game {
       // Patching yourself up counts too. It is still a bandage spent on keeping
       // somebody on their feet, and it is still one you cannot use later.
       this.#count('heals');
-    } else if (hold.def.behaviour === 'barricade' && hold.targetId) {
-      const seconds = itemParam(hold.def, 'openSeconds', 9);
-      this.#applyBarricade(hold.targetId, seconds);
-      this.#net.broadcast({ t: 'barricade', id: hold.targetId, seconds });
+      if (hold.def.consumedOnUse) {
+        this.#count('itemsUsed');
+        dropFrom(this.#inventory, hold.hand);
+        this.#pushHands();
+      }
+      return;
     }
 
-    if (hold.def.consumedOnUse) {
-      this.#count('itemsUsed');
-      dropFrom(this.#inventory, hold.hand);
-      this.#pushHands();
+    if (hold.def.behaviour === 'barricade' && hold.targetId) {
+      // The planks and the item that became them are both spent on the grant,
+      // so two people wedging one door cannot cost two barricades.
+      const seconds = itemParam(hold.def, 'openSeconds', 9);
+      this.#claim('barricade', hold.targetId, seconds, { itemId: hold.itemId, hand: hold.hand });
     }
   }
 
@@ -2243,21 +2487,33 @@ export class Game {
 
   /* --- networking ---------------------------------------------------------- */
 
+  /**
+   * Remote bodies are drawn from their snapshot buffers rather than chased with
+   * a lerp: playback runs `interpolationDelayMs` behind, so there is a sample on
+   * each side of the playback head and a body moves at the speed it was
+   * actually moving. See `src/net/interpolation.ts`.
+   */
   #interpolateRemotes(dt: number): void {
+    const at = now();
     const blend = Math.min(1, dt * 12);
+
     for (const remote of this.#remotes.values()) {
-      remote.object.position.x += (remote.target.x - remote.object.position.x) * blend;
-      remote.object.position.z += (remote.target.z - remote.object.position.z) * blend;
+      // Nothing has been heard from them yet: a body at the origin is worse
+      // than no body at all.
+      if (remote.buffer.empty) {
+        remote.object.visible = false;
+        continue;
+      }
+      remote.object.visible = true;
 
-      let delta = remote.target.yaw - remote.root.rotation.y;
-      while (delta > Math.PI) delta -= Math.PI * 2;
-      while (delta < -Math.PI) delta += Math.PI * 2;
-      remote.root.rotation.y += delta * blend;
+      const view = remote.buffer.sample(at);
+      remote.object.position.x = view.x;
+      remote.object.position.z = view.z;
+      remote.root.rotation.y = view.yaw;
+      remote.root.scale.y = view.height / this.#config.player.body.standHeight;
 
-      const crouchScale = remote.target.height / this.#config.player.body.standHeight;
-      remote.root.scale.y += (crouchScale - remote.root.scale.y) * blend;
-
-      // Downed teammates are on the floor - the pose IS the "come and get me".
+      // Health is a state rather than a transform, so it still eases: it is the
+      // pose changing, not the body moving.
       const down = isDown(remote.target.health) ? Math.PI / 2 : 0;
       remote.root.rotation.x += (down - remote.root.rotation.x) * blend;
     }
@@ -2280,8 +2536,17 @@ export class Game {
       // The host's enemy needs to know who is hidden and who is already down.
       hiding: this.#hiding?.active === true,
       health: player.health.state,
+      // Two strings that are usually null, so that a key does not leave the map
+      // inside a closed tab - see `#dropRemoteItems`.
+      left: this.#inventory.left,
+      right: this.#inventory.right,
     });
   }
+}
+
+/** One monotonic clock for every replicated transform, in seconds. */
+function now(): number {
+  return performance.now() / 1000;
 }
 
 /* --- decor ids ------------------------------------------------------------- */
