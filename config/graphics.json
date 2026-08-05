@@ -6,6 +6,9 @@
   "toneMapping": "aces",
   "exposure": 0.95,
 
+  "$brightness": "The options-menu brightness slider MULTIPLIES `exposure` rather than replacing it, so a map that deliberately darkens itself stays relatively darker at every setting. 1.0 is exactly what the map asked for.",
+  "brightnessRange": [0.6, 1.6],
+
   "ambientIntensity": 1.2,
   "ambientColor": "#2a2f45",
   "minAmbientFloor": 0.8,

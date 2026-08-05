@@ -47,10 +47,22 @@ export function createPlayerState(x: number, z: number, yaw: number, config: Pla
   };
 }
 
-export function applyLook(state: PlayerState, deltaX: number, deltaY: number, config: PlayerConfig, sensitivityScale: number): void {
+/**
+ * `sensitivityScale` and `invertY` come from `input/`, not from config: they are
+ * options the player owns at runtime, and `player.json -> camera` only says
+ * where they start. The radians-per-pixel figure is still config's.
+ */
+export function applyLook(
+  state: PlayerState,
+  deltaX: number,
+  deltaY: number,
+  config: PlayerConfig,
+  sensitivityScale: number,
+  invertY: boolean,
+): void {
   const sensitivity = config.camera.mouseSensitivity * sensitivityScale;
   state.yaw -= deltaX * sensitivity;
-  state.pitch += (config.camera.invertY ? deltaY : -deltaY) * sensitivity;
+  state.pitch += (invertY ? deltaY : -deltaY) * sensitivity;
 
   const clamp = (config.camera.pitchClampDegrees * Math.PI) / 180;
   state.pitch = Math.max(-clamp, Math.min(clamp, state.pitch));

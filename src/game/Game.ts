@@ -49,6 +49,7 @@ import { isBarricaded, setBarricade, toggleDoor, unlockDoor, updateDoors, type D
 import { updateChests, updateLockers, type Locker } from '@/world/containers';
 import { RunEffects, type Effect } from '@/world/effects';
 import { RunState } from '@/world/runState';
+import { RunStats, sanitiseStats, type PlayerStats, type StatId } from '@/world/runStats';
 import { WallGrid } from '@/world/wallGrid';
 import { buildWorld, type BuiltDecor, type BuiltWorld } from '@/world/worldBuilder';
 
@@ -107,6 +108,22 @@ export interface RosterEntry {
   pulse: { loudness: number; heard: boolean; token: number } | null;
 }
 
+/**
+ * One player's column on the post-run scoreboard: who they are, how their run
+ * ended, and what they did. `stats` is keyed by the category ids in
+ * `game.json -> scoring.categories`.
+ */
+export interface ScoreRow {
+  id: string;
+  index: number;
+  self: boolean;
+  /** Their wardrobe colour, so the figure on their card is the one they wore. */
+  colourHex: string;
+  /** `escaped` outranks health: getting out is how a run ends well. */
+  status: 'escaped' | HealthState;
+  stats: PlayerStats;
+}
+
 export interface RunHooks {
   onInteractTargetChange(target: InteractTarget | null): void;
   onHoldProgress(progress: number): void;
@@ -117,6 +134,12 @@ export interface RunHooks {
   onCoinsChange(coins: number): void;
   /** `coins` is the purse this player is walking out with. */
   onEscaped(coins: number): void;
+  /**
+   * The scoreboard, once the run is over for this player. Fired again whenever
+   * a teammate's tally arrives afterwards, so a column cannot sit at zero
+   * because their last message was still in flight.
+   */
+  onScoreboard(rows: ScoreRow[]): void;
   onPlayerCountChange(count: number): void;
   onHealthChange(state: HealthState): void;
   onRosterChange(roster: RosterEntry[]): void;
@@ -138,6 +161,13 @@ const KEY_ITEM = 'key';
 
 /** Decor id of the aim arc. There is only ever one, and it is the local player's. */
 const ARC_ID = 'aim:arc';
+
+/**
+ * How often a peer re-sends its scoreboard tally while a run is going. Nothing
+ * reads it until the run ends, so this is deliberately lazy - it exists only so
+ * a player who disconnects mid-run still has a column worth looking at.
+ */
+const STATS_INTERVAL_SECONDS = 1;
 
 /** Hand button -> hand, in the order the two are polled. */
 const USE_ACTIONS: readonly (readonly [string, Hand])[] = [
@@ -224,6 +254,12 @@ export class Game {
   #voiceNoiseTimer = 0;
   #run = new RunState();
   #over = false;
+
+  /* --- scoreboard ---------------------------------------------------------- */
+  /** Every player's tally. This browser counts its own and is told the rest. */
+  #stats = new RunStats();
+  /** Seconds until this player's block goes out again, if it has changed. */
+  #statsTimer = 0;
 
   /* --- roster -------------------------------------------------------------- */
   /** Stable per-peer numbering, so a teammate keeps their line across runs. */
@@ -322,6 +358,9 @@ export class Game {
     this.#run.clear();
     this.#run.add(this.#net.selfId);
     for (const id of this.#remotes.keys()) this.#run.add(id);
+
+    this.#stats.clear();
+    this.#statsTimer = 0;
 
     const [ex, ez] = layout.enemySpawn.position;
     this.#enemy = createEnemy(ex, ez);
@@ -562,6 +601,12 @@ export class Game {
     // Silent by config is silent on the HUD too - a ring for a noise nothing can
     // ever hear would be a lie.
     if (spec.loudness <= 0) return;
+
+    // Every peer sees every noise, but only this browser's own goes on its
+    // scoreboard line - each peer counts itself and the rest arrive over the
+    // wire. Loudness rather than a count: a sprint is not one footstep.
+    if (sourceId === this.#net.selfId) this.#count('noiseMade', spec.loudness);
+
     this.#pulses.set(sourceId, {
       loudness: Math.min(1, spec.loudness),
       heard: this.#enemyCanHear(spec.loudness, spec.radius, x, z),
@@ -666,6 +711,7 @@ export class Game {
 
   markEscaped(id: string): void {
     this.#run.setEscaped(id);
+    this.#pushScoreboard();
   }
 
   endWiped(): void {
@@ -673,7 +719,66 @@ export class Game {
     this.#over = true;
     this.#audio.stopSustains();
     this.#audio.play('run.wiped');
+    this.#sendStats(0, true);
     this.#hooks.onWiped();
+    this.#pushScoreboard();
+  }
+
+  /* --- scoreboard ---------------------------------------------------------- */
+
+  /** Credits the local player. Remote lines only ever arrive over the wire. */
+  #count(stat: StatId, amount = 1): void {
+    this.#stats.add(this.#net.selfId, stat, amount);
+  }
+
+  /** A teammate's own tally. Whole, so a lost message costs nothing. */
+  setStats(id: string, stats: PlayerStats): void {
+    this.#stats.set(id, sanitiseStats(stats));
+    // A column that filled in after the screen went up must not stay at zero.
+    if (this.#over || this.#escaped) this.#pushScoreboard();
+  }
+
+  /**
+   * Sends this player's block when it has changed, at most once a second - the
+   * scoreboard is the only thing that reads it, so it is never urgent until the
+   * run ends, and `force` is exactly that moment.
+   */
+  #sendStats(dt: number, force = false): void {
+    this.#statsTimer -= dt;
+    if (!force && this.#statsTimer > 0) return;
+    if (!this.#stats.takeDirty() && !force) return;
+
+    this.#statsTimer = STATS_INTERVAL_SECONDS;
+    this.#net.broadcast({ t: 'stats', id: this.#net.selfId, stats: this.#stats.get(this.#net.selfId) });
+  }
+
+  /**
+   * One column per player, in roster order. Built fresh each time rather than
+   * kept, because it is read a handful of times at the end of a run and the
+   * inputs (health, escaped, tallies) all live somewhere else already.
+   */
+  scoreboard(): ScoreRow[] {
+    const row = (id: string, self: boolean): ScoreRow => {
+      const player = this.#run.get(id);
+      const health = self ? (this.#player?.health.state ?? 'healthy') : (this.#remotes.get(id)?.target.health ?? 'healthy');
+      return {
+        id,
+        index: this.#playerIndex.get(id) ?? (self ? 1 : 2),
+        self,
+        colourHex: this.#colourHex(this.#net.cosmeticOf(id)),
+        status: player?.escaped ? 'escaped' : health,
+        stats: this.#stats.get(id),
+      };
+    };
+
+    const rows = [row(this.#net.selfId, true)];
+    for (const id of this.#remotes.keys()) rows.push(row(id, false));
+    rows.sort((a, b) => a.index - b.index);
+    return rows;
+  }
+
+  #pushScoreboard(): void {
+    this.#hooks.onScoreboard(this.scoreboard());
   }
 
   #announceHealth(state: HealthState): void {
@@ -712,7 +817,7 @@ export class Game {
 
     if (active) {
       const look = this.#input.consumeLook();
-      applyLook(player, look.x, look.y, this.#config.player, this.#input.mouseSensitivity);
+      applyLook(player, look.x, look.y, this.#config.player, this.#input.mouseSensitivity, this.#input.invertY);
 
       // Hidden players cannot move; the locker is a trade of mobility for cover.
       if (!this.#hiding?.active) {
@@ -762,6 +867,7 @@ export class Game {
     this.#renderer.updateLights(dt, player.x, player.z);
     this.#interpolateRemotes(dt);
     this.#sendTransform(dt, player);
+    this.#sendStats(dt);
   }
 
   /* --- noise --------------------------------------------------------------- */
@@ -1198,6 +1304,7 @@ export class Game {
         toggleDoor(door);
         this.#playDoor(door);
         this.#net.broadcast({ t: 'door', id: door.id, open: door.open });
+        if (door.open) this.#count('doorsOpened');
         // Closing a door behind you is a slam - louder than opening one, and
         // sometimes worth it anyway.
         this.#emitNoise(door.open ? 'doorOpen' : 'doorSlam', door.x, door.z);
@@ -1212,6 +1319,8 @@ export class Game {
         dropFrom(this.#inventory, used);
         this.#pushHands();
         this.#net.broadcast({ t: 'unlock', id: door.id });
+        // A key is an item, spent. The door it opens is counted when it swings.
+        this.#count('itemsUsed');
         break;
       }
       case 'forceOpen': {
@@ -1222,6 +1331,7 @@ export class Game {
         toggleDoor(door, true);
         this.#playDoor(door);
         this.#net.broadcast({ t: 'door', id: door.id, open: true });
+        this.#count('doorsOpened');
         // Nails out of timber. The single loudest thing a player can do to a door.
         this.#emitNoise('wreck', door.x, door.z);
         break;
@@ -1236,7 +1346,11 @@ export class Game {
           this.#audio.stopSustains();
           this.#audio.play('exit.escaped');
           this.#net.broadcast({ t: 'escaped', id: this.#net.selfId });
+          // The tally goes out before the screen does, so the teammates still
+          // down there have this player's final column already.
+          this.#sendStats(0, true);
           this.#hooks.onEscaped(this.#coins);
+          this.#pushScoreboard();
         }
         break;
       case 'chest': {
@@ -1252,6 +1366,9 @@ export class Game {
         break;
       case 'revive':
         this.#net.broadcast({ t: 'revive', id: target.id });
+        // Picking someone up off the floor counts as a heal, and it is the one
+        // that costs nothing but the time you stood there in the open.
+        this.#count('heals');
         break;
       case 'lockerEnter': {
         const locker = world.lockers.find((candidate) => candidate.id === target.id);
@@ -1324,6 +1441,9 @@ export class Game {
 
     this.#audio.play('item.coins');
     this.#addCoins(amount);
+    // The purse is shared, but who bent down for it is not - the scoreboard
+    // credits the pile to whoever walked into it.
+    this.#count('goldCollected', amount);
     this.#net.broadcast({ t: 'coins', amount });
   }
 
@@ -1356,6 +1476,7 @@ export class Game {
     this.#audio.play('item.treasure');
     this.#pushHands();
     this.#addCoins(bounty);
+    this.#count('goldCollected', bounty);
     this.#net.broadcast({ t: 'coins', amount: bounty });
   }
 
@@ -1547,6 +1668,9 @@ export class Game {
         if (state) this.#announceHealth(state);
       }
       this.#audio.play('player.healed');
+      // Patching yourself up counts too. It is still a bandage spent on keeping
+      // somebody on their feet, and it is still one you cannot use later.
+      this.#count('heals');
     } else if (hold.def.behaviour === 'barricade' && hold.targetId) {
       const seconds = itemParam(hold.def, 'openSeconds', 9);
       this.#applyBarricade(hold.targetId, seconds);
@@ -1554,6 +1678,7 @@ export class Game {
     }
 
     if (hold.def.consumedOnUse) {
+      this.#count('itemsUsed');
       dropFrom(this.#inventory, hold.hand);
       this.#pushHands();
     }
@@ -1702,6 +1827,7 @@ export class Game {
     });
 
     this.#audio.play('item.throw');
+    this.#count('itemsUsed');
     dropFrom(this.#inventory, aim.hand);
     this.#pushHands();
   }

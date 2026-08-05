@@ -31,12 +31,23 @@ export class Renderer {
   #lights: { light: THREE.Light; x: number; z: number }[] = [];
   #lightSortTimer = 0;
 
+  /**
+   * The options-menu brightness, as a multiplier on whatever exposure the
+   * current scene asks for. Kept here rather than folded into the config so a
+   * map override and a player preference stay independent: switching to the
+   * bright lobby must not quietly discard the setting.
+   */
+  #brightness = 1;
+  /** The last graphics block applied, so a brightness change can re-apply it. */
+  #graphics: GraphicsConfig;
+
   constructor(canvas: HTMLCanvasElement, graphics: GraphicsConfig, player: PlayerConfig) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: graphics.antialias });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, graphics.pixelRatioCap));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = graphics.exposure;
     this.renderer.shadowMap.enabled = graphics.shadows.enabled;
+    this.#graphics = graphics;
 
     this.camera = new THREE.PerspectiveCamera(player.camera.fovDegrees, 1, 0.05, 400);
 
@@ -54,9 +65,10 @@ export class Renderer {
 
   /** Re-applies per-map graphics overrides without rebuilding the renderer. */
   applyGraphics(graphics: GraphicsConfig): void {
+    this.#graphics = graphics;
     this.#ambient.color = new THREE.Color(graphics.ambientColor);
     this.#ambient.intensity = ambientIntensity(graphics);
-    this.renderer.toneMappingExposure = graphics.exposure;
+    this.renderer.toneMappingExposure = graphics.exposure * this.#brightness;
 
     if (graphics.fog.enabled) {
       this.scene.fog = new THREE.FogExp2(new THREE.Color(graphics.fog.color), graphics.fog.density);
@@ -64,6 +76,33 @@ export class Renderer {
       this.scene.fog = null;
     }
     this.scene.background = new THREE.Color(graphics.fog.color);
+  }
+
+  /* --- options ------------------------------------------------------------- */
+
+  /** Options menu. `1` is exactly the exposure the current scene asked for. */
+  setBrightness(brightness: number): void {
+    this.#brightness = brightness;
+    this.renderer.toneMappingExposure = this.#graphics.exposure * brightness;
+  }
+
+  setFov(degrees: number): void {
+    if (this.camera.fov === degrees) return;
+    this.camera.fov = degrees;
+    this.camera.updateProjectionMatrix();
+  }
+
+  setShadows(enabled: boolean): void {
+    if (this.renderer.shadowMap.enabled === enabled) return;
+    this.renderer.shadowMap.enabled = enabled;
+    // Materials cache their shadow-aware program, so a live toggle needs them
+    // recompiled - otherwise the change only shows on the next scene load.
+    this.renderer.shadowMap.needsUpdate = true;
+    this.scene.traverse((object) => {
+      const material = (object as THREE.Mesh).material;
+      if (!material) return;
+      for (const entry of Array.isArray(material) ? material : [material]) entry.needsUpdate = true;
+    });
   }
 
   setRoomLights(lights: { light: THREE.Light; x: number; z: number }[]): void {

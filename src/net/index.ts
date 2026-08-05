@@ -18,6 +18,7 @@
 import Peer, { type DataConnection, type MediaConnection } from 'peerjs';
 import type { NoiseKind } from '@/ai/noiseBus';
 import type { HealthState, VoiceConfig } from '@/config/types';
+import type { PlayerStats } from '@/world/runStats';
 
 /** Namespaced so a 6-character code cannot collide with another app on the public server. */
 const PEER_PREFIX = 'stranded-in-silence-';
@@ -118,6 +119,12 @@ export type NetMessage =
   /** Coins into the shared run purse. Everyone keeps the same running total. */
   | { t: 'coins'; amount: number }
   | { t: 'escaped'; id: string }
+  /**
+   * A peer's own tally of what they did this run, for the scoreboard. Sent
+   * whole rather than as deltas and re-sent whenever it changes, so a message
+   * lost on the way costs nothing: the next one carries the truth anyway.
+   */
+  | { t: 'stats'; id: string; stats: PlayerStats }
   /** Any peer may emit noise; the host feeds it all into one bus. */
   | { t: 'noise'; id: string; kind: NoiseKind; x: number; z: number }
   | { t: 'enemy'; x: number; z: number; yaw: number; alert: string }
@@ -168,6 +175,8 @@ export interface NetEvents {
   onHealth(id: string, state: HealthState): void;
   onRevive(id: string): void;
   onPeerEscaped(id: string): void;
+  /** A peer's scoreboard tally. Replaces whatever was held for them. */
+  onStats(id: string, stats: PlayerStats): void;
   onWiped(): void;
   /** A peer's voice track arrived. Attenuation is the listener's own business. */
   onVoiceStream(id: string, stream: MediaStream): void;
@@ -344,7 +353,9 @@ export class Net {
     this.broadcast({ t: 'cosmetic', id: this.selfId, colourId });
   }
 
+  /** This browser's own choice included, so the scoreboard can colour every row. */
   cosmeticOf(id: string): string | null {
+    if (id === this.selfId) return this.#cosmetic || null;
     return this.#cosmetics.get(id) ?? null;
   }
 
@@ -526,6 +537,9 @@ export class Net {
         break;
       case 'escaped':
         this.#events.onPeerEscaped(message.id);
+        break;
+      case 'stats':
+        this.#events.onStats(message.id, message.stats);
         break;
     }
 

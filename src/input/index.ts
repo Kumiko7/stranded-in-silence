@@ -11,8 +11,15 @@ export class Input {
   #down = new Set<string>();
   #pressed = new Set<string>();
   #bindings = new Map<string, string[]>();
-  #config: InputConfig;
   #canvas: HTMLElement;
+
+  /**
+   * The mouse settings, owned here rather than read from config on every look:
+   * the options menu writes them at runtime and `config/` is only where they
+   * start. `sensitivity` scales `player.json -> camera.mouseSensitivity`.
+   */
+  #sensitivity: number;
+  #invertY: boolean;
 
   lookDeltaX = 0;
   lookDeltaY = 0;
@@ -20,8 +27,9 @@ export class Input {
   onPointerLockChange: ((locked: boolean) => void) | null = null;
 
   constructor(config: InputConfig, canvas: HTMLElement) {
-    this.#config = config;
     this.#canvas = canvas;
+    this.#sensitivity = config.mouse.sensitivity;
+    this.#invertY = config.mouse.invertY;
     for (const [action, binding] of Object.entries(config.actions)) {
       this.#bindings.set(action, binding.keys);
     }
@@ -129,7 +137,18 @@ export class Input {
   }
 
   get mouseSensitivity(): number {
-    return this.#config.mouse.sensitivity;
+    return this.#sensitivity;
+  }
+
+  /** Whether pushing the mouse forward looks up. Read by `applyLook`. */
+  get invertY(): boolean {
+    return this.#invertY;
+  }
+
+  /** Options menu. Takes effect on the very next look sample. */
+  setMouse(options: { sensitivity: number; invertY: boolean }): void {
+    this.#sensitivity = options.sensitivity;
+    this.#invertY = options.invertY;
   }
 
   /** Call once per rendered frame, after every substep has read input. */

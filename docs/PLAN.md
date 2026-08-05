@@ -47,7 +47,13 @@ run something you have to *solve*. Slice 3 makes it something you can lose:
   shortens once everyone has chosen. Voice follows the *session*, so it survives the
   load into a map.
 
-Still missing: item roster beyond the key, scoreboard.
+- **The run report** (step 36) — a card per player, their body on top and what they
+  did with the run underneath: doors opened, items used, people patched up, gold
+  collected and how much noise they made getting it. Green ring on the best in each.
+- **Options** (step 35) — the basics, persisted: sensitivity, invert Y, field of view,
+  brightness, shadows and five volume sliders, over a save profile with a real schema.
+
+Still missing: key rebinding and a language selector.
 
 Because these are slices rather than a sequence of finished steps, several steps
 below are `◐` — the part the slice needed is done, the rest is not. Each one lists
@@ -166,7 +172,7 @@ the simulation is written host-authoritative from the start.*
 **Touches:** `src/world/generation.ts`, `src/game/Game.ts`.
 **Details:** key item unlocks a door and is consumed, exit door hold completes the run, win/lose evaluation per [`GAMEPLAY.md §6`](GAMEPLAY.md).
 **Done when:** you can play a full solo run from spawn to escape.
-**Still missing:** the scoreboard (step 36). A full solo run from spawn through two locked doors to the exit is playable, and `src/world/runState.ts` now resolves escape and wipe.
+**Still missing:** nothing. A full solo run from spawn through two locked doors to the exit is playable, `src/world/runState.ts` resolves escape and wipe, and the run report landed with step 36.
 
 ### ◐ 16. Noise bus
 **Goal:** the spine described in [`ARCHITECTURE.md §8`](ARCHITECTURE.md).
@@ -306,17 +312,26 @@ floating under the plaster.
 **Details:** buses, distance-based spatial SFX (no occlusion), a generative four-layer score that cross-fades on the hunter's alert level, and the registry in `config/audio.json`.
 **Done when:** footsteps, doors, chests, the enemy and UI all make appropriate positional sound.
 **Note:** all 27 sounds are **synthesised with Tone.js** (`src/audio/recipes.ts`) and rendered to `AudioBuffer`s once at boot, so the game has a complete soundtrack with no assets and no licences. Each one also declares a file path: **drop a file into `assets/audio/` and it replaces the synthesised version**, no code or config change — see [`assets/audio/README.md`](../assets/audio/README.md). Music is generative too (`explore` / `tension` / `chase` / `menu` layers plus an ambience bed), and any layer can be replaced by a file the same way. Two things worth knowing: `unlock()` must wait for `init()` because `Tone.Offline` swaps the global context mid-render, and doors sound from their replicated **state** rather than from the noise bus so that a door the hunter opens is heard by every peer.
-**Still missing:** the options-menu volume sliders (step 35 — `audio.setBusVolume()` is the seam). Voice ducking landed with step 28: `music.setVoiceDucking()` pulls the score down by `music.duckOnVoiceDb` while a teammate is *audible*, leaving ambience alone.
+**Still missing:** nothing. The volume sliders landed with step 35 through `audio.setBusVolume()`, which is why every bus in `audio.json` was worth having. Voice ducking landed with step 28: `music.setVoiceDucking()` pulls the score down by `music.duckOnVoiceDb` while a teammate is *audible*, leaving ambience alone.
 
-### ☐ 35. Save system + full options menus
-**Touches:** `src/save/`, `src/ui/screens/Options.tsx`, `src/ui/screens/Controls.tsx`.
-**Details:** `localStorage` adapter behind an interface, options for graphics/audio/gameplay/voice, full key rebinding with conflict display, language selector, `npm run validate:locales`. Graphics options write individual `graphics.json` values — no quality presets.
+### ◐ 35. Save system + options menu
+**Touches:** `src/save/{index,options}.ts`, `src/ui/screens/Options.tsx`, `src/ui/components/Controls.tsx`, `src/main.tsx`, `src/render/Renderer.ts`, `src/input/index.ts`, `config/{player,graphics,audio}.json`.
+**Details:** `localStorage` adapter behind an interface, options for graphics/audio/gameplay, full key rebinding with conflict display, language selector, `npm run validate:locales`. Graphics options write individual `graphics.json` values — no quality presets.
 **Done when:** every setting persists across reloads and reset-to-defaults works.
+**Still missing:** key rebinding (`Controls.tsx`), the language selector and `npm run validate:locales`. The menu was deliberately scoped to *the basics every game has* for now — mouse sensitivity, invert Y, field of view, brightness, shadows and the five bus volumes.
+**Note:** the save profile has a real schema at last. Every stored value is validated on the way in and a bad one costs that field alone, which is what stands in for format versioning (still not built, by decision). Every **default is read from `config/`** rather than written in `src/save/`, so "reset to defaults" means exactly "whatever the config files say".
+**Note:** `save/` holds the numbers and never applies them — `applyOptions()` in `src/main.tsx` hands them to the renderer, input and audio, at boot and on every change through the same code path, so "apply" and "restore on load" cannot drift apart. Options is therefore **not** a config merge layer: these settings belong to live subsystems, and a volume that had to be re-merged and re-read would not move while you dragged the slider.
+**Note:** which volume sliders exist is `audio.json → buses.<id>.labelKey`, and every slider's range is config (`camera.fovRange`, `graphics.brightnessRange`, `mouse.sensitivityRange`). Adding a bus adds its slider.
+**Verified:** FOV, brightness and shadows change the live renderer as the control moves; the profile survives a reload; reset-to-defaults returns every value to `config/`; Escape closes the panel.
 
-### ☐ 36. Scoreboard
-**Touches:** `src/ui/screens/Scoreboard.tsx`, `src/world/runStats.ts`.
-**Details:** track the categories in `game.json → scoring`, per-player rows, green ring on the best value per category.
+### ☑ 36. Scoreboard
+**Touches:** `src/ui/screens/Scoreboard.tsx`, `src/world/runStats.ts`, `src/game/Game.ts`, `src/net/index.ts`, `config/game.json`.
+**Details:** track the categories in `game.json → scoring`, per-player cards, green ring on the best value per category.
 **Done when:** a finished run shows accurate stats for all players.
+**Note:** the categories are **doors opened, items used, patched up, gold collected and noise made**. `noiseMade` is the one where *less* is better, and it accumulates **loudness** rather than counting sounds — a run measured in footstep events would call a sprinter and a crouching player equally loud. "Patched up" is revives *and* bandages, on yourself or on somebody else: both are a teammate kept on their feet.
+**Note:** **every peer counts its own stats** and broadcasts the whole block on a lazy interval. There is no authority and there does not need to be — a player's own client is the only thing that sees every one of their footsteps, and a scoreboard is not worth an arbitration protocol. A block is sent whole rather than as deltas, so a lost message costs nothing.
+**Note:** the figure on each card is an **SVG standing in for `player.masked`** — same silhouette, same wardrobe colour — because screens never touch `THREE` ([`systems/UI.md`](systems/UI.md), rule 5). The green ring only appears when there is more than one player: a solo player winning every category is not a result.
+**Verified:** a real run through to a wipe produces the screen with real counters; 1, 2 and 4-player boards lay out correctly at 375 px, 742 px and 1600 px wide.
 
 ### ☑ 37. Item roster
 **Touches:** `config/items.json`, `src/entities/projectile.ts`, `src/world/{wallGrid,effects}.ts`, `src/game/Game.ts`, `art/shared/props/items/`, `art/shared/vfx/`.
@@ -373,4 +388,5 @@ floating under the plaster.
 | 2026-08-04 | **Step 28 done — proximity voice.** `src/voice/` (capture, per-peer audio, attenuation, modes, VAD) over PeerJS media calls, which makes voice a true mesh while gameplay data stays a star. `config/net.json → voice` gained `gainSmoothingSeconds`, `noiseThresholdDb`, `noiseIntervalSeconds`, `speakingThresholdDb` and `speakingHoldMs`; the enemy-facing threshold sits well above the open-mic gate, which is what makes an open mic safe. Voice emits `player.json → noise.voice` on an interval, downed players included — being heard is the point. Music now ducks (`music.setVoiceDucking()`), the roster grew a speaking microphone, the pause menu grew a one-control mode switch plus mutes, and the HUD grew a plain-DOM voice pill. `.claude/launch.json` / `vite.config.ts` learned `PORT`, so two dev servers can run side by side. |
 | 2026-08-04 | **Step 29 — the lobby.** A log cabin (`art/shared/lobby/`, its own material library because it belongs to no pack) with a twenty-slot poster wall, a fireplace, a panoramic window onto four ranges of snow-capped mountains, a difficulty lever, a wardrobe and a covered minigame wall. `src/game/Lobby.ts` orchestrates it — deliberately its own file rather than a mode of `Game`, which has no enemy, noise bus, health or items to share with a foyer. Three decisions worth knowing: **voice moved out of `Game` and onto the session**, so it now spans the load into a map (peers announce a `scene`, and each side hands `voice/` only same-world peers — `src/voice/` itself did not change); the host **publishes the whole lobby on every change** rather than sending diffs, which is the shape steps 25–27 want; and `src/save/` exists at last, holding only escaped maps and the wardrobe colour until step 35 gives it a real schema. `player.masked` gained legs and `api.setColour()` — the wardrobe stands it two metres from the camera, where a floating capsule reads as a bug. `npm run validate:art` and `/tools/roomshot.html?map=lobby` both cover the cabin now. |
 | 2026-08-04 | **Room review tool.** `tools/roomshot` renders every room of a pack through the real `Renderer` + `buildWorld` and writes a contact sheet per room to `shots/` (git-ignored) via a dev-only Vite middleware — see [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md). Nothing about the look is re-implemented, so a sheet is what the game shows. Its first pass over the mansion fixed four bugs the headless validator cannot see, listed under step 32. |
+| 2026-08-05 | **Steps 35 and 36 — options and the run report.** The save profile has a real schema (`src/save/{index,options}.ts`) whose every default is read from `config/`, so reset-to-defaults means "whatever the config files say"; every stored value is validated on the way in, which is what stands in for format versioning. Options is deliberately the basics — sensitivity, invert Y, FOV, brightness, shadows, five volumes — and is **not** a config merge layer: `applyOptions()` in `main.tsx` hands the values to the renderer, input and audio at boot and on every change, through one code path. `config/game.json → scoring.categories` was rewritten to the five counters logic actually keeps (`src/world/runStats.ts`); **`noiseMade` accumulates loudness and is the one where less is better**. Every peer counts its own stats and broadcasts the block whole (`t: 'stats'`) — no arbitration, because a scoreboard is not worth one. Three UI decisions came with it: the reusable `Slider`/`Switch`/`Tabs` set (`src/ui/components/Controls.tsx`), a **viewport-relative base font size** on `.layer` so the whole interface scales with the display, and `.overlay` becoming `position: fixed` so a screen layered over another does not stack below the viewport. `screen: 'escaped' \| 'wiped'` collapsed into one `'scoreboard'`, which works out its own outcome. |
 | 2026-08-02 | **Slice 2 playable**: locked doors, keys, chests, lockers and the two-hand inventory. Generation now locks doors on the spanning-tree route *before* adding loops and forbids loops across a lock, which makes "always X locked doors, always enough keys" structural rather than checked — see [`systems/GENERATION.md`](systems/GENERATION.md) → "Locks and keys". Steps 9, 13, 14, 15, 22, 26 advanced. `loot.chestTable` / `floorTable` were trimmed to `key` + `empty` until the item roster lands in step 37. |

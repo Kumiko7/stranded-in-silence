@@ -66,6 +66,11 @@ The key **must** match ids used in config. `config/items.json → items.key` pai
 with `scoreboard.category.doorsOpened`. Adding an item or category without its key
 is a validation warning at boot.
 
+Two places name a key from config rather than deriving one, so the key travels with
+the thing it labels instead of being matched by convention: `audio.json →
+buses.<id>.labelKey` (which also decides *whether* that bus gets a volume slider at
+all) and `input.json → actions.<id>.labelKey`.
+
 ## Placeholders
 
 `{name}` — substituted from the params object. Keep them descriptive, and never
