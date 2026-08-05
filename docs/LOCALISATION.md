@@ -81,11 +81,54 @@ t('lobby.players', { current: 3, max: 4 })   // ✅ "Players 3/4"
 t('lobby.players') + ' ' + n                 // ❌ breaks in other languages
 ```
 
-Key bindings are substituted the same way, so prompts adapt to rebinds:
+### `{key}` is special
+
+A `{key}` placeholder is **not** substituted with text. The UI splits the
+translated string around it and renders a real key cap in the gap — a drawn cap
+with `E` on it, or a mouse with the correct button lit (`src/ui/keys.ts`,
+`src/ui/components/KeyCap.tsx`).
 
 ```json
 "hud.interact.holdHint": "Hold {key}"
+"hud.interact.holdHint": "{key} 長押し"
 ```
+
+Both work, and that is the point: the placeholder can sit anywhere in the
+sentence, so word order stays the translator's business. Japanese puts the key
+first and nothing in the code has to know.
+
+Two consequences worth knowing:
+
+- **Never write a key name into a string.** "Press E to open" is wrong in every
+  language including English, because E is whatever the player rebound it to.
+- The words printed on the caps themselves — `Shift`, `Ctrl`, `Esc` — are in
+  `config/input.json → keyLabels`, not here. They belong with the keyboard
+  rather than with the prose, and a layout that calls a key something else is a
+  config edit.
+
+## Shipped languages
+
+| Code | File | Notes |
+| --- | --- | --- |
+| `en` | `en.json` | The source of truth. Everything is checked against it |
+| `ja` | `ja.json` | Plain-form verbs, not `-ます` — the register Japanese game UI uses for player actions |
+| `zh` | `zh.json` | Simplified |
+| `ru` | `ru.json` | Runs 20–30 % longer than English; the widest strings in the game are here |
+| `es` | `es.json` | Neutral, `tú`, infinitive HUD verbs (which sidesteps `tú`/`usted` entirely) |
+| `pt` | `pt.json` | Brazilian. `pt-PT` differs enough in UI vocabulary to deserve its own file if it is ever wanted |
+
+The language is chosen in Options → Gameplay and stored in the save profile.
+Switching applies **immediately** — no reload — and a profile that has never
+picked one follows the browser, so a Japanese player gets Japanese on first run
+and keeps getting it if a later build adds their language.
+
+Each language names itself in its own script (`manifest.nativeName`). Somebody
+looking for 日本語 is not looking for a row that says "Japanese".
+
+**Fonts.** `config/ui.json → theme.font*` end in a chain of system faces covering
+CJK and Cyrillic, because the display face has neither. Without them a browser
+picks per-character fallbacks and a Japanese menu comes out in three weights.
+Substituting a real webfont is a change to those three strings and nothing else.
 
 ## Adding a language
 
@@ -95,8 +138,10 @@ Key bindings are substituted the same way, so prompts adapt to rebinds:
    ```json
    "fr": { "nativeName": "Français", "file": "fr.json", "complete": false }
    ```
-4. It appears in Options → Language automatically. Missing keys fall back to
-   `manifest.fallbackLocale`.
+4. `npm run validate:locales`.
+5. It appears in Options → Language automatically. Missing keys fall back to
+   `manifest.fallbackLocale`, and `complete: false` drops the validator's
+   missing-key errors to warnings while you work.
 
 ## Writing English source strings
 
@@ -112,9 +157,25 @@ The English file is the source of truth for tone as well as text.
 
 ## Checks
 
-`npm run validate:locales` (step 33) reports:
+`npm run validate:locales` exists because a translation's failure modes are all
+**silent at runtime** — nothing crashes, the screen is just quietly wrong:
 
-- keys in a translation that no longer exist in `en.json`
-- keys in `en.json` missing from a translation marked `complete: true`
-- placeholder mismatches between `en` and a translation
-- config ids with no matching locale key
+| Reported | What it would look like in game |
+| --- | --- |
+| Key missing from a `complete: true` locale | Half a menu quietly reverts to English |
+| Key not in `en.json` | A typo'd id that will never be shown to anyone |
+| A dropped `{placeholder}` | "Starting in" with no number after it |
+| An invented `{placeholder}` | A literal `{seconds}` on screen |
+| An empty value | A blank button |
+| A config id with no locale key | The raw id — `doorsOpened` — on the scoreboard |
+
+The last row covers the four places a config id and a locale key have to agree:
+`game.json → scoring.categories`, `items.json → items.<id>.nameKey/descKey`,
+`input.json → actions.<id>.labelKey` and `audio.json → buses.<id>.labelKey`.
+
+It also checks the manifest against the files on disk, in both directions — a
+locale file nobody can select is a warning, a manifest entry pointing at a file
+that does not exist is an error.
+
+What it cannot check is whether the words are any good. That still needs a human
+who speaks the language.

@@ -10,6 +10,7 @@ import type { UiConfig } from '@/config/types';
 import type { VoiceStatus } from '@/voice/index';
 import { t } from '@/i18n/index';
 import { modeLabelKey } from '@/voice/modes';
+import { renderKeyLine } from '../keys';
 
 /** How many segments the level meter has. Presentation, not a gameplay value. */
 const SEGMENTS = 5;
@@ -54,12 +55,16 @@ export function mountVoiceIndicator(parent: HTMLElement, config: UiConfig['hud']
         label.textContent = text;
       }
 
-      // Only push-to-talk needs a key on screen; the others have nothing to press.
-      const hintText =
-        status.mode === 'pushToTalk' && !status.selfMuted ? t('hud.voice.holdHint', { key: pushToTalkKey }) : '';
-      if (hintText !== lastHint) {
-        lastHint = hintText;
-        hint.textContent = hintText;
+      // Only push-to-talk needs a key on screen; the others have nothing to
+      // press. The cap is rebuilt rather than written as text - it is a real
+      // element, and this changes a few times a session, not a few times a
+      // second like the meter below.
+      const showHint = status.mode === 'pushToTalk' && !status.selfMuted;
+      const hintSignature = showHint ? pushToTalkKey : '';
+      if (hintSignature !== lastHint) {
+        lastHint = hintSignature;
+        if (showHint) renderKeyLine(hint, t('hud.voice.holdHint'), pushToTalkKey);
+        else hint.replaceChildren();
       }
 
       const lit = Math.round(status.level * SEGMENTS);

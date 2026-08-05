@@ -20,6 +20,12 @@ export interface Range {
 }
 
 export interface Options {
+  /**
+   * Chosen language, or null to follow the browser. Null is not the same as
+   * "en": a player who has never touched the setting should get their own
+   * language if the game has it, and keep getting it if a later build adds one.
+   */
+  locale: string | null;
   /** Bus id -> volume, 0..1. Keys mirror `audio.json -> buses`. */
   volumes: Record<string, number>;
   graphics: {
@@ -32,6 +38,12 @@ export interface Options {
     sensitivity: number;
     invertY: boolean;
   };
+  /**
+   * Action id -> the raw code its PRIMARY key was moved to. Only overrides are
+   * stored, never the full binding set, so a later build that adds an action or
+   * changes a default is picked up rather than frozen out by an old profile.
+   */
+  binds: Record<string, string>;
 }
 
 /** The ranges the sliders may be dragged across, all straight out of config. */
@@ -62,6 +74,7 @@ export function defaultOptions(config: Config): Options {
   for (const [id, bus] of Object.entries(config.audio.buses)) volumes[id] = bus.defaultVolume;
 
   return {
+    locale: null,
     volumes,
     graphics: {
       fovDegrees: config.player.camera.fovDegrees,
@@ -72,6 +85,7 @@ export function defaultOptions(config: Config): Options {
       sensitivity: config.input.mouse.sensitivity,
       invertY: config.player.camera.invertY,
     },
+    binds: {},
   };
 }
 
@@ -94,6 +108,7 @@ export function sanitiseOptions(raw: unknown, defaults: Options, ranges: OptionR
   const storedVolumes = (source.volumes ?? {}) as Record<string, unknown>;
   const graphics = (source.graphics ?? {}) as Record<string, unknown>;
   const controls = (source.controls ?? {}) as Record<string, unknown>;
+  const storedBinds = (source.binds ?? {}) as Record<string, unknown>;
 
   const volumes: Record<string, number> = {};
   // Driven by the DEFAULTS, not by what was stored: a bus that no longer exists
@@ -102,7 +117,16 @@ export function sanitiseOptions(raw: unknown, defaults: Options, ranges: OptionR
     volumes[id] = clamp(storedVolumes[id], ranges.volume, value);
   }
 
+  // Binds are checked for shape only. Whether an action still exists is
+  // `Input.applyBinds()`'s business, and it already ignores ones that do not -
+  // keeping an unknown one here costs nothing and survives a rename round-trip.
+  const binds: Record<string, string> = {};
+  for (const [action, code] of Object.entries(storedBinds)) {
+    if (typeof code === 'string' && code) binds[action] = code;
+  }
+
   return {
+    locale: typeof source.locale === 'string' ? source.locale : null,
     volumes,
     graphics: {
       fovDegrees: clamp(graphics['fovDegrees'], ranges.fov, defaults.graphics.fovDegrees),
@@ -113,5 +137,6 @@ export function sanitiseOptions(raw: unknown, defaults: Options, ranges: OptionR
       sensitivity: clamp(controls['sensitivity'], ranges.sensitivity, defaults.controls.sensitivity),
       invertY: bool(controls['invertY'], defaults.controls.invertY),
     },
+    binds,
   };
 }

@@ -1017,6 +1017,240 @@ body {
   font-size: 0.66rem;
 }
 
+/* --- key caps ------------------------------------------------------------- */
+/*
+ * How a binding is drawn anywhere it appears: HUD prompts, hand slots, the
+ * voice pill, the rebinding rows. Sized in `em` rather than `rem` so a cap
+ * always matches the text it sits in - the HUD prompt's caps are larger than
+ * the hand slot's without either being told about the other.
+ */
+
+.key {
+  display: inline-grid;
+  place-items: center;
+  vertical-align: middle;
+  min-width: 1.75em;
+  height: 1.75em;
+  margin: 0 0.28em;
+  padding: 0 0.35em;
+  font-family: var(--font-body);
+  font-size: 0.92em;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--c-text);
+  background: linear-gradient(#1c1f2b, #12141c);
+  border: 1px solid #3b4157;
+  /* The lip along the bottom is the whole reason this reads as a key rather
+     than as a box with a letter in it. */
+  border-bottom-width: 2px;
+  border-radius: 0.32em;
+  box-shadow: 0 1px 0 #00000080, inset 0 1px 0 #ffffff12;
+  text-transform: none;
+  text-shadow: none;
+}
+
+.key--wide {
+  min-width: 3em;
+  font-size: 0.74em;
+  letter-spacing: 0.1em;
+}
+
+.key--small {
+  font-size: 0.78em;
+}
+
+/* The mouse is a picture, not a cap: no border, no lip, just the glyph. */
+.key--mouse {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+
+/* Sized to stand as tall as a key cap beside it, and no smaller: below about
+   20 px the outline stroke lands on half a pixel and the whole thing turns into
+   a smudge. */
+.mouse-glyph {
+  display: block;
+  width: auto;
+  height: 2.35em;
+  filter: drop-shadow(0 1px 2px #000000b0);
+}
+
+.mouse-glyph__body {
+  fill: #14171f;
+  stroke: #5a6178;
+  stroke-width: 1.6;
+}
+
+.mouse-glyph__btn,
+.mouse-glyph__wheel,
+.mouse-glyph__side {
+  fill: #333a4f;
+}
+
+/* The pressed button, in the accent. This is the only thing the glyph says. */
+.mouse-glyph__btn--lit,
+.mouse-glyph__wheel--lit {
+  fill: var(--c-accent);
+}
+
+/* --- rebinding ------------------------------------------------------------ */
+
+.bind {
+  padding: 0.32rem 0;
+  border-top: 1px solid #ffffff10;
+}
+
+.field-group__title + .bind {
+  border-top: none;
+}
+
+.bind__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.1rem;
+}
+
+.bind__label {
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.bind__keys {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* Alternates are shown, not editable - dimmed so the primary is obviously the
+   one a click will change. */
+.bind__alt {
+  opacity: 0.4;
+}
+
+.bind__key {
+  display: grid;
+  place-items: center;
+  min-width: 4.6rem;
+  min-height: 1.95rem;
+  padding: 0.15rem 0.4rem;
+  background: #0a0c12a0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.bind__key:hover:not(:disabled),
+.bind__key:focus-visible:not(:disabled) {
+  outline: none;
+  border-color: var(--c-border);
+  background: #14161fd0;
+}
+
+.bind__key--capturing {
+  border-color: var(--c-accent);
+  background: #22100dd0;
+  animation: bind-listen 1.1s ease-in-out infinite;
+}
+
+.bind__key--locked {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.bind__listening {
+  font-family: var(--font-display);
+  font-size: 0.64rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-accent-hover);
+}
+
+@keyframes bind-listen {
+  0%,
+  100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.bind__note {
+  margin: 0.1rem 0 0.3rem;
+  font-size: 0.68rem;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--c-text-dim);
+}
+
+/* A clash is a warning, not an error: both keys still work, and that is
+   sometimes what was wanted. */
+.bind__note--clash {
+  color: var(--c-warn);
+}
+
+.panel__inline-action {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 1rem;
+}
+
+/* --- chips ---------------------------------------------------------------- */
+/* Pick one of several, all of them visible. Nothing floats, so nothing can be
+   clipped by the panel body it scrolls inside. */
+
+/* A control that needs the full row: the label sits above it rather than beside. */
+.field--stacked {
+  display: block;
+}
+
+.field--stacked .field__label {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip-btn {
+  padding: 0.42rem 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  color: var(--c-text-dim);
+  background: #12141dcc;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.chip-btn:hover,
+.chip-btn:focus-visible {
+  outline: none;
+  color: var(--c-text);
+  border-color: var(--c-text-dim);
+}
+
+.chip-btn--active {
+  color: var(--c-bg);
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+
+.chip-btn--active:hover,
+.chip-btn--active:focus-visible {
+  color: var(--c-bg);
+  background: var(--c-accent-hover);
+  border-color: var(--c-accent-hover);
+}
+
 /* --- scoreboard ----------------------------------------------------------- */
 /* One card per player: the body they were wearing, how their run ended, and
    what they did with it. The green ring marks the best value in a row. */
@@ -1264,16 +1498,27 @@ body {
   color: var(--c-text-dim);
 }
 
-.hud__prompt {
+/* The prompt column, under the crosshair. Everything the world and your hands
+   are offering stacks here, so nothing can land on top of anything else however
+   long an item's name turns out to be in a given language. */
+.hud__prompts {
   position: absolute;
-  top: 56%;
+  top: 55%;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.7rem;
+  width: min(30rem, 80vw);
   text-align: center;
+}
+
+.hud__prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .hud__prompt-verb {
@@ -1284,11 +1529,16 @@ body {
   text-shadow: 0 2px 8px #000;
 }
 
+/* Carries an inline key cap, so it is a flex line rather than plain text - the
+   cap has to sit on the baseline of the words either side of it. */
 .hud__prompt-key {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.14em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
   color: var(--c-text-dim);
+  text-shadow: 0 2px 8px #000;
 }
 
 .hud__progress {
@@ -1307,15 +1557,10 @@ body {
 /* What the hand buttons offer, directly under the E prompt. Dimmer than it on
    purpose: E is what the world is offering, this is only what you are carrying. */
 .hud__use {
-  position: absolute;
-  top: 61%;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
-  text-align: center;
 }
 
 .hud__use-verb {
@@ -1328,11 +1573,13 @@ body {
 }
 
 .hud__use-key {
-  font-family: var(--font-mono);
-  font-size: 0.64rem;
-  letter-spacing: 0.14em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
   color: var(--c-text-dim);
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 /* The run purse, top right. Absent until there is something in it - a permanent
@@ -1367,10 +1614,6 @@ body {
 }
 
 .hud__hint {
-  position: absolute;
-  top: 64%;
-  left: 50%;
-  transform: translateX(-50%);
   font-size: 0.78rem;
   letter-spacing: 0.1em;
   color: var(--c-warn);
@@ -1416,9 +1659,9 @@ body {
 }
 
 .hud__slot-key {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  letter-spacing: 0.14em;
+  display: flex;
+  align-items: center;
+  font-size: 0.82rem;
   color: var(--c-text-dim);
 }
 
@@ -1646,11 +1889,12 @@ body {
 }
 
 .voice__hint {
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  letter-spacing: 0.12em;
+  display: flex;
+  align-items: center;
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
   color: var(--c-text-dim);
-  opacity: 0.75;
+  opacity: 0.8;
 }
 
 .voice__hint:empty {

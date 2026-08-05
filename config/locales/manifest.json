@@ -1,8 +1,16 @@
 {
-  "$doc": "Registry of available languages. Add a language: drop <code>.json next to this file and add an entry here.",
+  "$doc": "Registry of available languages. Add a language: drop <code>.json next to this file, add an entry here, and run `npm run validate:locales`.",
+  "$note": "`nativeName` is what the options selector shows, and it is deliberately written in the language's own script - somebody looking for 日本語 is not looking for a row that says Japanese. The order here is the order the selector lists them in.",
+  "$complete": "`complete: false` marks a translation still being worked on: the validator drops its missing keys from errors to warnings, and anything absent falls through to `fallbackLocale` at runtime rather than showing a raw key.",
+
   "defaultLocale": "en",
   "fallbackLocale": "en",
   "locales": {
-    "en": { "nativeName": "English", "file": "en.json", "complete": true }
+    "en": { "nativeName": "English", "file": "en.json", "complete": true },
+    "ja": { "nativeName": "日本語", "file": "ja.json", "complete": true },
+    "zh": { "nativeName": "简体中文", "file": "zh.json", "complete": true },
+    "ru": { "nativeName": "Русский", "file": "ru.json", "complete": true },
+    "es": { "nativeName": "Español", "file": "es.json", "complete": true },
+    "pt": { "nativeName": "Português (Brasil)", "file": "pt.json", "complete": true }
   }
 }

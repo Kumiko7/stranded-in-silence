@@ -10,6 +10,7 @@
  * are entirely local - nothing is sent, and the person you muted is never told.
  */
 import type { VoiceMode } from '@/config/types';
+import { KeyLine } from '../components/KeyCap';
 import type { RosterEntry } from '@/game/Game';
 import { t } from '@/i18n/index';
 import { modeLabelKey } from '@/voice/modes';
@@ -51,7 +52,7 @@ export function VoicePanel({ voice, roster, onMode, onSelfMute, onMutePeer }: Pr
           : voice.errorKey
             ? t(voice.errorKey)
             : voice.mode === 'pushToTalk'
-              ? t('pause.voicePushHint', { key: voice.pushToTalkKey })
+              ? <KeyLine textKey="pause.voicePushHint" code={voice.pushToTalkKey} />
               : voice.mode === 'off'
                 ? t('pause.voiceOffHint')
                 : t('pause.voiceOpenHint')}

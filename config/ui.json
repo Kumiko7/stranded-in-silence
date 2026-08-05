@@ -1,10 +1,11 @@
 {
   "$doc": "UI theme + HUD layout. Colours here feed CSS custom properties at boot, so restyling the whole game is a config edit.",
 
+  "$fonts": "Each stack ends in a chain of system faces that cover Japanese, Simplified Chinese and Cyrillic, because the game ships in six languages and the display face does not have those glyphs. Without them a browser picks per-character fallbacks and a Japanese menu comes out in three different weights. Substituting a real webfont is a change to these three strings and nothing else.",
   "theme": {
-    "fontDisplay": "'Cinzel', 'Times New Roman', serif",
-    "fontBody": "'Inter', system-ui, sans-serif",
-    "fontMono": "'JetBrains Mono', monospace",
+    "fontDisplay": "'Cinzel', 'Times New Roman', 'Yu Mincho', 'Hiragino Mincho ProN', 'Source Han Serif SC', 'Songti SC', serif",
+    "fontBody": "'Inter', system-ui, 'Yu Gothic UI', 'Hiragino Sans', 'Noto Sans JP', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif",
+    "fontMono": "'JetBrains Mono', ui-monospace, 'Cascadia Mono', 'Noto Sans Mono CJK JP', monospace",
     "colours": {
       "bg": "#07080c",
       "bgPanel": "#0e1017e6",

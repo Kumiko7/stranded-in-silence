@@ -113,12 +113,60 @@ export function Tabs<Id extends string>({ tabs, active, onSelect }: TabsProps<Id
   );
 }
 
-/** A titled block of fields. Groups a tab's contents into readable chunks. */
-export function FieldGroup({ title, children }: { title: string; children: ComponentChildren }) {
+/**
+ * A block of fields. Groups a tab's contents into readable chunks.
+ *
+ * The title is optional: a `Choice` already carries its own label above its
+ * chips, and a heading over it saying the same word twice is worse than no
+ * heading at all.
+ */
+export function FieldGroup({ title, children }: { title?: string; children: ComponentChildren }) {
   return (
     <section class="field-group">
-      <h3 class="field-group__title">{title}</h3>
+      {title && <h3 class="field-group__title">{title}</h3>}
       {children}
     </section>
+  );
+}
+
+interface ChoiceProps<Id extends string> {
+  label: string;
+  value: Id;
+  options: readonly { id: Id; label: string }[];
+  onChange(id: Id): void;
+}
+
+/**
+ * Pick one of several, as a wrapping row of chips.
+ *
+ * Deliberately not a dropdown. A native `<select>` renders as the operating
+ * system's control, which in the middle of a horror game reads as a web page
+ * instantly; and a hand-built dropdown has to float its list, which gets
+ * clipped the moment it opens inside the options panel's scrolling body. Chips
+ * have neither problem, every option is readable at a glance, and picking one
+ * is a single click rather than two.
+ *
+ * It is the same idiom as the voice mode switch in the pause menu, wrapped -
+ * one control shape for "pick one of these", however many there are.
+ */
+export function Choice<Id extends string>({ label, value, options, onChange }: ChoiceProps<Id>) {
+  return (
+    <div class="field field--stacked">
+      <span class="field__label">{label}</span>
+      <div class="chips" role="radiogroup" aria-label={label}>
+        {options.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={option.id === value}
+            class={option.id === value ? 'chip-btn chip-btn--active' : 'chip-btn'}
+            onClick={() => onChange(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

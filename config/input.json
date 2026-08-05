@@ -25,6 +25,43 @@
     "giveUp": { "labelKey": "input.giveUp", "keys": ["KeyG"], "category": "system", "mode": "hold" }
   },
 
+  "$keyLabels": "What gets printed on the key cap the HUD draws. These are the only keyboard words a player ever sees, which is why they live here rather than in code (docs/LOCALISATION.md) - a layout that calls a key something else is a config edit. Anything not listed falls back to the raw code with its Key/Digit prefix stripped, so letters and digits need no entry. `Mouse<n>` codes are never listed: they are drawn as a mouse with the pressed button lit, not as a word.",
+  "keyLabels": {
+    "ShiftLeft": "Shift",
+    "ShiftRight": "Shift",
+    "ControlLeft": "Ctrl",
+    "ControlRight": "Ctrl",
+    "AltLeft": "Alt",
+    "AltRight": "Alt",
+    "MetaLeft": "Meta",
+    "MetaRight": "Meta",
+    "Space": "Space",
+    "Escape": "Esc",
+    "Enter": "Enter",
+    "NumpadEnter": "Enter",
+    "Tab": "Tab",
+    "Backspace": "Bksp",
+    "CapsLock": "Caps",
+    "ArrowUp": "↑",
+    "ArrowDown": "↓",
+    "ArrowLeft": "←",
+    "ArrowRight": "→",
+    "Backquote": "`",
+    "Minus": "-",
+    "Equal": "=",
+    "BracketLeft": "[",
+    "BracketRight": "]",
+    "Backslash": "\\",
+    "Semicolon": ";",
+    "Quote": "'",
+    "Comma": ",",
+    "Period": ".",
+    "Slash": "/"
+  },
+
+  "$wideKeys": "Codes whose cap is drawn wider, because the word on it does not fit a square.",
+  "wideKeys": ["ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "Space", "Escape", "Enter", "NumpadEnter", "Backspace", "CapsLock", "AltLeft", "AltRight", "MetaLeft", "MetaRight"],
+
   "mouse": {
     "sensitivity": 1.0,
     "sensitivityRange": [0.1, 5.0],

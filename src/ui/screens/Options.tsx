@@ -3,41 +3,59 @@
  * lobby's escape menu - it is the same screen in all three, laid over whatever
  * was already there.
  *
- * Deliberately the basics: what every game has and nothing else. Key rebinding,
- * a language selector and per-effect graphics switches are not here, and the
- * things this project decided against (quality presets, accessibility settings)
- * are on the "Deliberately NOT built" list in docs/ARCHITECTURE.md.
+ * Deliberately the basics: what every game has and nothing else. Per-effect
+ * graphics switches are not here, and the things this project decided against
+ * (quality presets, accessibility settings) are on the "Deliberately NOT built"
+ * list in docs/ARCHITECTURE.md.
  *
  * Every control writes through immediately - there is no Apply button, because
  * a setting you cannot hear or see change while you drag it is a setting you
  * have to guess at. The save profile is written on each change; the seam is
  * `Save.setOptions()`.
  *
- * Which volume sliders exist is read from `audio.json -> buses` rather than
- * listed here, so adding a bus adds its slider.
+ * Which volume sliders exist is read from `audio.json -> buses`, and which
+ * languages are offered from `config/locales/manifest.json`, rather than being
+ * listed here - so adding either adds its control.
  */
 import { useState } from 'preact/hooks';
 import type { AudioConfig } from '@/config/types';
+import type { ActionInfo } from '@/input/index';
 import type { Options, OptionRanges } from '@/save/index';
-import { t } from '@/i18n/index';
-import { FieldGroup, Slider, Switch, Tabs } from '../components/Controls';
+import { availableLocales, currentLocale, t } from '@/i18n/index';
+import { Choice, FieldGroup, Slider, Switch, Tabs } from '../components/Controls';
+import { ControlsTab } from './Controls';
 
-type TabId = 'gameplay' | 'graphics' | 'audio';
+type TabId = 'gameplay' | 'controls' | 'graphics' | 'audio';
 
-const TAB_IDS: readonly TabId[] = ['gameplay', 'graphics', 'audio'];
+const TAB_IDS: readonly TabId[] = ['gameplay', 'controls', 'graphics', 'audio'];
 
 interface Props {
   options: Options;
   ranges: OptionRanges;
   buses: AudioConfig['buses'];
+  actions: ActionInfo[];
   onChange(patch: Partial<Options>): void;
+  onLocale(code: string): void;
+  onRebind(action: string, code: string): string[];
+  onResetBinds(): void;
   onReset(): void;
   onClose(): void;
 }
 
 const percent = (value: number): string => `${Math.round(value * 100)}%`;
 
-export function Options({ options, ranges, buses, onChange, onReset, onClose }: Props) {
+export function Options({
+  options,
+  ranges,
+  buses,
+  actions,
+  onChange,
+  onLocale,
+  onRebind,
+  onResetBinds,
+  onReset,
+  onClose,
+}: Props) {
   const [tab, setTab] = useState<TabId>('gameplay');
 
   // The sensitivity slider is a multiplier on the radians-per-pixel figure in
@@ -58,24 +76,41 @@ export function Options({ options, ranges, buses, onChange, onReset, onClose }: 
 
         <div class="panel__body">
           {tab === 'gameplay' && (
-            <FieldGroup title={t('options.group.look')}>
-              <Slider
-                label={t('options.sensitivity')}
-                value={options.controls.sensitivity}
-                min={ranges.sensitivity.min}
-                max={ranges.sensitivity.max}
-                step={0.05}
-                display={sensitivityLabel}
-                onChange={(sensitivity) => onChange({ controls: { ...options.controls, sensitivity } })}
-              />
-              <Switch
-                label={t('options.invertY')}
-                value={options.controls.invertY}
-                onLabel={t('common.on')}
-                offLabel={t('common.off')}
-                onChange={(invertY) => onChange({ controls: { ...options.controls, invertY } })}
-              />
-            </FieldGroup>
+            <>
+              <FieldGroup>
+                {/* Each language names itself in its own script. A player
+                    looking for 日本語 is not looking for "Japanese". */}
+                <Choice
+                  label={t('options.language')}
+                  value={options.locale ?? currentLocale()}
+                  options={availableLocales().map((locale) => ({ id: locale.code, label: locale.nativeName }))}
+                  onChange={onLocale}
+                />
+              </FieldGroup>
+
+              <FieldGroup title={t('options.group.look')}>
+                <Slider
+                  label={t('options.sensitivity')}
+                  value={options.controls.sensitivity}
+                  min={ranges.sensitivity.min}
+                  max={ranges.sensitivity.max}
+                  step={0.05}
+                  display={sensitivityLabel}
+                  onChange={(sensitivity) => onChange({ controls: { ...options.controls, sensitivity } })}
+                />
+                <Switch
+                  label={t('options.invertY')}
+                  value={options.controls.invertY}
+                  onLabel={t('common.on')}
+                  offLabel={t('common.off')}
+                  onChange={(invertY) => onChange({ controls: { ...options.controls, invertY } })}
+                />
+              </FieldGroup>
+            </>
+          )}
+
+          {tab === 'controls' && (
+            <ControlsTab actions={actions} onRebind={onRebind} onResetBinds={onResetBinds} />
           )}
 
           {tab === 'graphics' && (

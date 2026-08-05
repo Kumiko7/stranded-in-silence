@@ -62,7 +62,7 @@ so a line of text never crosses a 32-inch monitor.
 | Lobby escape menu | Resume / code + copy / voice panel / leave to main menu. Reached by dropping pointer lock, exactly like the pause menu |
 | `Wardrobe` | Customisation. Options claim the **left** half of the screen; the right half is left clear for the player's real model, which the camera parks in front of while the panel is open. There is no preview render — it is the actual `player.masked` standing in the cabin |
 | `Options` | Tabs: Gameplay / Graphics / Audio. **Layered over whatever screen opened it** rather than replacing it, so backing out always lands where you started — reachable from the main menu, the pause menu and the lobby's escape menu. Every control writes through immediately; there is no Apply button, because a setting you cannot hear or see change while you drag it is one you have to guess at. Escape closes it |
-| `Controls` | Rebinding. Click an action, press a key. Conflicts are shown, not silently overwritten. **Not built** — see [`../PLAN.md`](../PLAN.md) step 35 |
+| `Controls` | Rebinding, as a tab of Options. Click an action, press a key or a mouse button. Three rules: **conflicts are shown, not silently resolved** (both keys keep working and you are told); **only the primary key moves** (WASD keeps its arrow-key alternates); and **some actions do not move at all** — Escape is how you reach the menu that would undo a bad rebind, so `input.json` marks it unrebindable and it is drawn locked rather than hidden |
 | `Pause` | Resume / Options / Voice / Abandon run. **Voice mode is one control, per the design brief** — a segmented `off / open mic / push to talk` (`src/ui/screens/VoicePanel.tsx`), with self-mute and a per-teammate mute under it. Mutes are local; nothing is sent and the muted player is never told |
 | `Scoreboard` | One **card per player**: their body on top, then the categories from `game.json → scoring.categories`. Best value in each gets the green ring, and only when there is more than one player — a solo player winning every category is not a result. The figure is an SVG standing in for `player.masked`, in that player's wardrobe colour |
 | `Spectate` | Minimal chrome: whose view, next/prev |
@@ -100,11 +100,12 @@ No roster and no hand slots: there is nothing to carry in the cabin and nobody t
 ## The component set
 
 `src/ui/components/Controls.tsx` holds the reusable screen controls: `Slider`,
-`Switch`, `Tabs` and `FieldGroup`. Three rules hold for all of them — no colour or
-size literal (only the CSS variables), no user-visible string (the caller passes text
-it has already run through `t()`), and a visible focus state with keyboard parity.
+`Switch`, `Choice`, `Tabs` and `FieldGroup`. Three rules hold for all of them — no
+colour or size literal (only the CSS variables), no user-visible string (the caller
+passes text it has already run through `t()`), and a visible focus state with
+keyboard parity.
 
-Two decisions worth knowing:
+Three decisions worth knowing:
 
 - **The slider is a real `<input type="range">` under a full custom skin.** Nothing of
   the browser's own appearance survives, and dragging, arrow keys, Home/End and the
@@ -113,10 +114,45 @@ Two decisions worth knowing:
   segmented idiom is right for "pick one of three" (voice modes) and wrong for on/off:
   it highlights whichever option is *selected*, so a setting that is OFF lights the
   word OFF up in the accent colour and reads, at a glance, as on.
+- **"Pick one of several" is a wrapping row of chips, not a dropdown.** A native
+  `<select>` renders as the operating system's control, which in a horror game reads
+  as a web page instantly; and a hand-built dropdown has to float its list, which is
+  clipped the moment it opens inside the options panel's scrolling body. Chips have
+  neither problem, and every option is readable without a click.
 
 An overlay screen must be `position: fixed` (`.overlay` is). Options renders as a
 *sibling* of the screen behind it, and a static full-height block would simply stack
 below the viewport — the same bug the wardrobe panel hit.
+
+## Key bindings on screen
+
+A binding reaches the UI as a **raw code** — `KeyE`, `Mouse0`. `input/` knows nothing
+about how it looks; turning a code into something a player reads is a display
+decision, and a localisable one, so it lives in `src/ui/keys.ts`.
+
+| Binding | Drawn as |
+| --- | --- |
+| A key | A key cap: bordered, with a lip along the bottom, the label from `input.json → keyLabels` |
+| A mouse button | A small mouse with the pressed button lit in the accent colour |
+
+**Mouse buttons are drawn, never named.** "LMB" is jargon, it means nothing in five
+of the six languages the game ships in, and a mouse with its right button lit is
+unambiguous in all of them. The glyph geometry is shared (`keys.ts → MOUSE_SHAPE`)
+because the HUD's voice pill is plain DOM and draws its own — a mouse whose right
+button was on the left in one of them would be its own kind of bug.
+
+Prompts use `<KeyLine textKey="hud.interact.holdHint" code={…} />`, which splits the
+translated string on `{key}` and puts a real cap in the gap. See
+[`../LOCALISATION.md`](../LOCALISATION.md) → "`{key}` is special".
+
+## Theming
+
+`config/ui.json → theme` is written into CSS custom properties at boot
+(`src/ui/theme.ts`). The stylesheet declares the same variables with the same values,
+so the game looks right before that runs and would still look right if it never did —
+what it adds is that editing `ui.json` actually restyles the game.
+
+Colour names map by convention: `bgPanel` becomes `--c-bg-panel`.
 
 ## Adding a screen
 
