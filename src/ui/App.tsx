@@ -7,9 +7,11 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { AudioConfig, GameConfig, HealthState, VoiceMode } from '@/config/types';
 import type { RosterEntry, ScoreRow, UseView } from '@/game/Game';
+import type { ActionInfo } from '@/input/index';
 import type { LobbyView } from '@/game/Lobby';
 import type { Options as OptionValues, OptionRanges } from '@/save/index';
 import { t } from '@/i18n/index';
+import { KeyCap, KeyLine } from './components/KeyCap';
 import { LobbyPanel } from './screens/LobbyPanel';
 import { MainMenu } from './screens/MainMenu';
 import { Options } from './screens/Options';
@@ -78,6 +80,14 @@ export interface UiState {
   optionRanges: OptionRanges;
   /** `audio.json -> buses`. A bus with a `labelKey` gets a volume slider. */
   buses: AudioConfig['buses'];
+  /** Every action and its live bindings, for the Controls tab. */
+  actions: ActionInfo[];
+  /**
+   * Bumped whenever the language changes. Nothing reads it - it exists so the
+   * whole tree re-renders, because every `t()` in the game returns something
+   * new and none of them are props.
+   */
+  localeToken: number;
 }
 
 /**
@@ -118,6 +128,10 @@ export interface UiCallbacks {
   /** Applied and persisted immediately - there is no Apply button. */
   onOptionsChange(patch: Partial<OptionValues>): void;
   onOptionsReset(): void;
+  onLocale(code: string): void;
+  /** Applies a rebind. Returns the ids of any actions now sharing the key. */
+  onRebind(action: string, code: string): string[];
+  onResetBinds(): void;
 }
 
 /** Lets the game loop push state in without React-style re-render churn. */
@@ -148,7 +162,11 @@ export function App({
           options={state.options}
           ranges={state.optionRanges}
           buses={state.buses}
+          actions={state.actions}
           onChange={callbacks.onOptionsChange}
+          onLocale={callbacks.onLocale}
+          onRebind={callbacks.onRebind}
+          onResetBinds={callbacks.onResetBinds}
           onReset={callbacks.onOptionsReset}
           onClose={callbacks.onCloseOptions}
         />
@@ -276,14 +294,18 @@ function LobbyHud({ state }: { state: UiState }) {
     <div class="hud">
       <div class="hud__crosshair" />
 
-      {state.promptVerbKey && (
-        <div class="hud__prompt">
-          <span class="hud__prompt-verb">
-            {t(state.promptVerbKey, state.promptItemKey ? { item: t(state.promptItemKey) } : undefined)}
-          </span>
-          <span class="hud__prompt-key">{t('hud.interact.pressHint', { key: state.interactKey })}</span>
-        </div>
-      )}
+      <div class="hud__prompts">
+        {state.promptVerbKey && (
+          <div class="hud__prompt">
+            <span class="hud__prompt-verb">
+              {t(state.promptVerbKey, state.promptItemKey ? { item: t(state.promptItemKey) } : undefined)}
+            </span>
+            <span class="hud__prompt-key">
+              <KeyLine textKey="hud.interact.pressHint" code={state.interactKey} />
+            </span>
+          </div>
+        )}
+      </div>
 
       {state.lobby && <LobbyPanel view={state.lobby} maxPlayers={state.maxPlayers} />}
     </div>
@@ -321,27 +343,34 @@ function Hud({ state }: { state: UiState }) {
 
       {state.players > 1 && <div class="hud__players">{t('lobby.players', { current: state.players, max: 4 })}</div>}
 
-      {state.promptVerbKey && (
-        <div class="hud__prompt">
-          <span class="hud__prompt-verb">
-            {t(state.promptVerbKey, state.promptItemKey ? { item: t(state.promptItemKey) } : undefined)}
-          </span>
-          <span class="hud__prompt-key">
-            {state.promptHold
-              ? t('hud.interact.holdHint', { key: state.interactKey })
-              : t('hud.interact.pressHint', { key: state.interactKey })}
-          </span>
-          {state.promptHold && state.holdProgress > 0 && (
-            <div class="hud__progress">
-              <div class="hud__progress-fill" style={{ width: `${state.holdProgress * 100}%` }} />
-            </div>
-          )}
-        </div>
-      )}
+      {/* One column under the crosshair rather than three blocks at fixed
+          percentages of the screen. They grow and shrink independently - a hold
+          ring appears, an item name wraps - and stacking them is the only way
+          they never land on top of each other. */}
+      <div class="hud__prompts">
+        {state.promptVerbKey && (
+          <div class="hud__prompt">
+            <span class="hud__prompt-verb">
+              {t(state.promptVerbKey, state.promptItemKey ? { item: t(state.promptItemKey) } : undefined)}
+            </span>
+            <span class="hud__prompt-key">
+              <KeyLine
+                textKey={state.promptHold ? 'hud.interact.holdHint' : 'hud.interact.pressHint'}
+                code={state.interactKey}
+              />
+            </span>
+            {state.promptHold && state.holdProgress > 0 && (
+              <div class="hud__progress">
+                <div class="hud__progress-fill" style={{ width: `${state.holdProgress * 100}%` }} />
+              </div>
+            )}
+          </div>
+        )}
 
-      {state.use && <UsePrompt use={state.use} />}
+        {state.use && <UsePrompt use={state.use} />}
 
-      {state.hint && <div class="hud__hint">{t(state.hint)}</div>}
+        {state.hint && <div class="hud__hint">{t(state.hint)}</div>}
+      </div>
 
       {state.health === 'downed' && <div class="hud__downed">{t('run.downedHint')}</div>}
 
@@ -355,8 +384,8 @@ function Hud({ state }: { state: UiState }) {
       {state.showRoster && <Roster entries={state.roster} voice={state.voice} />}
 
       <div class="hud__hands">
-        <HandSlot nameKey={state.hands.left} useKey={state.useLeftKey} />
-        <HandSlot nameKey={state.hands.right} useKey={state.useRightKey} />
+        <HandSlot nameKey={state.hands.left} code={state.useLeftKey} />
+        <HandSlot nameKey={state.hands.right} code={state.useRightKey} />
       </div>
     </div>
   );
@@ -373,8 +402,10 @@ function UsePrompt({ use }: { use: UseView }) {
       <span class="hud__use-verb">
         {t(use.verbKey, use.itemNameKey ? { item: t(use.itemNameKey) } : undefined)}
       </span>
+      {/* An empty `hintKey` means the cap says everything on its own: a
+          throwable in hand needs the button, not a sentence about it. */}
       <span class="hud__use-key">
-        {use.hintKey ? t(use.hintKey, { key: use.keyLabel }) : use.keyLabel}
+        {use.hintKey ? <KeyLine textKey={use.hintKey} code={use.keyCode} /> : <KeyCap code={use.keyCode} />}
       </span>
       {use.hold && use.progress > 0 && (
         <div class="hud__progress">
@@ -450,11 +481,13 @@ export function MicIcon({ className, muted }: { className: string; muted: boolea
   );
 }
 
-function HandSlot({ nameKey, useKey }: { nameKey: string | null; useKey: string }) {
+function HandSlot({ nameKey, code }: { nameKey: string | null; code: string }) {
   return (
     <div class={nameKey ? 'hud__slot hud__slot--filled' : 'hud__slot'}>
       <span class="hud__slot-name">{nameKey ? t(nameKey) : t('hud.slot.empty')}</span>
-      <span class="hud__slot-key">{useKey}</span>
+      <span class="hud__slot-key">
+        <KeyCap code={code} size="small" />
+      </span>
     </div>
   );
 }

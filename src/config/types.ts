@@ -279,7 +279,14 @@ export interface GraphicsConfig {
 }
 
 export interface InputConfig {
-  actions: Record<string, { labelKey: string; keys: string[]; mode?: string; rebindable?: boolean }>;
+  actions: Record<
+    string,
+    { labelKey: string; keys: string[]; category?: string; mode?: string; rebindable?: boolean }
+  >;
+  /** Raw `KeyboardEvent.code` -> what is printed on the key cap the HUD draws. */
+  keyLabels: Record<string, string>;
+  /** Codes whose cap is drawn wider, because the word on it does not fit a square. */
+  wideKeys: string[];
   mouse: {
     /** Scales `player.json -> camera.mouseSensitivity`. The options slider writes this. */
     sensitivity: number;
@@ -407,7 +414,15 @@ export interface DifficultyConfig {
 }
 
 export interface UiConfig {
-  theme: { colours: Record<string, string> };
+  /** Written into CSS custom properties at boot by `src/ui/theme.ts`. */
+  theme: {
+    colours: Record<string, string>;
+    fontDisplay?: string;
+    fontBody?: string;
+    fontMono?: string;
+    radius?: string;
+    transitionMs?: number;
+  };
   hud: {
     crosshair: { enabled: boolean; size: number; colour: string; opacity: number };
     /** The bottom-left player roster: hearts, names and noise rings. */

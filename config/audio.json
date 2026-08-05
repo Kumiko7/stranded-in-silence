@@ -139,7 +139,7 @@
     "chaseLayerThreshold": 0.5,
 
     "layers": {
-      "menu": { "files": ["music/menu.ogg"], "volume": 0.85 },
+      "menu": { "files": ["music/menu_2.ogg"], "volume": 0.35 },
       "explore": { "files": ["music/explore.ogg"], "volume": 0.5 },
       "tension": { "files": ["music/tension.ogg"], "volume": 0.65 },
       "chase": { "files": ["music/chase.ogg"], "volume": 0.9 },

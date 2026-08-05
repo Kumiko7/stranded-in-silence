@@ -82,11 +82,12 @@ export interface UseView {
   verbKey: string;
   /** Locale key of whatever the verb names - the item, or a teammate. */
   itemNameKey: string | null;
-  /** The player's actual binding for the key the hint line is about, e.g. "LMB". */
-  keyLabel: string;
+  /** Raw binding the hint line is about, e.g. `Mouse0`. The HUD draws the cap. */
+  keyCode: string;
   /**
    * Locale key of the hint under the verb, taking `{key}`. Empty means show the
-   * binding on its own - "LMB" says everything a throwable in hand needs to.
+   * cap on its own - a mouse with its left button lit says everything a
+   * throwable in hand needs to.
    */
   hintKey: string;
   /** Whether it fills a ring (medicine, barricade) or is a throw being aimed. */
@@ -1571,7 +1572,7 @@ export class Game {
     this.#pushUse({
       verbKey: hold.verbKey,
       itemNameKey: hold.nameKey,
-      keyLabel: this.#handKey(hand),
+      keyCode: this.#handKey(hand),
       hintKey: 'hud.use.holdHint',
       hold: true,
       progress,
@@ -1635,7 +1636,7 @@ export class Game {
         return {
           verbKey: 'hud.use.throw',
           itemNameKey: def.nameKey,
-          keyLabel: this.#handKey(hand),
+          keyCode: this.#handKey(hand),
           hintKey: '',
           hold: false,
           progress: 0,
@@ -1646,7 +1647,7 @@ export class Game {
         return {
           verbKey: offer.verbKey,
           itemNameKey: offer.nameKey,
-          keyLabel: this.#handKey(hand),
+          keyCode: this.#handKey(hand),
           hintKey: 'hud.use.holdHint',
           hold: true,
           progress: 0,
@@ -1708,7 +1709,7 @@ export class Game {
   }
 
   #handKey(hand: Hand): string {
-    return this.#input.labelFor(hand === 'left' ? 'useLeft' : 'useRight');
+    return this.#input.bindingFor(hand === 'left' ? 'useLeft' : 'useRight');
   }
 
   /* --- barricades ----------------------------------------------------------- */
@@ -1778,7 +1779,7 @@ export class Game {
     this.#pushUse({
       verbKey: 'hud.use.aiming',
       itemNameKey: aim.def.nameKey,
-      keyLabel: this.#handKey(aim.hand === 'left' ? 'right' : 'left'),
+      keyCode: this.#handKey(aim.hand === 'left' ? 'right' : 'left'),
       hintKey: 'hud.use.cancelHint',
       hold: false,
       progress: 0,

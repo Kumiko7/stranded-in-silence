@@ -77,8 +77,9 @@ through `core/EventBus` with events declared in `src/shared/events.ts`.
 ```
 1. WebGL2 capability check          → fatal error surface if unsupported
 2. config.load()                    → merged, validated config
-3. i18n.init()                      → locale from save profile or browser
-4. save.load()                      → options, key binds, meta progress
+3. save.load()                      → options, key binds, meta progress
+4. i18n.init(profile.locale)        → chosen language, or the browser's
+   ui.initKeys() / ui.applyTheme()  → key-cap labels, theme → CSS variables
 5. render.init()                    → renderer, camera rig, post stack
 6. input.init()                     → bindings from config + save overrides
 7. audio.init()                     → buses (unlocked on first user gesture)
@@ -86,8 +87,12 @@ through `core/EventBus` with events declared in `src/shared/events.ts`.
 9. loop.start()
 ```
 
-Nothing after step 2 may read a raw JSON import. Nothing after step 3 may contain
+Nothing after step 2 may read a raw JSON import. Nothing after step 4 may contain
 a literal string shown to a player.
+
+**Save comes before i18n**, because the chosen language lives in the profile. A
+profile that has never picked one passes nothing and i18n falls back to the browser's
+language, so a first run is already in the player's own language if the game has it.
 
 ---
 
@@ -221,6 +226,8 @@ mic picking up small sounds cannot give you away. Full detail in
 | Change the lobby cabin's look | `art/shared/lobby/` — review it with `/tools/roomshot.html?map=lobby` |
 | Change what the lobby *does* | `src/game/Lobby.ts` + `src/world/lobbyScene.ts` |
 | Add a menu / screen | `src/ui/screens/` — [`systems/UI.md`](systems/UI.md) |
+| Add a language | `config/locales/<code>.json` + `manifest.json`, then `npm run validate:locales` — [`LOCALISATION.md`](LOCALISATION.md) |
+| Change how a key looks on screen | `config/input.json → keyLabels` for the word, `src/ui/keys.ts` for the shape |
 | Add a HUD element | `src/ui/hud/` + `config/ui.json → hud` |
 | Change net sync | `src/net/` + `src/shared/messages.ts` — [`systems/NETWORKING.md`](systems/NETWORKING.md) |
 | Add a sound | `config/audio.json → sounds` + a recipe in `src/audio/recipes.ts` or a file in `assets/audio/` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |

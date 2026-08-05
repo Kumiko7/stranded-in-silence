@@ -3,12 +3,14 @@
  * menu <-> lobby <-> run flow.
  *
  * Boot order (docs/ARCHITECTURE.md section 4):
- *   config -> i18n -> save -> render -> input -> audio -> ui -> net -> loop
+ *   config -> save -> i18n -> render -> input -> audio -> ui -> net -> loop
  */
 import * as THREE from 'three';
 import { render } from 'preact';
 import { enabledMapIds, loadConfig, lobbyGraphics } from './config/index';
-import { initI18n, t } from './i18n/index';
+import { currentLocale, initI18n, setLocale, t } from './i18n/index';
+import { initKeys } from './ui/keys';
+import { applyTheme } from './ui/theme';
 import { Loop } from './core/Loop';
 import { Renderer } from './render/Renderer';
 import { Input } from './input/index';
@@ -49,10 +51,16 @@ async function boot(): Promise<void> {
   }
 
   const config = loadConfig();
-  initI18n();
 
+  // The save profile comes BEFORE i18n, because it is where the chosen language
+  // lives. A profile that has never picked one passes undefined and i18n falls
+  // back to the browser's.
   const save = new Save(config);
   save.load();
+  initI18n(save.options.locale ?? undefined);
+  initKeys(config.input);
+  applyTheme(config.ui.theme);
+  document.documentElement.lang = currentLocale();
 
   const renderer = new Renderer(canvas, config.graphics, config.player);
   const input = new Input(config.input, canvas);
@@ -81,6 +89,7 @@ async function boot(): Promise<void> {
     renderer.setBrightness(options.graphics.brightness);
     renderer.setShadows(options.graphics.shadows);
     input.setMouse(options.controls);
+    input.applyBinds(options.binds);
   }
 
   applyOptions(save.options);
@@ -104,10 +113,10 @@ async function boot(): Promise<void> {
     promptItemKey: null,
     promptHold: false,
     holdProgress: 0,
-    interactKey: input.labelFor('interact'),
+    interactKey: input.bindingFor('interact'),
     hands: { left: null, right: null },
-    useLeftKey: input.labelFor('useLeft'),
-    useRightKey: input.labelFor('useRight'),
+    useLeftKey: input.bindingFor('useLeft'),
+    useRightKey: input.bindingFor('useRight'),
     use: null,
     coins: 0,
     bankedCoins: save.profile.coins,
@@ -123,6 +132,8 @@ async function boot(): Promise<void> {
     options: save.options,
     optionRanges: save.ranges,
     buses: config.audio.buses,
+    actions: input.actions(),
+    localeToken: 0,
     voice: {
       mode: config.net.voice.enabled ? config.net.voice.defaultMode : 'off',
       modes: config.net.voice.modes,
@@ -130,7 +141,7 @@ async function boot(): Promise<void> {
       muted: [],
       selfMuted: false,
       errorKey: null,
-      pushToTalkKey: input.labelFor('pushToTalk'),
+      pushToTalkKey: input.bindingFor('pushToTalk'),
       showInRoster: config.ui.hud.teammateList.showVoiceIndicator,
     },
   };
@@ -393,9 +404,48 @@ async function boot(): Promise<void> {
     onOptionsReset: () => {
       const options = save.resetOptions();
       applyOptions(options);
-      set({ options });
+      setLocale(options.locale ?? navigatorLocale());
+      set({ options, ...bindingState(), ...localeState() });
+    },
+    onLocale: (locale) => {
+      setLocale(locale);
+      const options = save.setOptions({ locale });
+      // Every t() in the tree now returns something else, and none of them are
+      // props - the token is what makes the whole thing re-render.
+      set({ options, ...localeState() });
+    },
+    onRebind: (action, code) => {
+      if (!input.setBinding(action, code)) return [];
+      const options = save.setOptions({ binds: { ...save.options.binds, [action]: code } });
+      set({ options, ...bindingState() });
+      return input.conflicts(action, code);
+    },
+    onResetBinds: () => {
+      const options = save.setOptions({ binds: {} });
+      input.applyBinds({});
+      set({ options, ...bindingState() });
     },
   };
+
+  /** The bindings the HUD and the Controls tab draw. Re-read after any rebind. */
+  function bindingState(): Partial<UiState> {
+    return {
+      actions: input.actions(),
+      interactKey: input.bindingFor('interact'),
+      useLeftKey: input.bindingFor('useLeft'),
+      useRightKey: input.bindingFor('useRight'),
+      voice: { ...state.voice, pushToTalkKey: input.bindingFor('pushToTalk') },
+    };
+  }
+
+  function localeState(): Partial<UiState> {
+    document.documentElement.lang = currentLocale();
+    return { localeToken: state.localeToken + 1 };
+  }
+
+  function navigatorLocale(): string {
+    return navigator.language.split('-')[0] ?? 'en';
+  }
 
   /**
    * Voice state reaches the vdom only when it actually changed - who is talking

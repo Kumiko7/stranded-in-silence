@@ -1,16 +1,28 @@
 /**
  * Input: raw devices -> ACTION ids. Logic never reads key codes.
  *
- * Bindings come from config/input.json, so rebinding later is a data change plus
- * a UI, not a logic change. `labelFor()` exists so HUD prompts show the player's
- * actual binding rather than a hardcoded "E".
+ * Bindings come from config/input.json and are overlaid with whatever the player
+ * rebound (`src/save/options.ts`). `bindingFor()` hands the HUD the raw code so
+ * it can draw the actual key cap rather than a hardcoded "E" - turning a code
+ * into something a player reads is the UI's job (`src/ui/keys.ts`), not this
+ * module's, because it is a display decision and a localisable one.
  */
 import type { InputConfig } from '@/config/types';
+
+/** What a rebinding UI needs to draw a row without reading the config itself. */
+export interface ActionInfo {
+  id: string;
+  labelKey: string;
+  category: string;
+  keys: string[];
+  rebindable: boolean;
+}
 
 export class Input {
   #down = new Set<string>();
   #pressed = new Set<string>();
   #bindings = new Map<string, string[]>();
+  #config: InputConfig;
   #canvas: HTMLElement;
 
   /**
@@ -28,11 +40,10 @@ export class Input {
 
   constructor(config: InputConfig, canvas: HTMLElement) {
     this.#canvas = canvas;
+    this.#config = config;
     this.#sensitivity = config.mouse.sensitivity;
     this.#invertY = config.mouse.invertY;
-    for (const [action, binding] of Object.entries(config.actions)) {
-      this.#bindings.set(action, binding.keys);
-    }
+    this.resetBindings();
   }
 
   attach(): () => void {
@@ -125,15 +136,69 @@ export class Input {
     return (this.isDown(positive) ? 1 : 0) - (this.isDown(negative) ? 1 : 0);
   }
 
-  /** Human-readable name of an action's primary binding, for HUD prompts. */
-  labelFor(action: string): string {
-    const key = this.#bindings.get(action)?.[0] ?? '';
-    if (key.startsWith('Key')) return key.slice(3);
-    if (key.startsWith('Digit')) return key.slice(5);
-    if (key === 'Mouse0') return 'LMB';
-    if (key === 'Mouse2') return 'RMB';
-    if (key.endsWith('Left')) return key.slice(0, -4);
-    return key;
+  /* --- bindings ------------------------------------------------------------ */
+
+  /**
+   * The raw code of an action's primary binding - `KeyE`, `Mouse0`. The HUD
+   * draws it; nothing here decides what it looks like.
+   */
+  bindingFor(action: string): string {
+    return this.#bindings.get(action)?.[0] ?? '';
+  }
+
+  /** Every action, in config order, for the rebinding screen. */
+  actions(): ActionInfo[] {
+    return Object.entries(this.#config.actions).map(([id, action]) => ({
+      id,
+      labelKey: action.labelKey,
+      category: action.category ?? 'other',
+      keys: this.#bindings.get(id) ?? [],
+      rebindable: action.rebindable !== false,
+    }));
+  }
+
+  /**
+   * Rebinds an action's PRIMARY key, leaving any alternates alone. WASD ships
+   * with arrow keys as a second binding and rebinding W should not silently
+   * cost you the up arrow.
+   *
+   * Returns false for an action config marks unrebindable - Escape has to keep
+   * working, because it is how you reach the menu that would undo this.
+   */
+  setBinding(action: string, code: string): boolean {
+    const entry = this.#config.actions[action];
+    if (!entry || entry.rebindable === false || !code) return false;
+
+    const keys = [...(this.#bindings.get(action) ?? [])];
+    keys[0] = code;
+    this.#bindings.set(action, keys);
+    return true;
+  }
+
+  /**
+   * Other actions whose primary key is also `code`. Shown to the player rather
+   * than resolved for them: two actions on one key is occasionally deliberate
+   * (spectate next and use-left both sit on the mouse, in different states),
+   * and silently unbinding somebody's other key is worse than telling them.
+   */
+  conflicts(action: string, code: string): string[] {
+    return this.actions()
+      .filter((other) => other.id !== action && other.keys[0] === code)
+      .map((other) => other.id);
+  }
+
+  /** Back to `config/input.json`, discarding every rebind. */
+  resetBindings(): void {
+    this.#bindings.clear();
+    for (const [action, binding] of Object.entries(this.#config.actions)) {
+      this.#bindings.set(action, [...binding.keys]);
+    }
+  }
+
+  /** Applies a saved override set over the defaults. Unknown actions are ignored. */
+  applyBinds(binds: Record<string, string>): void {
+    this.resetBindings();
+    for (const [action, code] of Object.entries(binds)) this.setBinding(action, code);
   }
 
   get mouseSensitivity(): number {

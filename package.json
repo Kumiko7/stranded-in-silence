@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "validate:art": "node scripts/validateArt.mjs",
-    "validate:gen": "node scripts/validateGeneration.mjs"
+    "validate:gen": "node scripts/validateGeneration.mjs",
+    "validate:locales": "node scripts/validateLocales.mjs"
   },
   "dependencies": {
     "peerjs": "^1.5.5",

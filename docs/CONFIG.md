@@ -59,7 +59,11 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Volumes, spatial audio, sound registry | `audio.json` | `buses.*`, `spatial.*`, `sounds.*` |
 | Which sound a game event fires | `audio.json` | `cues.*` — noise kinds, alert stings, hold loops |
 | How the score reacts to the hunter | `audio.json` | `music.intensityByAlert`, `.proximityWeight`, `.chaseLayerThreshold` |
-| Default key bindings | `input.json` | `actions.*` |
+| Default key bindings | `input.json` | `actions.*` — the options menu rebinds the *primary* key only, and stores overrides in the save profile; this file stays the reset-to-default source |
+| Whether an action can be rebound at all | `input.json` | `actions.<id>.rebindable` — `false` draws it locked |
+| What is printed on a key cap | `input.json` | `keyLabels.*`, `wideKeys` — letters and digits need no entry |
+| Which languages the game offers | `config/locales/manifest.json` | `locales.*` — see [`LOCALISATION.md`](LOCALISATION.md) |
+| The fonts, including CJK and Cyrillic fallbacks | `ui.json` | `theme.fontDisplay`, `.fontBody`, `.fontMono` |
 | Voice chat range and modes | `net.json` | `voice.hearingRange`, `.fullVolumeRange`, `.falloff`, `.modes` |
 | How quiet you can talk without the hunter noticing | `net.json` | `voice.noiseThresholdDb` (and `voice.voiceActivityThresholdDb` for the open-mic gate) |
 | Tick rate, interpolation, signalling URL | `net.json` | `simulation.*`, `signalling.*` |
@@ -123,3 +127,11 @@ renderer settings) need a page refresh; values read per frame (speeds) apply liv
 `src/config/validate.ts` checks types and ranges at boot and throws a readable error
 naming the file and key path. A missing key falls back to the base layer; an unknown
 key is a warning, not an error (so a config can be ahead of the code).
+
+Three scripts check config offline, and all three run without a browser:
+
+| Script | Checks |
+| --- | --- |
+| `npm run validate:art` | Every room of every pack builds, and nothing about it strands a player |
+| `npm run validate:gen` | Every enabled map generates and is solvable, over hundreds of seeds |
+| `npm run validate:locales` | Every locale carries every key with the same placeholders, and every config id that needs a label has one |
