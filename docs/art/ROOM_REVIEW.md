@@ -127,6 +127,38 @@ Worth knowing, because they are the failure classes to look for in the next pack
 - **A curve sampled too coarsely.** The `ribs` ceiling was five unrotated boxes on an
   arc, which read as blocks floating under the ceiling rather than as vaulting.
 
+### And the ones the viscera pass caught
+
+Different pack, same lesson every time: **the thing you meant to show is behind
+something else**. Worth reading before you author, because none of these is
+visible in the code and all of them are obvious in a sheet.
+
+- **A light inside its own mesh.** The heart had its lamp sunk in the muscle,
+  where it lit the inside of a sphere and nothing else; the room was a black
+  lump in a black chamber. Same bug in the ganglion. A point light belongs
+  *outside* the thing it is lighting — beside it rims the silhouette, under it
+  underlights, inside it does nothing at all.
+- **A translucent film over a glow.** Every emissive pod had a `caul` shell
+  wrapped round it "for wetness", and a semi-transparent grey layer in front of
+  a light source turns it grey. Collars, rims and wraps go *behind* or *around*
+  a glow, never in front of it.
+- **An iris behind its own sclera.** Both the wall eyes and the four-metre one
+  had the iris disc tucked inside the eyeball, which is where it anatomically
+  belongs and renders as a black pit. The iris has to stand proud of the sphere.
+- **A near-horizontal cylinder is a fan blade.** The lung's bronchi and the
+  heart's great vessels both ran out sideways at a shallow angle, and both read
+  as the blades of a ceiling fan from every doorway. Slope them steeply, or ring
+  them with collars so the eye reads a pipe.
+- **A glowing line beside a dark one is a string of party lights.** The nerve
+  runs alternated bare emissive cord with pale sheath and came out as bunting.
+  Glow has to be *points* on a dark line, not half of it.
+- **A full-width sheet is a pane of fog.** A curtain of membrane hung right
+  across a corridor blocked the one thing that corridor was for, and at any
+  distance read as a flat grey rectangle floating in the room.
+- **A wall texture at a tile size bigger than the wall.** A 2.6 m floor texture
+  on an 8 m floor is three repeats, which from standing height is one flat
+  smear. Floors want a tile you could take a step across.
+
 ---
 
 ## 5. Using it on a new pack

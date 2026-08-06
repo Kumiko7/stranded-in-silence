@@ -302,6 +302,46 @@ export const posterMansion = (): THREE.Texture =>
     return sky;
   });
 
+/**
+ * The Leviathan's poster: the view from inside the mouth, looking out.
+ *
+ * A ribbed throat framing a bright aperture, teeth all round it, and a figure
+ * standing in the light with its back to you. Same flat two-colour print style
+ * as the manor's, so the wall reads as one series.
+ */
+export const posterViscera = (): THREE.Texture =>
+  colorTexture('lobby.posterViscera', 256, (x, y, size) => {
+    const u = x / size;
+    const v = y / size;
+    const paper = paperAt(x, y, size);
+    if (u < 0.08 || u > 0.92 || v < 0.2 || v > 0.94) return paper;
+
+    // Distance from the aperture, squashed into a tall oval.
+    const du = (u - 0.5) / 0.3;
+    const dv = (v - 0.56) / 0.34;
+    const r = Math.hypot(du, dv) + n2(x, y, size, 7, 8101, 3) * 0.08 - 0.04;
+    const a = Math.atan2(dv, du);
+
+    // The figure: a small silhouette standing in the light, facing away.
+    const fx = Math.abs(u - 0.5);
+    if (v > 0.3 && v < 0.47 && fx < 0.026 + (0.47 - v) * 0.12) return rgb(0x241a1e);
+
+    if (r < 0.72) {
+      // The way out. Sickly, and the only bright thing on the print.
+      return mix(rgb(0xc8d08a), rgb(0x8fae74), Math.pow(r / 0.72, 2) * 0.9);
+    }
+
+    // Teeth around the rim, alternating long and short.
+    const tooth = 0.74 + (Math.abs(((a / Math.PI) * 9) % 1 - 0.5) * 2) * 0.16;
+    if (r < tooth) return mix(rgb(0xcfc7ae), rgb(0x8d8570), (r - 0.72) * 4);
+
+    // The throat: ribs closing in, darker the further out you look.
+    const rib = Math.abs(((r * 5.5) % 1) - 0.5) * 2;
+    const depth = Math.min(1, (r - 0.74) * 0.9);
+    const base = mix(rgb(0x5e2630), rgb(0x1d1116), depth);
+    return shade(base, 0.82 + rib * 0.4);
+  });
+
 /** The test map's poster: a flat plan-view grid, because that is what it is. */
 export const posterTest = (): THREE.Texture =>
   colorTexture('lobby.posterTest', 128, (x, y, size) => {

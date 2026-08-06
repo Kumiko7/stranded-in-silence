@@ -48,7 +48,7 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | What a coin pile is worth | `items.json` | `items.coinPile.params.minValue`, `.maxValue` — rolled from the run seed, so a pile is worth the same to whoever reaches it first |
 | How loud a thrown item is | `player.json` | `noise.throwImpact`, `.alarm`, `.blast`, `.wreck` |
 | Whether the run purse shows on the HUD | `ui.json` | `hud.coins.enabled`, `.showWhenEmpty` |
-| Which maps exist | `maps.json` | `maps.*` |
+| Which maps exist | `maps.json` | `maps.*` — `mansion`, `viscera`, and the `test` scaffold |
 | A map's lobby poster | `maps.json` | `maps.<id>.posterArtId` — an art id from `art/shared/index.ts`; unset or unregistered hangs a blank |
 | Lighting, fog, shadows, draw distance | `graphics.json` | top level |
 | How many lights are on at once | `graphics.json` | `maxActiveLights` and `shadows.maxCastingLights` — a fixed **budget**, not a cap: the renderer always enables exactly this many, nearest first, because a light count that changes recompiles every shader mid-run. See [`systems/RENDERING.md`](systems/RENDERING.md) |

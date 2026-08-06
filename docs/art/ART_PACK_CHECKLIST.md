@@ -94,6 +94,26 @@ one-line room identities so the set has spread. For a prison, e.g.:
 Aim for a mix of open (good sightlines, safer) and cluttered (blind corners, scary)
 rooms — that variance is where the tension lives.
 
+**Split the set into two zones and alternate them.** `viscera` is wet viscera
+against calcified skeleton, half the rooms each, so walking the maze is a
+rhythm of temperature changes rather than twenty variations on one idea; the
+manor does the same thing more quietly with its grand rooms and its service
+rooms. Give the two halves different palettes, different light colours and
+different floor materials, and put one hinge room in the set that is honestly
+both — it is the one that makes the transition read as deliberate.
+
+Two practical rules that decide half the layout before you start decorating:
+
+- **The door lanes are sacred.** A doorway is 1.2 m wide and centred on its
+  wall, so the strip `|x| < 1.1` (or `|z| < 1.1`) running from each offered wall
+  into the room has to stay walkable — the generator may open *any* wall you
+  listed. Everything solid belongs in the corners or against a wall you never
+  offered. It is far cheaper to lay out on that grid from the start than to
+  chase `the north doorway is blocked by geometry` around a finished room.
+- **Containers need their approach.** A chest wants 1.6 m clear in front of it
+  and a locker 1.2 m, measured along its own facing, which in a four-door 1x1
+  leaves exactly four places a container can go. Place those four first.
+
 Rooms are rotated in 90° steps to fit their slot, so count shapes, not
 orientations: one `2x1` corridor, not a `2x1` and a `1x2`; one one-door dead end,
 not one per compass point. A multi-cell room is placed **at most once per map**,
@@ -131,17 +151,29 @@ Add to `config/locales/en.json`:
 "map.prison.desc": "Nobody was released. The paperwork just stopped.",
 ```
 
-Room `nameKey`s too, if you set any. **No user-visible text goes in art or logic.**
+Room `nameKey`s too, if you set any — and then to **every other locale in
+`config/locales/`**, because `npm run validate:locales` requires the same key set
+in all of them and a `complete: true` locale missing a key is an error, not a
+warning. **No user-visible text goes in art or logic.**
 
 ## 7. Lobby poster
 
-Add a `poster.<packId>` builder to `art/shared/props/posters.ts` (or override it in
-the pack). The lobby wall renders one poster per enabled map; players hold `E` on a
-poster to vote. The poster should read as a movie poster for the map's theme.
+Three edits, all in `art/shared/lobby/`: a `poster<Pack>` recipe in `textures.ts`,
+a `poster.<packId>` entry in `materials.ts`, and one line of
+`posterBuilder('poster.<packId>')` in `poster.ts` exported and registered in
+`art/shared/index.ts`. Name it from `maps.json → posterArtId`; an id that is not
+registered falls back to `poster.blank` and `validate:art` warns.
+
+The lobby wall renders one poster per enabled map; players hold `E` on a poster to
+vote. The poster should read as a movie poster for the map's theme, and it is
+authored in **0..1 UV space** rather than as a tiling texture — it is a picture,
+not a surface.
 
 ## 8. Acceptance checklist
 
 - [ ] ≥ 15 room blueprints, ≥ 80 % of them `1x1`
+- [ ] One 1x1 offering all four walls, and one one-door dead end
+- [ ] `npm run validate:locales` passes — every new key in all six locales
 - [ ] Every room passes the [`ROOM_FORMAT.md §8`](ROOM_FORMAT.md#8-authoring-checklist) checklist
 - [ ] Kit cuts door openings correctly for all four sides
 - [ ] At least 4 rooms declare `playerSpawn` (tag them `entrance`)

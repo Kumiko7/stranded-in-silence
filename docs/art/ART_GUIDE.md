@@ -109,7 +109,7 @@ Per room — full table in [`ROOM_FORMAT.md §7`](ROOM_FORMAT.md#7-performance-b
 | --- | --- |
 | Draw calls | ≤ 40 |
 | Triangles | ≤ 40 000 |
-| Real lights | ≤ 2 (≤ 1 casting shadows) |
+| Real lights | ≤ `ctx.lightBudget` — 2 for a 1x1, +1 per extra cell, max 4 (≤ 1 casting shadows) |
 | Materials created | 0 |
 
 There is one quality level. Build to the budget above and do not branch on

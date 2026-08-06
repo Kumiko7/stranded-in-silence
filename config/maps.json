@@ -46,6 +46,29 @@
       },
       "ambienceTrack": "ambience/mansion_loop",
       "musicTrack": "music/mansion_tension"
+    },
+
+    "viscera": {
+      "nameKey": "map.viscera.name",
+      "descKey": "map.viscera.desc",
+      "artPack": "viscera",
+      "posterArtId": "poster.viscera",
+      "enabled": true,
+      "enemies": ["ghost"],
+      "$note": "Ambient is a hair warmer and lower than the manor's: almost everything you navigate by inside the beast is emissive - bile, nerve cord, spore blooms, eyes - and a cool ambient fill was washing that out. The fog is the colour of old blood, which is what closes the far wall of a big chamber.",
+      "overrides": {
+        "world": {
+          "grid": { "width": 6, "height": 6 },
+          "doors": { "lockedDoorCount": 2 }
+        },
+        "graphics": {
+          "fog": { "color": "#100809", "density": 0.052 },
+          "ambientColor": "#3a2634",
+          "ambientIntensity": 0.9
+        }
+      },
+      "ambienceTrack": "ambience/mansion_loop",
+      "musicTrack": "music/mansion_tension"
     }
   }
 }

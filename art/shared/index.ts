@@ -23,7 +23,7 @@ import { buildFlashBurst } from './vfx/flashBurst';
 import { buildPlayer } from './characters/player';
 import { buildGhost } from './characters/ghost';
 import { buildLever, buildMinigamePlaceholder, buildWardrobe } from './lobby/fixtures';
-import { buildPosterBlank, buildPosterMansion, buildPosterTest } from './lobby/poster';
+import { buildPosterBlank, buildPosterMansion, buildPosterTest, buildPosterViscera } from './lobby/poster';
 
 export const sharedArt: ArtRegistry = {
   'door.standard': buildDoor,
@@ -54,6 +54,7 @@ export const sharedArt: ArtRegistry = {
   // what hangs in the slots no map has claimed yet.
   'poster.blank': buildPosterBlank,
   'poster.mansion': buildPosterMansion,
+  'poster.viscera': buildPosterViscera,
   'poster.test': buildPosterTest,
   'lobby.wardrobe': buildWardrobe,
   'lobby.lever': buildLever,

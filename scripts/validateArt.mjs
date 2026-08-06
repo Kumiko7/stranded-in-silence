@@ -46,7 +46,11 @@ const DIMS = {
   doorHeight: world.doors.height,
 };
 const PLAYER_RADIUS = player.body.radius;
-const LIGHT_BUDGET = 2;
+/**
+ * Real lights a room may declare: two for a 1x1, one more per extra cell,
+ * capped at four. Must match `lightBudget` in src/world/worldBuilder.ts.
+ */
+const lightBudgetFor = (footprint) => Math.min(4, 1 + footprint.length);
 
 /** Grid resolution for the reachability flood fill, in metres. */
 const CELL = 0.12;
@@ -422,7 +426,7 @@ function checkBuild(packId, blueprint, doors, seed, library, THREE) {
     rng: makeRng(seed),
     dims: DIMS,
     roomIndex: 0,
-    lightBudget: LIGHT_BUDGET,
+    lightBudget: lightBudgetFor(blueprint.footprint),
   };
 
   let built;
@@ -525,7 +529,8 @@ function checkBuild(packId, blueprint, doors, seed, library, THREE) {
   const stats = measure(built.object);
   const shadowLights = lights.filter((light) => light.castShadow).length;
 
-  if (lights.length > LIGHT_BUDGET) fail(where, `${lights.length} lights, budget is ${LIGHT_BUDGET}`);
+  const budget = lightBudgetFor(blueprint.footprint);
+  if (lights.length > budget) fail(where, `${lights.length} lights, budget is ${budget}`);
   if (lights.length === 0) fail(where, 'no light at all - there is no player flashlight, so the room is unnavigable');
   if (shadowLights > BUDGET.shadowLights) warn(where, `${shadowLights} shadow-casting lights, budget is ${BUDGET.shadowLights}`);
 
