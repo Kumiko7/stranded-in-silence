@@ -13,7 +13,6 @@
  * the countdown entirely - there is nobody to wait for.
  */
 import * as THREE from 'three';
-import { resolveArt } from '@art/shared/index';
 import type { RoomDims } from '@art/lib/contract';
 import type { Config } from '@/config/index';
 import { randomSeed, stream } from '@/core/rng';
@@ -25,6 +24,7 @@ import type { Renderer } from '@/render/Renderer';
 import type { Save } from '@/save/index';
 import type { VoiceChat } from '@/voice/index';
 import { buildLobbyScene, type LobbyPoster, type LobbyWorld } from '@/world/lobbyScene';
+import { createPlayerBody, defaultCosmetic, type Cosmetic, type PlayerBody } from '@/render/playerBody';
 
 /** What the look-ray is offering in the cabin. Everything here is a press, not a hold. */
 export interface LobbyTarget {
@@ -67,10 +67,7 @@ export interface LobbyHooks {
 }
 
 interface RemotePlayer {
-  object: THREE.Object3D;
-  root: THREE.Object3D;
-  setColour(hex: string): void;
-  dispose?(): void;
+  body: PlayerBody;
   target: { x: number; z: number; yaw: number };
 }
 
@@ -186,12 +183,12 @@ export class Lobby {
       poster.tick.visible = poster.mapId !== null && this.#save.hasCompleted(poster.mapId);
     }
 
-    this.#mannequin = this.#createBody(`mannequin`);
+    this.#mannequin = this.#createBody('mannequin');
     if (this.#mannequin) {
       const pose = world.mannequin;
-      this.#mannequin.object.position.set(pose.position[0], pose.position[1], pose.position[2]);
-      this.#mannequin.root.rotation.y = pose.rotationY;
-      this.#mannequin.setColour(this.#colourHex(this.#save.profile.colourId));
+      this.#mannequin.body.object.position.set(pose.position[0], pose.position[1], pose.position[2]);
+      this.#mannequin.body.root.rotation.y = pose.rotationY;
+      this.#mannequin.body.wear(this.#ownCosmetic());
     }
 
     // Rejoining the cabin clears whatever the last round decided.
@@ -232,14 +229,14 @@ export class Lobby {
     const body = this.#createBody(`remote:${id}`);
     if (!body) return;
 
-    body.object.traverse((child) => {
+    body.body.object.traverse((child) => {
       child.userData['playerId'] = id;
     });
-    body.setColour(this.#colourHex(this.#net.cosmeticOf(id)));
+    body.body.wear(this.#net.cosmeticOf(id) ?? defaultCosmetic(this.#config.player));
     // Off to one side of the arrival spots, so nobody spawns inside anyone.
     const spawn = this.#world.spawns[(this.#remotes.size + 1) % this.#world.spawns.length];
     body.target = { x: spawn?.position[0] ?? 0, z: spawn?.position[2] ?? 0, yaw: spawn?.rotationY ?? 0 };
-    body.object.position.set(body.target.x, 0, body.target.z);
+    body.body.object.position.set(body.target.x, 0, body.target.z);
     this.#remotes.set(id, body);
     this.#pushView();
   }
@@ -271,52 +268,62 @@ export class Lobby {
     remote.target = { x, z, yaw };
   }
 
-  setRemoteColour(id: string, colourId: string): void {
-    this.#remotes.get(id)?.setColour(this.#colourHex(colourId));
+  /** A teammate changed clothes, or turned up already dressed. */
+  setRemoteCosmetic(id: string, cosmetic: Cosmetic): void {
+    this.#remotes.get(id)?.body.wear(cosmetic);
   }
 
   #createBody(streamName: string): RemotePlayer | null {
     const world = this.#world;
     if (!world) return null;
 
-    const art = resolveArt('player.masked')({
-      materials: world.materials,
-      rng: stream(0, streamName),
-      dims: this.#dims,
-    });
-    this.#renderer.scene.add(art.object);
-    return {
-      object: art.object,
-      root: art.parts['root'] ?? art.object,
-      setColour: art.api?.setColour?.bind(art.api) ?? ((): void => {}),
-      ...(art.dispose ? { dispose: art.dispose.bind(art) } : {}),
-      target: { x: 0, z: 0, yaw: 0 },
-    };
+    const body = createPlayerBody(this.#config.player, world.materials, stream(0, streamName), this.#dims);
+    this.#renderer.scene.add(body.object);
+    return { body, target: { x: 0, z: 0, yaw: 0 } };
   }
 
-  #disposeBody(body: RemotePlayer): void {
-    this.#renderer.scene.remove(body.object);
-    body.dispose?.();
+  #disposeBody(remote: RemotePlayer): void {
+    this.#renderer.scene.remove(remote.body.object);
+    remote.body.dispose();
   }
 
   /* --- the wardrobe -------------------------------------------------------- */
 
-  setColour(colourId: string): void {
-    this.#save.setColourId(colourId);
-    this.#net.setCosmetic(colourId);
-    this.#mannequin?.setColour(this.#colourHex(colourId));
+  /**
+   * The wardrobe changed something. Whatever it was, the whole outfit is saved,
+   * broadcast and put on the mannequin in one path - a colour and a hat are the
+   * same kind of decision and there is no reason for two.
+   */
+  setCosmetic(cosmetic: Cosmetic): void {
+    this.#save.setColourId(cosmetic.colourId);
+    this.#save.setHatId(cosmetic.hatId);
+    this.#net.setCosmetic(cosmetic);
+    this.#mannequin?.body.wear(cosmetic);
+  }
+
+  /**
+   * Puts something on the mannequin WITHOUT buying, saving or telling anybody.
+   * This is how you try a hat on before you pay for it - the model is standing
+   * two metres away with the camera already pointed at it, and a shop that made
+   * you buy before you could look would be a worse shop.
+   */
+  previewCosmetic(cosmetic: Cosmetic): void {
+    this.#mannequin?.body.wear(cosmetic);
   }
 
   closeWardrobe(): void {
     if (!this.#wardrobeOpen) return;
     this.#wardrobeOpen = false;
+    // Whatever was being tried on comes back off on the way out.
+    this.#mannequin?.body.wear(this.#ownCosmetic());
     this.#hooks.onWardrobe(false);
   }
 
-  #colourHex(colourId: string | null): string {
-    const { colours, defaultColourId } = this.#config.player.customisation;
-    const wanted = colourId ?? defaultColourId;
-    return (colours.find((entry) => entry.id === wanted) ?? colours[0])?.hex ?? '#6f7690';
+  /** What this profile is wearing, with the configured defaults filled in. */
+  #ownCosmetic(): Cosmetic {
+    const fallback = defaultCosmetic(this.#config.player);
+    const { colourId, hatId } = this.#save.profile;
+    return { colourId: colourId ?? fallback.colourId, hatId: hatId ?? fallback.hatId };
   }
 
   /* --- picks, difficulty and the countdown --------------------------------- */
@@ -711,9 +718,11 @@ export class Lobby {
   #interpolateRemotes(dt: number): void {
     const blend = Math.min(1, dt * 10);
     for (const remote of this.#remotes.values()) {
-      remote.object.position.x += (remote.target.x - remote.object.position.x) * blend;
-      remote.object.position.z += (remote.target.z - remote.object.position.z) * blend;
-      remote.root.rotation.y += shortestAngle(remote.root.rotation.y, remote.target.yaw) * blend;
+      const object = remote.body.object;
+      const root = remote.body.root;
+      object.position.x += (remote.target.x - object.position.x) * blend;
+      object.position.z += (remote.target.z - object.position.z) * blend;
+      root.rotation.y += shortestAngle(root.rotation.y, remote.target.yaw) * blend;
     }
   }
 

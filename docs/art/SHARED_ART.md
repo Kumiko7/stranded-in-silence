@@ -120,6 +120,7 @@ block swallows it.
 | `head` | Pitched with the player's look. |
 | `handLeft` / `handRight` | Item attachment sockets. Held items parent here. |
 | `nameAnchor` | Where the nameplate/voice indicator floats (~`2.1 m` up). |
+| `hatAnchor` | Where a cosmetic `hat.*` parents. On the **crown**, and a child of `head`, so a hat pitches with the look instead of hovering level while its owner stares at the floor. |
 
 Also expose `setCrouched(t: number)` on the builder result's optional `api` if the art
 supports a crouch pose; logic falls back to scaling `root` if absent.
@@ -128,6 +129,15 @@ supports a crouch pose; logic falls back to scaling `root` if absent.
 (`player.json → customisation.colours`). The builder **must clone** `playerBody`
 before using it — a shared material would repaint every player in the run at once —
 and return a `dispose()` that frees the clone.
+
+**One colour, a whole body.** The default builder clones `playerBody` three times
+and mixes the wardrobe colour toward black for boots, gloves, pack and webbing and
+toward black again for the visor, while `playerMask` stays the pale the pack asked
+for and does the trim. That is why adding a wardrobe colour costs the packs nothing:
+a pack states two colours and gets a whole suit out of them.
+
+Nothing in `src/` builds this by hand — `src/render/playerBody.ts` is the only
+caller, and it is what dresses a body from a `Cosmetic` (`src/shared/cosmetics.ts`).
 
 The body must **stand on the floor with legs**, not float: the lobby wardrobe parks
 it full height two metres from the camera, where a bare capsule reads as a bug.
@@ -141,6 +151,10 @@ it full height two metres from the camera, where a bare capsule reads as a bug.
 | `eyeAnchor` | Origin for the sight cone in debug view. |
 
 Mostly floating — minimal animation is expected and preferred.
+
+The builder returns a `dispose()`, and `Game` calls it: the ghost clones its shroud
+and alert materials so one hunter can be tinted without touching the pack cache, so
+the run that built them is the run that has to free them.
 
 The alert colour is a **primary gameplay signal**, not decoration: it is how a
 player reads `calm / suspicious / alerted / chasing` across a dark room, so make it
@@ -173,6 +187,34 @@ reads as a plain box from three sides out of four is not finished.
 clock lands and off when it winds down. What ringing *looks* like is the art's
 business, and belongs in `onBeforeRender` like any other idle motion.
 
+### `hat.*` — cosmetics, parented to the player's `hatAnchor`
+
+One builder per id in `config/player.json → customisation.hats`. **No required
+parts, no collider** — a hat is scenery riding a head, and that is the whole
+contract.
+
+- Origin at the **crown**, facing `-Z`, with the head's centre `0.19 m` below it.
+  Anything that wraps the head hangs below `y = 0`; anything stacked on top rises
+  above it. Nothing may reach more than about `0.42 m` out, or a hat clips a
+  doorway its owner walks through.
+- Hats bring their **own materials** (`art/shared/characters/hatMaterials.ts`),
+  like `vfx.throwArc` and for a related reason: a player *bought* that top hat, so
+  it has to be that top hat in every map. Logic resolves a hat **without** passing
+  the pack's overrides, so a pack cannot theme one.
+- No `THREE.Light`. A hat that glows does it with an emissive or unlit material —
+  the light budget is fixed per room (`systems/RENDERING.md`) and a cosmetic may
+  not spend a slot from it.
+- Idle motion (a spinning propeller, a guttering candle, falling rain) belongs to
+  the art, from `onBeforeRender`, like every other idle motion in the project.
+
+`hat.none` is a **registered, empty** builder rather than a null the rest of the
+game has to remember to check for. Bare-headed is a choice in the wardrobe like any
+other, and this is what makes it cost nothing to handle.
+
+Adding a hat is a builder, a line in `hatArt`, an entry in
+`player.json → customisation.hats` with a `cost`, and a `cosmetic.hat.*` locale key
+in every language. Nothing else in the game changes.
+
 ### `door.barricade` — hung on a door's own transform
 
 Origin at the floor centre of the doorway, facing `-Z`, exactly like `door.standard`,
@@ -191,10 +233,14 @@ drives the shape below. That way "a bigger tar flask" is a config edit.
 | `vfx.tarPool` | `api.setProgress(t)` | The slick spreading, 0 → 1. Flat on the floor: collision is a floor-plane test, so anything that slows you down has to *be* the floor. |
 | `vfx.flashBurst` | `api.setProgress(t)` | The flare burning out, 0 → 1. The core is a **fireball, not the blast radius** — at a nine-metre radius it still only grows to about a metre. What the radius *is*, is the ground ring's job. Clones its material to fade its own copy. |
 
-`vfx.throwArc` is the one shared piece that brings its **own** materials rather than
-asking the pack for them, for the same reason the lobby does (§3.2): it is a
-heads-up overlay drawn for one player, not a thing standing in the world, and a pack
-theming it could only make an aim line harder to read.
+`vfx.throwArc` and the `hat.*` roster are the two shared pieces that bring their
+**own** materials rather than asking the pack for them, for the same reason the
+lobby does (§3.2). The arc is a heads-up overlay drawn for one player, not a thing
+standing in the world, and a pack theming it could only make an aim line harder to
+read. A hat is something a player paid coins for, and a pack theming it would make
+the shop a liar — on top of which a themeable roster would mean adding two dozen
+material names to every pack every time a hat shipped, which is exactly the tax that
+stops new hats being cheap.
 
 ## 3.2 The lobby
 
@@ -267,7 +313,7 @@ with a border, a centre line and detail where a door has detail. `viscera`'s
 | `itemSteel`, `itemWood`, `itemCloth`, `itemAccent`, `itemBrass`, `itemEnamel`, `itemGold`, `itemTar`, `itemGlass`, `itemGem` | the item roster — `item.medicine`, `item.flashbang`, `item.alarmClock`, `item.tarFlask`, `item.barricade`, `item.coinPile`, `item.diamond`, `door.barricade` |
 | `vfx.tar`, `vfx.tarRim` | `vfx.tarPool` — the rim is matte and a shade lighter, so a black disc on a dark floor reads as spilt rather than as a hole in the boards |
 | `vfx.flash` | `vfx.flashBurst` — **cloned** by the builder so one flare fading does not dim every other one |
-| `playerBody`, `playerMask` | `player.masked` — `playerBody` is **cloned** by the builder so `setColour` tints one player, not all of them |
+| `playerBody`, `playerMask` | `player.masked` — both are **cloned** by the builder so `setColour` tints one player, not all of them. `playerBody` carries three shades and `playerMask` the trim |
 | `ghostShroud`, `ghostAlert` | `enemy.ghost` — both are **cloned** by the builder so it can tint per alert level without touching the shared cache |
 | `timberDark`, `poster.blank`, `poster.<map>`, `poster.tick`, `poster.mark` | `poster.*` (lobby only) |
 | `timber`, `timberPale`, `timberDark`, `iron`, `brass`, `copper`, `mirror`, `canvas`, `cushion`, `cushionGreen` | `lobby.wardrobe`, `lobby.lever`, `lobby.minigame` (lobby only) |

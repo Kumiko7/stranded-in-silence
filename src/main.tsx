@@ -21,6 +21,7 @@ import { Save, type Options } from './save/index';
 import { VoiceChat } from './voice/index';
 import { Game } from './game/Game';
 import { Lobby } from './game/Lobby';
+import { disposePortraits } from './render/portraits';
 import { mountVoiceIndicator } from './ui/hud/voiceIndicator';
 import { App, type Screen, type UiCallbacks, type UiPush, type UiState } from './ui/App';
 
@@ -111,6 +112,12 @@ async function boot(): Promise<void> {
     loadingTotal: 1,
     colours: config.player.customisation.colours,
     colourId: save.profile.colourId ?? config.player.customisation.defaultColourId,
+    hats: [],
+    // Filled in below, once `owned()` exists: a profile naming a hat it does
+    // not own - an older build, a hand-edited save, a hat that was repriced -
+    // goes back to a bare head rather than wearing something it never paid for.
+    hatId: config.player.customisation.defaultHatId,
+    previewHatId: config.player.customisation.defaultHatId,
     promptVerbKey: null,
     promptItemKey: null,
     promptHold: false,
@@ -170,9 +177,9 @@ async function boot(): Promise<void> {
     onPick: (id, mapId) => lobby.applyPick(id, mapId),
     onDifficulty: (difficultyId) => lobby.applyDifficulty(difficultyId),
     onLobbyMove: (id, x, z, yaw) => lobby.moveRemote(id, x, z, yaw),
-    onCosmetic: (id, colourId) => {
-      lobby.setRemoteColour(id, colourId);
-      game.setRemoteColour(id, colourId);
+    onCosmetic: (id, cosmetic) => {
+      lobby.setRemoteCosmetic(id, cosmetic);
+      game.setRemoteCosmetic(id, cosmetic);
     },
     // Both scenes keep their own bodies; only the live one has anything to add.
     onPeerJoin: (id) => (lobby.active ? lobby.addRemote(id) : game.addRemote(id)),
@@ -267,7 +274,9 @@ async function boot(): Promise<void> {
       }),
     onViewChange: (view) => set({ lobby: view, players: view.players }),
     onWardrobe: (open) => {
-      set({ screen: open ? 'wardrobe' : 'lobby' });
+      // Opening or closing both land on "showing what you actually wear": the
+      // lobby has already put the equipped outfit back on the mannequin.
+      set({ screen: open ? 'wardrobe' : 'lobby', previewHatId: state.hatId, ...hatState() });
       if (open) input.releasePointerLock();
       else input.requestPointerLock();
     },
@@ -433,8 +442,31 @@ async function boot(): Promise<void> {
     onLeaveLobby: leaveSession,
     onCloseWardrobe: () => lobby.closeWardrobe(),
     onColour: (id) => {
-      lobby.setColour(id);
+      lobby.setCosmetic({ colourId: id, hatId: state.hatId });
       set({ colourId: id });
+    },
+    /**
+     * Owning it is what separates wearing from trying on. An owned hat is
+     * equipped on the spot; anything else goes on the mannequin alone and the
+     * price bar appears under the list.
+     */
+    onHat: (id) => {
+      if (owned(id)) {
+        lobby.setCosmetic({ colourId: state.colourId, hatId: id });
+        set({ hatId: id, previewHatId: id });
+        return;
+      }
+      lobby.previewCosmetic({ colourId: state.colourId, hatId: id });
+      set({ previewHatId: id });
+    },
+    onBuyHat: (id) => {
+      const hat = config.player.customisation.hats.find((entry) => entry.id === id);
+      // A refusal is silent: the button is already disabled when the purse is
+      // short, so getting here means something else changed underneath.
+      if (!hat || !save.buyHat(id, hat.cost)) return;
+      audio.play('ui.click');
+      lobby.setCosmetic({ colourId: state.colourId, hatId: id });
+      set({ hatId: id, previewHatId: id, bankedCoins: save.profile.coins, ...hatState() });
     },
     onVoiceMode: (mode) => {
       voice.setMode(mode);
@@ -484,6 +516,24 @@ async function boot(): Promise<void> {
       set({ options, ...bindingState() });
     },
   };
+
+  /** Free hats belong to everybody; the rest have to be bought. */
+  function owned(hatId: string): boolean {
+    const hat = config.player.customisation.hats.find((entry) => entry.id === hatId);
+    return hat !== undefined && (hat.cost <= 0 || save.ownsHat(hatId));
+  }
+
+  /** The shop list, with ownership folded in. Re-read after every purchase. */
+  function hatState(): Partial<UiState> {
+    return {
+      hats: config.player.customisation.hats.map((hat) => ({
+        id: hat.id,
+        nameKey: hat.nameKey,
+        cost: hat.cost,
+        owned: owned(hat.id),
+      })),
+    };
+  }
 
   /** The bindings the HUD and the Controls tab draw. Re-read after any rebind. */
   function bindingState(): Partial<UiState> {
@@ -572,8 +622,12 @@ async function boot(): Promise<void> {
       set({ netStatus: 'error', error: t('error.connectionLost') });
     });
 
-  // Whatever the wardrobe last saved is what everyone else should see us wearing.
-  net.setCosmetic(state.colourId);
+  // Whatever the wardrobe last saved is what everyone else should see us
+  // wearing - as long as it is still ours to wear.
+  const savedHat = save.profile.hatId;
+  if (savedHat && owned(savedHat)) set({ hatId: savedHat, previewHatId: savedHat });
+  net.setCosmetic({ colourId: state.colourId, hatId: state.hatId });
+  set(hatState());
 
   /* --- loop --------------------------------------------------------------- */
 
@@ -622,6 +676,7 @@ async function boot(): Promise<void> {
     detachInput();
     detachUiSounds();
     voiceHud.unmount();
+    disposePortraits();
     voice.dispose();
     void net.close();
   });

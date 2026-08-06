@@ -460,6 +460,8 @@ body {
   pointer-events: auto;
   width: min(24rem, 42vw);
   margin-left: clamp(1.5rem, 6vw, 5rem);
+  /* Capped, because the hat list grows with the shop and the panel must not. */
+  max-height: 88vh;
   display: flex;
   flex-direction: column;
   gap: 1.1rem;
@@ -548,6 +550,90 @@ body {
 .swatch--active {
   border-color: var(--c-accent);
   box-shadow: 0 0 0 2px var(--c-accent);
+}
+
+/* The hat shop. It is the one list in the game long enough to scroll, so the
+   group it lives in is the one that gives, and the panel stays inside the
+   viewport however many hats ship. */
+.wardrobe__group--grow {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.wardrobe__hats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.2rem, 1fr));
+  gap: 0.4rem;
+  max-height: min(22rem, 38vh);
+  overflow-y: auto;
+  padding-right: 0.3rem;
+}
+
+.hat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-align: left;
+  color: var(--c-text-dim);
+  background: #ffffff08;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: color var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.hat:hover,
+.hat:focus-visible {
+  outline: none;
+  color: var(--c-text);
+  border-color: var(--c-text);
+}
+
+/* Owned but not on: readable, unmarked. Nothing to decide about it. */
+.hat--owned {
+  color: var(--c-text);
+}
+
+/* Dimmed rather than hidden - what you are saving up for should be visible. */
+.hat--locked .hat__cost {
+  color: var(--c-text-dim);
+}
+
+.hat--forsale .hat__cost {
+  color: var(--c-warn);
+}
+
+/* Being tried on: the mannequin is wearing it, and the price bar is up. */
+.hat--trying {
+  color: var(--c-text);
+  border-color: var(--c-warn);
+}
+
+.hat--worn {
+  color: var(--c-text);
+  border-color: var(--c-accent);
+  background: #ffffff12;
+}
+
+.hat__name {
+  flex: 1 1 auto;
+}
+
+.hat__cost {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.hat__worn {
+  font-size: 0.56rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-accent);
 }
 
 /* --- voice: pause menu ---------------------------------------------------- */
@@ -1395,6 +1481,14 @@ body {
   display: block;
   width: clamp(4.2rem, 9vw, 6.6rem);
   height: auto;
+}
+
+/* The rendered portrait. It is a 2:3 image with the body already framed inside
+   it, so it needs more room than the silhouette and no shadow of its own - the
+   model brought its own lighting. */
+.figure--render {
+  width: clamp(6rem, 13vw, 9.5rem);
+  filter: drop-shadow(0 6px 10px #00000066);
 }
 
 .figure__shadow {

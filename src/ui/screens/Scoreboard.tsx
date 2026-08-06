@@ -2,11 +2,15 @@
  * The post-run scoreboard: one card per player, their figure on top and what
  * they did underneath.
  *
- * The figure is an SVG standing in for `player.masked` - same silhouette, same
- * wardrobe colour, drawn here rather than rendered, because screens never touch
- * THREE (docs/systems/UI.md, rule 5). It is the same body you were looking at
- * five seconds ago, which is what makes a column belong to a person rather than
- * to a peer id.
+ * The figure is a PICTURE of the real `player.masked`, hat and all, rendered
+ * off screen by `src/render/portraits.ts` and handed to this screen as a data
+ * URL - so screens still never touch THREE (docs/systems/UI.md, rule 5) while
+ * the card shows the actual body you were looking at five seconds ago. That is
+ * what makes a column belong to a person rather than to a peer id, and it is
+ * why buying a hat shows up here without anybody drawing it twice.
+ *
+ * The SVG silhouette below is the fallback for a browser that would not give us
+ * a second GL context. It carries the wardrobe colour and nothing else.
  *
  * Which rows exist, in what order, and which direction is "better" all come
  * from `game.json -> scoring.categories`. The green ring marks the best value
@@ -56,7 +60,11 @@ export function Scoreboard({ rows, categories, onContinue }: Props) {
           {rows.map((row) => (
             <article key={row.id} class={row.self ? 'card card--self' : 'card'}>
               <div class={`card__stage card__stage--${row.status}`}>
-                <PlayerFigure colourHex={row.colourHex} status={row.status} />
+                {row.portrait ? (
+                  <img class="figure figure--render" src={row.portrait} alt="" />
+                ) : (
+                  <PlayerFigure colourHex={row.colourHex} status={row.status} />
+                )}
               </div>
 
               <div class="card__id">
@@ -103,9 +111,10 @@ function valueOf(row: ScoreRow, id: string): number {
 }
 
 /**
- * The player body, matching `art/shared/characters/player.ts`: capsule torso,
- * four box limbs, a round head with a pale mask on the front. Lit from the
- * upper left with one gradient, so a flat fill still reads as a figure.
+ * The fallback silhouette, for a browser that refused the portrait renderer a
+ * context. Deliberately NOT a drawing of the current model - it is a body-shaped
+ * shape in the right colour, which is all a fallback has to be. Keeping it
+ * generic is what stops it needing an update every time a hat ships.
  */
 function PlayerFigure({ colourHex, status }: { colourHex: string; status: ScoreRow['status'] }) {
   // Scoped per card - two figures on one screen must not share a gradient id.

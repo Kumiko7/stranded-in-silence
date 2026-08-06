@@ -159,6 +159,36 @@ visible in the code and all of them are obvious in a sheet.
   on an 8 m floor is three repeats, which from standing height is one flat
   smear. Floors want a tile you could take a step across.
 
+### And the ones the shared-art pass caught
+
+Characters and props are not rooms, but they get reviewed the same way — a
+contact sheet, several angles, one close-up of whatever has to read. All five of
+these looked fine in code:
+
+- **A tiling pattern on 0..1 UVs is bobbles.** The suit's first normal map wove
+  thirty-two threads and quilted four panels across the tile. A body's UVs run
+  0..1 over the *whole torso*, so every one of those came out centimetres deep
+  and the player was a knitted golf ball. On a character, a surface map should be
+  noise you can feel and not read. Save patterns for things with world-unit UVs.
+- **An emissive faceplate is not glass, it is a lamp.** The visor was lit at
+  `emissiveIntensity` 0.55 and came out brighter than the suit around it — a pale
+  slab where a dark window should be. Glass reads by its **highlight**: low
+  roughness, some metalness, and almost no glow.
+- **A bezel wider than a hand's breadth eats the thing it frames.** The pale rim
+  round the visor started five degrees wider than the glass and won the face
+  outright. It is now three, and reads as a bezel.
+- **A monotonic profile spun around an axis is a bottle.** The ghost's robe only
+  ever narrowed from hem to hood, and no amount of shroud on top of that reads as
+  a figure. It needed a waist, a collar and — the single biggest fix — **empty
+  sleeves**: arms that end in nothing are what separate a robed figure from an
+  object.
+- **A wobbly edge is not a torn one.** The hem was a band of quads whose bottom
+  edge moved up and down, and it read as a hoop of cloth. What makes cloth look
+  torn is the **gaps**, so the tatters have to come to points.
+- **Frame for the tallest thing, not the average one.** The scoreboard portrait
+  camera was framed on a 1.8 m body. A player in a candelabra is 2.4 m, and a
+  crown with its points cut off is exactly what makes a card look broken.
+
 ---
 
 ## 5. Using it on a new pack

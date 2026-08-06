@@ -63,6 +63,9 @@ export interface PlayerConfig {
   customisation: {
     defaultColourId: string;
     colours: { id: string; nameKey: string; hex: string }[];
+    defaultHatId: string;
+    /** `cost` is in banked coins; 0 means owned from the start. */
+    hats: { id: string; nameKey: string; artId: string; cost: number }[];
   };
   health: {
     reviveHoldSeconds: number;

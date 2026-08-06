@@ -22,6 +22,7 @@ import { buildTarPool } from './vfx/tarPool';
 import { buildFlashBurst } from './vfx/flashBurst';
 import { buildPlayer } from './characters/player';
 import { buildGhost } from './characters/ghost';
+import { hatArt } from './characters/hats';
 import { buildLever, buildMinigamePlaceholder, buildWardrobe } from './lobby/fixtures';
 import { buildPosterBlank, buildPosterMansion, buildPosterTest, buildPosterViscera } from './lobby/poster';
 
@@ -59,6 +60,18 @@ export const sharedArt: ArtRegistry = {
   'lobby.wardrobe': buildWardrobe,
   'lobby.lever': buildLever,
   'lobby.minigame': buildMinigamePlaceholder,
+
+  /**
+   * The cosmetic hats (`art/shared/characters/hats.ts`). They are spread in
+   * rather than listed, because the roster is meant to grow and the only two
+   * places a new hat should have to be named are its own file and
+   * `config/player.json -> customisation.hats`.
+   *
+   * Logic resolves a hat WITHOUT passing the pack's overrides, so a pack cannot
+   * theme one. A player bought that top hat; it is the same top hat in every
+   * map, which is the difference between a cosmetic and a prop.
+   */
+  ...hatArt,
 };
 
 export function resolveArt(artId: string, overrides?: ArtRegistry): ArtBuilder {
