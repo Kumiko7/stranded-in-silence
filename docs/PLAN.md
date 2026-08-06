@@ -61,7 +61,7 @@ run something you have to *solve*. Slice 3 makes it something you can lose:
   team leaves the loading screen together; and a peer who drops leaves their key on
   the floor rather than taking it home.
 
-Still missing: nothing in Slice 3. Steps 33, 38 and Phase 4 are what remain.
+Still missing: nothing in Slice 3. Steps 38 and Phase 4 are what remain.
 
 Because these are slices rather than a sequence of finished steps, several steps
 below are `◐` — the part the slice needed is done, the rest is not. Each one lists
@@ -320,10 +320,13 @@ laundry's sheets going black when backlit, and the `ribs` ceiling reading as blo
 floating under the plaster.
 **Note:** the four multi-cell set pieces are live — `layout.multiCellRooms` is on with `maxSlots: 2`, and over 400 seeds the gallery lands in ~83 % of maps, the stair hall ~49 %, the ballroom ~46 % and the attic ~23 %. Rotation is in too, so the linen store is one blueprint rather than four.
 
-### ☐ 33. Themed shared art
-**Touches:** `art/shared/{characters,props}/`, mansion overrides.
-**Details:** masked-human player, refined ghost, mansion door/chest/locker variants, item models.
-**Done when:** nothing in a run still looks like greybox.
+### ☑ 33. Shared art, finished — and cosmetic hats
+**Touches:** `art/shared/characters/{player,ghost,hats,hatMaterials,textures}.ts`, `art/shared/props/{door,chest,locker}.ts`, `art/shared/index.ts`, `config/player.json`, `config/locales/*.json`, `src/render/{playerBody,portraits}.ts`, `src/shared/cosmetics.ts`, `src/{save,net,game,ui}/`.
+**Done:** the player is a proper suit — lathed torso with a waist, legs and boots, gloves, webbing, a pack with a hose, and a dark glossy visor that says which way it is looking; the ghost is a hooded, tattered, sleeved figure rather than a capsule; and doors, chests and lockers have panelling, real hardware and hollow, lined insides. Plus **sixteen cosmetic hats** you buy with banked coins in the lobby wardrobe, and a scoreboard that shows the actual 3D bodies wearing them.
+**Note:** no mansion overrides, by decision — shared art is one look in every map, which is what makes a hat somebody paid for mean the same thing everywhere.
+**Note:** the **leaf of a door stays one box.** Shared art is not batched, so a box carries one UV repeat over its whole face and a pack that authored its door texture *as* a door (`viscera`'s `bonePlate`) depends on exactly that. Every bit of panelling sits ON the leaf rather than cutting it up.
+**Note:** the scoreboard renders the real `player.masked` off screen to a data URL (`src/render/portraits.ts`) instead of drawing an SVG imitation of it. The SVG was fine while the body was a capsule and four boxes; it stopped being fine the moment the wardrobe started selling hats, because every hat would have needed a second, flat, hand-drawn version that drifted from the first one by hat three.
+**Note:** what the art review caught, and what the fixes were, is in [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) → "And the ones the shared-art pass caught".
 
 ### ☑ 34. Audio system + first sound pass
 **Touches:** `src/audio/`, `config/audio.json`, `assets/audio/README.md`, trigger points in `src/game/Game.ts`.
@@ -379,7 +382,8 @@ floating under the plaster.
 ### ☐ 41. Treasure, currency and run rewards
 *Partly landed with step 37: coin piles, the diamond, the shared run purse and banking it on escape all work. What is left is the rest of the treasure roster, `world.json → contents.treasure` (still `enabled: false`) and the `treasure` room anchor.*
 ### ☐ 42. Metaprogression — lobby shop, XP, levels
-### ☐ 43. Player cosmetics
+### ◐ 43. Player cosmetics
+*Hats landed with step 33: sixteen of them, bought with banked coins in the lobby wardrobe and worn in the run, the cabin and on the scoreboard. What is left is everything that is not a hat.*
 ### ☐ 44. Multi-cell rooms — 1×2, 2×2, L footprints
 ### ☑ 45. Second art pack — **The Leviathan**, 24 rooms
 **Touches:** `art/packs/viscera/`, `art/shared/lobby/{textures,materials,poster}.ts`, `art/shared/index.ts`, `config/maps.json`, `config/locales/*.json`, `src/world/worldBuilder.ts`, `scripts/validateArt.mjs`.

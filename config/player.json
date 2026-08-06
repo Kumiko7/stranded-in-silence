@@ -75,8 +75,29 @@
   },
 
   "customisation": {
-    "$doc": "What the wardrobe in the lobby offers. One colour for now; more options land with step 43, and each one is an entry here plus a control in the wardrobe panel.",
+    "$doc": "What the wardrobe in the lobby offers. Colours are free and always available; hats are bought with the coins a run banks. Adding a hat is an entry in `hats` plus a builder registered as that `artId` in art/shared/characters/hats.ts - nothing else in the game has to change.",
+    "$hats": "`cost` is in banked coins and 0 means it is yours from the start. `artId` must resolve in the shared art registry; an unknown one falls back to a bare head rather than failing a run. Order here is the order the wardrobe lists them in, so it doubles as the price ladder.",
     "defaultColourId": "slate",
+    "defaultHatId": "none",
+    "hats": [
+      { "id": "none", "nameKey": "cosmetic.hat.none", "artId": "hat.none", "cost": 0 },
+      { "id": "flatCap", "nameKey": "cosmetic.hat.flatCap", "artId": "hat.flatCap", "cost": 150 },
+      { "id": "beanie", "nameKey": "cosmetic.hat.beanie", "artId": "hat.beanie", "cost": 220 },
+      { "id": "hardHat", "nameKey": "cosmetic.hat.hardHat", "artId": "hat.hardHat", "cost": 320 },
+      { "id": "paperBoat", "nameKey": "cosmetic.hat.paperBoat", "artId": "hat.paperBoat", "cost": 380 },
+      { "id": "cowboy", "nameKey": "cosmetic.hat.cowboy", "artId": "hat.cowboy", "cost": 500 },
+      { "id": "topHat", "nameKey": "cosmetic.hat.topHat", "artId": "hat.topHat", "cost": 650 },
+      { "id": "propeller", "nameKey": "cosmetic.hat.propeller", "artId": "hat.propeller", "cost": 800 },
+      { "id": "trafficCone", "nameKey": "cosmetic.hat.trafficCone", "artId": "hat.trafficCone", "cost": 950 },
+      { "id": "rubberDuck", "nameKey": "cosmetic.hat.rubberDuck", "artId": "hat.rubberDuck", "cost": 1100 },
+      { "id": "minersLamp", "nameKey": "cosmetic.hat.minersLamp", "artId": "hat.minersLamp", "cost": 1300 },
+      { "id": "antennae", "nameKey": "cosmetic.hat.antennae", "artId": "hat.antennae", "cost": 1600 },
+      { "id": "birthdayCake", "nameKey": "cosmetic.hat.birthdayCake", "artId": "hat.birthdayCake", "cost": 1900 },
+      { "id": "stormCloud", "nameKey": "cosmetic.hat.stormCloud", "artId": "hat.stormCloud", "cost": 2400 },
+      { "id": "candelabra", "nameKey": "cosmetic.hat.candelabra", "artId": "hat.candelabra", "cost": 3000 },
+      { "id": "halo", "nameKey": "cosmetic.hat.halo", "artId": "hat.halo", "cost": 3800 },
+      { "id": "crown", "nameKey": "cosmetic.hat.crown", "artId": "hat.crown", "cost": 5000 }
+    ],
     "colours": [
       { "id": "slate", "nameKey": "cosmetic.colour.slate", "hex": "#6f7690" },
       { "id": "rust", "nameKey": "cosmetic.colour.rust", "hex": "#9c5638" },

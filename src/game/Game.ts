@@ -52,6 +52,9 @@ import { RunEffects, type Effect } from '@/world/effects';
 import { RunState } from '@/world/runState';
 import { RunStats, sanitiseStats, type PlayerStats, type StatId } from '@/world/runStats';
 import { WallGrid } from '@/world/wallGrid';
+import { colourHexOf, createPlayerBody, defaultCosmetic, type PlayerBody } from '@/render/playerBody';
+import { playerPortrait } from '@/render/portraits';
+import type { Cosmetic } from '@shared/cosmetics';
 import { buildWorld, type BuiltDecor, type BuiltWorld } from '@/world/worldBuilder';
 
 /** What the look-ray is currently offering. `hold` targets fill a ring first. */
@@ -121,7 +124,14 @@ export interface ScoreRow {
   id: string;
   index: number;
   self: boolean;
-  /** Their wardrobe colour, so the figure on their card is the one they wore. */
+  /**
+   * A rendered picture of THIS player's body, hat and all - the real model,
+   * not an illustration of it (`src/render/portraits.ts`). Null only if the
+   * browser refused a second GL context, and the card falls back to a
+   * silhouette in their colour.
+   */
+  portrait: string | null;
+  /** Their wardrobe colour, which still tints the card behind the portrait. */
   colourHex: string;
   /** `escaped` outranks health: getting out is how a run ends well. */
   status: 'escaped' | 'disconnected' | HealthState;
@@ -152,11 +162,11 @@ export interface RunHooks {
 }
 
 interface RemotePlayer {
+  /** The body clones its materials per player, so it has to be freed per player. */
+  body: PlayerBody;
+  /** `body.object` and `body.root`, lifted out because the frame touches them a lot. */
   object: THREE.Object3D;
   root: THREE.Object3D;
-  /** The body clones its material per player, so it has to be freed per player. */
-  dispose?(): void;
-  setColour(hex: string): void;
   /** The latest transform received. The SIMULATION reads this one. */
   target: {
     x: number;
@@ -289,7 +299,12 @@ export class Game {
   #graph: RoomGraph | null = null;
   #doorsById = new Map<string, Door>();
   #enemy: EnemyState | null = null;
-  #enemyArt: { object: THREE.Object3D; root: THREE.Object3D; setAlert?: (level: string) => void } | null = null;
+  #enemyArt: {
+    object: THREE.Object3D;
+    root: THREE.Object3D;
+    setAlert?: (level: string) => void;
+    dispose?: () => void;
+  } | null = null;
   /** The latest known enemy transform. The host writes it from its own sim. */
   #enemyView: EnemyTransform = { x: 0, z: 0, yaw: 0, alert: 'calm' };
   /** Playback of those snapshots, so a client draws it moving rather than jumping. */
@@ -511,12 +526,17 @@ export class Game {
       object: art.object,
       root: art.parts['root'] ?? art.object,
       setAlert: art.api?.setAlert?.bind(art.api),
+      // The ghost clones its shroud and alert materials so it can tint one
+      // hunter rather than every material in the pack cache, so the run that
+      // built them is the run that has to free them.
+      ...(art.dispose ? { dispose: art.dispose.bind(art) } : {}),
     };
   }
 
   #removeEnemyArt(): void {
     if (!this.#enemyArt) return;
     this.#renderer.scene.remove(this.#enemyArt.object);
+    this.#enemyArt.dispose?.();
     this.#enemyArt = null;
   }
 
@@ -527,27 +547,26 @@ export class Game {
     // not put a body in the cabin behind you.
     if (this.#remotes.has(id) || !this.#dims || !this.#world) return;
 
-    const art = resolveArt('player.masked')({
-      materials: this.#world?.materials ?? getArtPack('test').createMaterials(),
-      rng: stream(0, `remote:${id}`),
-      dims: this.#dims,
-    });
-    const root = art.parts['root'] ?? art.object;
+    const body = createPlayerBody(
+      this.#config.player,
+      this.#world?.materials ?? getArtPack('test').createMaterials(),
+      stream(0, `remote:${id}`),
+      this.#dims,
+    );
     // Tagged so the look-ray can offer "revive" on a downed teammate.
-    art.object.traverse((child) => {
+    body.object.traverse((child) => {
       child.userData['playerId'] = id;
     });
 
-    this.#renderer.scene.add(art.object);
+    this.#renderer.scene.add(body.object);
     const remote: RemotePlayer = {
-      object: art.object,
-      root,
-      ...(art.dispose ? { dispose: art.dispose.bind(art) } : {}),
-      setColour: art.api?.setColour?.bind(art.api) ?? ((): void => {}),
+      body,
+      object: body.object,
+      root: body.root,
       target: { x: 0, z: 0, yaw: 0, height: 1.8, hiding: false, health: 'healthy', left: null, right: null },
       buffer: new TransformBuffer(this.#config.net.simulation),
     };
-    remote.setColour(this.#colourHex(this.#net.cosmeticOf(id)));
+    body.wear(this.#net.cosmeticOf(id) ?? defaultCosmetic(this.#config.player));
     this.#remotes.set(id, remote);
     // Somebody standing in front of you is not disconnected, whatever an
     // earlier drop-out left behind.
@@ -557,19 +576,13 @@ export class Game {
   }
 
   /** A teammate changed clothes in the lobby, or turned up already dressed. */
-  setRemoteColour(id: string, colourId: string): void {
-    this.#remotes.get(id)?.setColour(this.#colourHex(colourId));
-  }
-
-  #colourHex(colourId: string | null): string {
-    const { colours, defaultColourId } = this.#config.player.customisation;
-    const wanted = colourId ?? defaultColourId;
-    return (colours.find((entry) => entry.id === wanted) ?? colours[0])?.hex ?? '#6f7690';
+  setRemoteCosmetic(id: string, cosmetic: Cosmetic): void {
+    this.#remotes.get(id)?.body.wear(cosmetic);
   }
 
   #disposeRemote(remote: RemotePlayer): void {
     this.#renderer.scene.remove(remote.object);
-    remote.dispose?.();
+    remote.body.dispose();
   }
 
   /**
@@ -1017,11 +1030,15 @@ export class Game {
       const health = mine ? (this.#player?.health.state ?? 'healthy') : player.health;
       // Getting out outranks everything; leaving outranks how you were when you did.
       const status = player.escaped ? 'escaped' : player.disconnected ? 'disconnected' : health;
+      // Cached per outfit inside `playerPortrait`, which matters: this whole
+      // block runs again every time a late tally lands.
+      const cosmetic = this.#net.cosmeticOf(player.id) ?? defaultCosmetic(this.#config.player);
       return {
         id: player.id,
         index: this.#indexOf(player.id, mine),
         self: mine,
-        colourHex: this.#colourHex(this.#net.cosmeticOf(player.id)),
+        portrait: playerPortrait(this.#config.player, this.#config.world, cosmetic),
+        colourHex: colourHexOf(this.#config.player, cosmetic.colourId),
         status,
         stats: this.#stats.get(player.id),
       };

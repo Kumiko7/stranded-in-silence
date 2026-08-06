@@ -76,6 +76,7 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Lobby countdown, player cap, run rules | `game.json` | `lobby.*`, `session.*`, `run.*` |
 | How many frames the poster wall has | `game.json` | `lobby.posterSlots` — slots past the map list hang blank |
 | What the lobby wardrobe offers | `player.json` | `customisation.colours`, `.defaultColourId` |
+| Which hats the wardrobe sells, and for how much | `player.json` | `customisation.hats` — `artId` must resolve in `art/shared/index.ts`, `cost` is in banked coins and `0` means owned from the start. The order here is the order the shop lists them in, so it doubles as the price ladder |
 | UI colours, fonts, HUD layout | `ui.json` | `theme.*`, `hud.*` |
 | Difficulty modes | `difficulty.json` | `modes.*` |
 | Which difficulties the lobby lever offers | `difficulty.json` | `modes.<id>.enabled` — only `normal` until step 38 applies the overlays |

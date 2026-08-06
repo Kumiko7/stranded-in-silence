@@ -17,7 +17,7 @@ import { MainMenu } from './screens/MainMenu';
 import { Options } from './screens/Options';
 import { Scoreboard } from './screens/Scoreboard';
 import { VoicePanel } from './screens/VoicePanel';
-import { Wardrobe, type ColourOption } from './screens/Wardrobe';
+import { Wardrobe, type ColourOption, type HatOption } from './screens/Wardrobe';
 
 export type Screen =
   | 'menu'
@@ -44,6 +44,12 @@ export interface UiState {
   loadingTotal: number;
   colours: readonly ColourOption[];
   colourId: string;
+  /** The hat shop, with what this profile already owns folded in. */
+  hats: readonly HatOption[];
+  /** The hat this player actually wears out of the cabin. */
+  hatId: string;
+  /** What the mannequin is showing: the same, unless one is being tried on. */
+  previewHatId: string;
   promptVerbKey: string | null;
   /** Locale key of the item a pick-up prompt names, if any. */
   promptItemKey: string | null;
@@ -123,6 +129,10 @@ export interface UiCallbacks {
   onLeaveLobby(): void;
   onCloseWardrobe(): void;
   onColour(id: string): void;
+  /** Equips an owned hat; an unowned one only goes on the mannequin. */
+  onHat(id: string): void;
+  /** Spends the coins, then wears it. Refused silently if the purse is short. */
+  onBuyHat(id: string): void;
   onVoiceMode(mode: VoiceMode): void;
   onVoiceSelfMute(): void;
   onVoiceMutePeer(id: string): void;
@@ -200,8 +210,13 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
           <Wardrobe
             colours={state.colours}
             selected={state.colourId}
+            hats={state.hats}
+            hatId={state.hatId}
+            previewHatId={state.previewHatId}
             coins={state.bankedCoins}
             onSelect={callbacks.onColour}
+            onHat={callbacks.onHat}
+            onBuyHat={callbacks.onBuyHat}
             onClose={callbacks.onCloseWardrobe}
           />
         )}

@@ -26,10 +26,18 @@ export interface Profile {
   completedMaps: string[];
   /** Id from `player.json -> customisation.colours`, or null for the default. */
   colourId: string | null;
+  /** Id from `player.json -> customisation.hats`, or null for the default. */
+  hatId: string | null;
+  /**
+   * Hats this player has BOUGHT. Free ones (`cost: 0`) are never in here - what
+   * you can wear is "owned or free", and keeping the free ones out means
+   * repricing a hat to zero hands it to everybody without a migration.
+   */
+  ownedHats: string[];
   /**
    * Coins banked across every run. A run's purse only lands here when this
-   * player personally makes it out - see `Game.#cashOut()`. Nothing spends them
-   * yet; the lobby shop is plan step 42.
+   * player personally makes it out - see `Game.#cashOut()`. The wardrobe's hat
+   * shop is what spends them.
    */
   coins: number;
   /** Everything the options menu writes. Defaults come from `config/`. */
@@ -77,7 +85,14 @@ export class Save {
   }
 
   #empty(): Profile {
-    return { completedMaps: [], colourId: null, coins: 0, options: structuredClone(this.#defaults) };
+    return {
+      completedMaps: [],
+      colourId: null,
+      hatId: null,
+      ownedHats: [],
+      coins: 0,
+      options: structuredClone(this.#defaults),
+    };
   }
 
   /** Never throws: a corrupt profile is a fresh profile, not a failed boot. */
@@ -92,6 +107,10 @@ export class Save {
           ? parsed.completedMaps.filter((id): id is string => typeof id === 'string')
           : [],
         colourId: typeof parsed.colourId === 'string' ? parsed.colourId : null,
+        hatId: typeof parsed.hatId === 'string' ? parsed.hatId : null,
+        ownedHats: Array.isArray(parsed.ownedHats)
+          ? parsed.ownedHats.filter((id): id is string => typeof id === 'string')
+          : [],
         coins: Number.isFinite(parsed.coins) ? Math.max(0, Math.floor(parsed.coins as number)) : 0,
         options: sanitiseOptions(parsed.options, this.#defaults, this.#ranges),
       };
@@ -159,6 +178,36 @@ export class Save {
     if (this.#profile.colourId === colourId) return;
     this.#profile.colourId = colourId;
     this.#flush();
+  }
+
+  /* --- the wardrobe's shop ---------------------------------------------------- */
+
+  setHatId(hatId: string): void {
+    if (this.#profile.hatId === hatId) return;
+    this.#profile.hatId = hatId;
+    this.#flush();
+  }
+
+  ownsHat(hatId: string): boolean {
+    return this.#profile.ownedHats.includes(hatId);
+  }
+
+  /**
+   * Buys a hat, or refuses. One call rather than a `spendCoins` and a
+   * `grantHat`, because a purchase that took the money and lost the hat is
+   * exactly the failure a two-call API invites - and there is no server to ask.
+   *
+   * `cost` is the caller's, from `player.json -> customisation.hats`: `save/`
+   * holds the numbers and never reads the config that prices them.
+   */
+  buyHat(hatId: string, cost: number): boolean {
+    if (this.ownsHat(hatId)) return true;
+    if (cost > this.#profile.coins) return false;
+
+    this.#profile.coins -= Math.max(0, Math.floor(cost));
+    this.#profile.ownedHats.push(hatId);
+    this.#flush();
+    return true;
   }
 
   #flush(): void {

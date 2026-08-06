@@ -24,6 +24,7 @@ import Peer, { type DataConnection, type MediaConnection } from 'peerjs';
 import type { NoiseKind } from '@/ai/noiseBus';
 import type { HealthState, NetConfig } from '@/config/types';
 import type { PlayerStats } from '@/world/runStats';
+import type { Cosmetic } from '@shared/cosmetics';
 
 /** Namespaced so a 6-character code cannot collide with another app on the public server. */
 const PEER_PREFIX = 'stranded-in-silence-';
@@ -120,7 +121,7 @@ export type NetMessage =
   | { t: 'lobbyMove'; id: string; x: number; z: number; yaw: number }
   /** Any -> all, on change and on anyone joining. Voice reads it across scenes. */
   | { t: 'scene'; id: string; scene: Scene }
-  | { t: 'cosmetic'; id: string; colourId: string }
+  | { t: 'cosmetic'; id: string; colourId: string; hatId: string }
   | {
       t: 'move';
       id: string;
@@ -207,7 +208,7 @@ export interface NetEvents {
   /** Somebody pulled the lever (host only, for the same reason). */
   onDifficulty(difficultyId: string): void;
   onLobbyMove(id: string, x: number, z: number, yaw: number): void;
-  onCosmetic(id: string, colourId: string): void;
+  onCosmetic(id: string, cosmetic: Cosmetic): void;
   onPeerJoin(id: string): void;
   onPeerLeave(id: string): void;
   onPeerMove(id: string, transform: PlayerTransform): void;
@@ -316,8 +317,8 @@ export class Net {
   /** Host-assigned spawn slot for THIS browser. The host is always 0. */
   #mySlot = 0;
   /** Wardrobe choices, so a peer joining mid-lobby sees everyone as they are. */
-  #cosmetic = '';
-  #cosmetics = new Map<string, string>();
+  #cosmetic: Cosmetic | null = null;
+  #cosmetics = new Map<string, Cosmetic>();
 
   constructor(events: NetEvents, config: NetConfig) {
     this.#events = events;
@@ -577,15 +578,16 @@ export class Net {
 
   /* --- cosmetics ----------------------------------------------------------- */
 
-  setCosmetic(colourId: string): void {
-    if (this.#cosmetic === colourId) return;
-    this.#cosmetic = colourId;
-    this.broadcast({ t: 'cosmetic', id: this.selfId, colourId });
+  setCosmetic(cosmetic: Cosmetic): void {
+    const current = this.#cosmetic;
+    if (current && current.colourId === cosmetic.colourId && current.hatId === cosmetic.hatId) return;
+    this.#cosmetic = cosmetic;
+    this.broadcast({ t: 'cosmetic', id: this.selfId, colourId: cosmetic.colourId, hatId: cosmetic.hatId });
   }
 
-  /** This browser's own choice included, so the scoreboard can colour every row. */
-  cosmeticOf(id: string): string | null {
-    if (id === this.selfId) return this.#cosmetic || null;
+  /** This browser's own choice included, so the scoreboard can dress every row. */
+  cosmeticOf(id: string): Cosmetic | null {
+    if (id === this.selfId) return this.#cosmetic;
     return this.#cosmetics.get(id) ?? null;
   }
 
@@ -731,10 +733,12 @@ export class Net {
         this.#scenes.set(message.id, message.scene);
         this.#events.onScene(message.id, message.scene);
         break;
-      case 'cosmetic':
-        this.#cosmetics.set(message.id, message.colourId);
-        this.#events.onCosmetic(message.id, message.colourId);
+      case 'cosmetic': {
+        const cosmetic = { colourId: message.colourId, hatId: message.hatId };
+        this.#cosmetics.set(message.id, cosmetic);
+        this.#events.onCosmetic(message.id, cosmetic);
         break;
+      }
       case 'move':
         this.#events.onPeerMove(message.id, message);
         break;
@@ -919,7 +923,10 @@ export class Net {
     // them in step there as well.
     if (!known) {
       this.broadcast({ t: 'scene', id: this.selfId, scene: this.#scene });
-      if (this.#cosmetic) this.broadcast({ t: 'cosmetic', id: this.selfId, colourId: this.#cosmetic });
+      const cosmetic = this.#cosmetic;
+      if (cosmetic) {
+        this.broadcast({ t: 'cosmetic', id: this.selfId, colourId: cosmetic.colourId, hatId: cosmetic.hatId });
+      }
     }
   }
 

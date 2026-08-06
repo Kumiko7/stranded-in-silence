@@ -50,10 +50,10 @@ stranded/
 | `core/` | Loop (fixed tick + render), `EventBus`, seeded RNG, service registry, time | nothing |
 | `config/` | Loading, layering, validating `config/*.json`; typed accessors | `core` |
 | `i18n/` | `t()`, locale loading, key fallback | `config` |
-| `shared/` | Types and constants used by BOTH client and signalling server: net message shapes, event names, enums | nothing |
+| `shared/` | Types and constants used by BOTH client and signalling server: net message shapes, event names, enums. `cosmetics.ts` lives here because `net/` ships a wardrobe choice over the wire and is not allowed to know what a hat looks like | nothing |
 | `save/` | Persistence. `localStorage` in browser, OS save dir when packaged. Options, binds, meta progress. **Holds the numbers; never applies them** — `main.tsx` hands them to `render`/`input`/`audio`, which `save/` is not allowed to know about | `config` |
 | `input/` | Raw device → **action** ids, rebinding, pointer lock | `config`, `save` |
-| `render/` | `WebGLRenderer`, camera rig, lighting rig and its fixed light budget, shader/shadow warm-up, gameplay-feedback layer, material cache | `config`, `art` |
+| `render/` | `WebGLRenderer`, camera rig, lighting rig and its fixed light budget, shader/shadow warm-up, gameplay-feedback layer, material cache, dressed player bodies (`playerBody.ts`) and the off-screen portrait studio (`portraits.ts`) | `config`, `art`, `shared` |
 | `world/` | Map generation, room graph, grid ↔ world transforms, collision, doors, containers, spawns, what is visible from where | `config`, `art` (blueprints only), `core` |
 | `entities/` | Player, item, container, door, trap state + behaviour | `world`, `config` |
 | `ai/` | Enemy state machine, perception (sight/hearing), pathfinding, noise bus | `world`, `entities`, `config` |
@@ -113,7 +113,7 @@ Boot → MainMenu → Lobby → Loading → InRun → Scoreboard → Lobby
 | `Loading` | world generation, art pack load, seed sync. **The whole team leaves it together**: each peer reports `ready` and the host holds everyone until the last one is in, or until `net.json → connection.loadTimeoutSeconds` — see [`systems/NETWORKING.md`](systems/NETWORKING.md) → "Starting together" |
 | `InRun` | everything |
 | `Spectating` | as `InRun` minus local player control |
-| `Scoreboard` | ui, audio, net (stats exchange). **Every peer counts its own stats** and broadcasts the whole block; nobody arbitrates, because a player's own client is the only thing that sees every one of their footsteps and a scoreboard is not worth a protocol |
+| `Scoreboard` | ui, audio, net (stats exchange), render (the off-screen portrait studio). **Every peer counts its own stats** and broadcasts the whole block; nobody arbitrates, because a player's own client is the only thing that sees every one of their footsteps and a scoreboard is not worth a protocol |
 
 **Voice follows the session, not the run.** It is turned on when a player enters the
 lobby and stays on through `Loading` and out the other side, because the load is
@@ -226,6 +226,8 @@ mic picking up small sounds cannot give you away. Full detail in
 | Review how rooms *look* | `tools/roomshot` — [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) |
 | Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md). Two ship today: `mansion` (Ravenhollow Manor) and `viscera` (The Leviathan), plus the `test` greybox scaffold |
 | Restyle a door / chest / enemy | `art/shared/` — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
+| Add a cosmetic hat | `art/shared/characters/hats.ts` + `hatMaterials.ts`, then `config/player.json → customisation.hats` and a `cosmetic.hat.*` key per language — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
+| Dress a player body anywhere in `src/` | `src/render/playerBody.ts` — the only file that turns a `Cosmetic` into geometry |
 | Add an item | `config/items.json` + a `behaviour` branch in `src/game/Game.ts` + art in `art/shared/props/items/` + locale keys + a weight in `world.json → loot` |
 | Change how throwing feels | `config/items.json → defaults.throw` — one block, shared by every throwable |
 | Change what stops a thrown item | `src/world/wallGrid.ts` — deliberately NOT the collision world |
