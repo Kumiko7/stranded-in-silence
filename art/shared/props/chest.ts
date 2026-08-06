@@ -80,8 +80,11 @@ export function buildChest(ctx: ArtBuildContext): BuiltArt {
 
   const strapHeights = [FOOT + 0.08, FOOT + BODY_HEIGHT - 0.09];
 
-  // Three vertical straps, riveted. The outer two double as corner brackets.
-  for (const x of [-WIDTH / 2 + 0.12, 0, WIDTH / 2 - 0.12]) {
+  // Two vertical straps, riveted, doubling as corner brackets. There is no
+  // middle one: a strap is the full depth of the chest, so one at x = 0 ran
+  // straight through the hollow interior and split an opened chest into two
+  // compartments with a plank down the middle.
+  for (const x of [-WIDTH / 2 + 0.12, WIDTH / 2 - 0.12]) {
     object.add(box(trim, [0.075, BODY_HEIGHT + 0.012, DEPTH + 0.024], [x, FOOT, 0]));
     for (const z of [-DEPTH / 2 - 0.008, DEPTH / 2 + 0.008]) {
       object.add(rivets(trim, x, z, strapHeights));
