@@ -224,7 +224,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Change on-screen text | `config/locales/` — [`LOCALISATION.md`](LOCALISATION.md) |
 | Add a room | `art/packs/<pack>/rooms/`, then `npm run validate:art` — [`art/ROOM_FORMAT.md`](art/ROOM_FORMAT.md) |
 | Review how rooms *look* | `tools/roomshot` — [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) |
-| Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md) |
+| Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md). Two ship today: `mansion` (Ravenhollow Manor) and `viscera` (The Leviathan), plus the `test` greybox scaffold |
 | Restyle a door / chest / enemy | `art/shared/` — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
 | Add an item | `config/items.json` + a `behaviour` branch in `src/game/Game.ts` + art in `art/shared/props/items/` + locale keys + a weight in `world.json → loot` |
 | Change how throwing feels | `config/items.json → defaults.throw` — one block, shared by every throwable |

@@ -245,7 +245,17 @@ is the whole message.
 ## 3.1 Materials shared art asks for
 
 Shared art gets its materials from the **pack's** library, so every pack must
-provide these names (see `art/packs/test/materials.ts` for a minimal set):
+provide these names (see `art/packs/test/materials.ts` for a minimal set).
+
+**Shared art is not batched**, which changes what a material may be. A room's
+geometry goes through `MeshBatcher`, which re-projects UVs in world units so a
+tiling texture keeps its density on anything; a door, a chest and a locker are
+built as their own meshes and carry a box's own UVs - **one repeat over the whole
+leaf**. A pack that hands `door` a 2.6 m tiling stone map gets a single smeared
+patch stretched across the door, which reads as a blank slab. Either give these
+names a flat tint, or author a texture *as* a door: composed in 0..1 UV space,
+with a border, a centre line and detail where a door has detail. `viscera`'s
+`bonePlate` is a worked example.
 
 | Name | Used by |
 | --- | --- |

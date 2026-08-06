@@ -381,7 +381,11 @@ floating under the plaster.
 ### ☐ 42. Metaprogression — lobby shop, XP, levels
 ### ☐ 43. Player cosmetics
 ### ☐ 44. Multi-cell rooms — 1×2, 2×2, L footprints
-### ☐ 45. Second art pack — prison theme, 15+ rooms
+### ☑ 45. Second art pack — **The Leviathan**, 24 rooms
+**Touches:** `art/packs/viscera/`, `art/shared/lobby/{textures,materials,poster}.ts`, `art/shared/index.ts`, `config/maps.json`, `config/locales/*.json`, `src/world/worldBuilder.ts`, `scripts/validateArt.mjs`.
+**Done:** the inside of something enormous and still alive, rather than the prison this step originally named. Twenty 1×1 chambers and four multi-cell set pieces (2×2 rib nave, 2×1 gut coil, 1×3 windpipe, L-shaped jaw), split evenly between a **wet** zone — gullet, stomach, heart, lungs, bile cisterns, ganglion, the eye, brood cradle, thicket, vein cascade, rot bloom, gizzard, sinew loom — and a **calcified** one — marrow vault, dentition, armoury, cartilage lattice, spine column, moult, comb. Sixteen procedural surfaces, an anatomy kit (`kit/props.ts`) and a shell whose every doorway is an orifice: a sphincter in meat, an arch of vertebrae in bone, mandibles in chitin.
+**Note:** the light budget now **scales with footprint** — 2 for a 1×1, one more per extra cell, capped at 4. A 2×2 hall or a 1×3 corridor lit from two points has black ends a player cannot find the doors in, and it costs nothing at the shader level because `maxActiveLights` is a fixed budget. `src/world/worldBuilder.ts` and `scripts/validateArt.mjs` share the rule.
+**Note:** almost everything a player navigates by in this pack is **emissive** rather than a real lamp — bile pools, nerve cord, spore blooms, the eyes, the glowing rims in the gut. That is what buys a 16 m hall on four lights. The failure classes this pass turned up are written down in [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) → "And the ones the viscera pass caught".
 ### ☐ 46. Lobby trophies and minigames
 ### ☐ 47. Lore, notes and collectables
 ### ☐ 48. Second enemy archetype

@@ -258,7 +258,17 @@ export function buildWorld(
       rng: stream(layout.seed, `room:${placed.cell[0]},${placed.cell[1]}`),
       dims,
       roomIndex,
-      lightBudget: 2,
+      /**
+       * Two lamps for a 1x1, one more per extra cell, capped at four.
+       *
+       * A flat budget of two was written for 1x1 rooms and is wrong for a set
+       * piece: a 2x2 hall or a 1x3 corridor lit from two points has black ends
+       * a player cannot find the doors in. It costs nothing at the shader
+       * level - `graphics.json -> maxActiveLights` is a fixed budget, so the
+       * renderer always compiles for the same light count and a room declaring
+       * more only changes which lamps win the nearest-N contest.
+       */
+      lightBudget: Math.min(4, 1 + placed.cells.length),
     };
 
     const built = blueprint.build(ctx);

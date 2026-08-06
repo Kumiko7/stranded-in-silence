@@ -141,4 +141,5 @@ function posterBuilder(materialName: string): ArtBuilder {
 /** A slot with nothing pinned in it: a map that does not exist yet. */
 export const buildPosterBlank = posterBuilder('poster.blank');
 export const buildPosterMansion = posterBuilder('poster.mansion');
+export const buildPosterViscera = posterBuilder('poster.viscera');
 export const buildPosterTest = posterBuilder('poster.test');

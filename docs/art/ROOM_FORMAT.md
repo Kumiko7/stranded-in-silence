@@ -85,6 +85,18 @@ export const library: RoomBlueprint = {
 | `maxPerMap` | | Cap on duplicates. Default from `config/world.json → layout.maxDuplicatesPerRoom`. |
 | `build` | ✅ | The function that makes the geometry. See §4. |
 
+### 2.1.1 Wall-local placement
+
+Every pack ends up with a `wallPose(side, along, inset)`-shaped helper, and every
+pack gets the same thing wrong once: **`along` runs along the prop's own local
++X, which is turned by the wall's facing.** On a south wall `+along` is `+x`, but
+on a north wall it is `-x`, on an east wall `-z` and on a west wall `+z`. A shelf
+placed with `along: 1.4` on the east wall lands at `z = -1.4`, so an item anchor
+typed as `[3.2, 1.3, 1.4]` floats a metre and a half from the shelf holding it.
+Nothing catches this - the validator only asks whether the anchor is reachable,
+and a floating item is perfectly reachable. Check the pairing by eye on a contact
+sheet ([`ROOM_REVIEW.md`](ROOM_REVIEW.md)).
+
 ### 2.2 Rotation
 
 Rooms are placed at any 90° rotation that makes their `doorWalls` cover the slot,
@@ -194,7 +206,7 @@ is the pack's business.
 | `rng` | `() => number` | Seeded RNG. Use this for any randomness so runs replay identically across peers. **Never use `Math.random()` in art.** |
 | `dims` | `RoomDims` | `cellSize`, `ceilingHeight`, `wallThickness`, `doorWidth`, `doorHeight`. The only place art learns world dimensions. |
 | `roomIndex` | `number` | This room's index in the map; handy as a variation seed. |
-| `lightBudget` | `number` | Max real (shadow-casting or not) lights you may add. Exceeding it is a validation error. |
+| `lightBudget` | `number` | Max real (shadow-casting or not) lights you may add: **2 for a 1x1, one more per extra cell, capped at 4**. Exceeding it is a validation error. Read it; never assume 2. |
 
 ### 4.2 `BuiltRoom`
 
@@ -241,7 +253,10 @@ Rules:
 
 - The room owns its **decorative** light sources only: candles, a fireplace, a lamp,
   a window shaft. Global ambient/fog/exposure come from `config/graphics.json`.
-- Respect `ctx.lightBudget` (default **2** real lights per room). Use emissive
+- Respect `ctx.lightBudget` — **2** real lights for a 1x1 room, one more for each
+  extra cell up to a maximum of **4**, so a 2x1 corridor gets 3 and a 2x2 hall or
+  a 1x3 gets 4. A set piece lit from two points has black ends a player cannot
+  find the doors in; a 1x1 lit from two points does not. Use emissive
   materials, baked-look vertex tinting and light-cone meshes for everything else —
   they are free.
 - **Dark but never blind — and there is no flashlight.** Players carry no light
@@ -276,16 +291,19 @@ Rules:
 | --- | --- |
 | Draw calls | ≤ 40 |
 | Triangles | ≤ 40 000 |
-| Real lights | ≤ 2 |
+| Real lights | ≤ `ctx.lightBudget` (2 for 1x1, +1 per extra cell, max 4) |
 | Shadow-casting lights | ≤ 1 |
 | Unique materials created | 0 (use `ctx.materials`) |
 
 These numbers are **guidance**. `npm run validate:art` reports draw calls,
 triangles and collider counts as warnings, not errors: going over for a set piece
 is a conversation with whoever is profiling, not a reason to make a room worse.
-The light budget *is* enforced — a room that quietly adds a third light degrades
-every other room on screen, because three.js compiles every visible light into the
-shader.
+The light budget *is* enforced. It is not, however, a shader cost: `graphics.json
+→ maxActiveLights` is a fixed budget, so the renderer always enables exactly that
+many lamps (nearest first) and every material compiles for the same light count
+whatever the rooms declare. What a lamp actually spends is a **slot** — declare
+more and you are competing with the neighbours for the same six, which is why the
+budget scales with floor area rather than with ambition.
 
 Up to 36 rooms exist at once but all are resident in memory, and only the ones the
 eye can actually reach are drawn — within `renderDistanceRooms`, and through
@@ -323,7 +341,7 @@ batcher's `dispose` as `BuiltRoom.dispose`.
 - [ ] All randomness uses `ctx.rng`
 - [ ] All materials come from `ctx.materials`
 - [ ] Colliders present for blocking furniture, absent for decoration
-- [ ] ≤ 2 lights, and the room is navigable on its own light (there is no flashlight)
+- [ ] ≤ `ctx.lightBudget` lights, and the room is navigable on its own light (there is no flashlight)
 - [ ] Registered in the pack's `pack.ts` room list
 - [ ] Nothing in `build()` touches the DOM (see [`ART_GUIDE.md`](ART_GUIDE.md))
 - [ ] Merged geometry is freed in `dispose()`
