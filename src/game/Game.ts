@@ -200,6 +200,9 @@ const KEY_ITEM = 'key';
 /** Decor id of the aim arc. There is only ever one, and it is the local player's. */
 const ARC_ID = 'aim:arc';
 
+/** The crosshair, in the normalised coordinates a raycaster wants. Never changes. */
+const CENTRE_SCREEN = new THREE.Vector2(0, 0);
+
 /**
  * How often a peer re-sends its scoreboard tally while a run is going. Nothing
  * reads it until the run ends, so this is deliberately lazy - it exists only so
@@ -242,6 +245,8 @@ export class Game {
   #remotes = new Map<string, RemotePlayer>();
 
   #raycaster = new THREE.Raycaster();
+  /** Reused by `#lookTag`, which runs both of its passes every tick. */
+  #lookCandidates: THREE.Object3D[] = [];
   /** What the look-ray hit this tick. Both E and the hand buttons read it. */
   #look: { key: string; value: string } | null = null;
   #target: InteractTarget | null = null;
@@ -362,7 +367,7 @@ export class Game {
 
     const pack = getArtPack(config.maps.maps[mapId]?.artPack ?? mapId);
     const layout = generate(mapId, seed, config.world, pack.rooms, this.#archetype(config).spawn);
-    const world = buildWorld(layout, pack, config.world, config.items);
+    const world = buildWorld(layout, pack, config.world, config.items, config.graphics);
 
     this.#layout = layout;
     this.#world = world;
@@ -375,10 +380,13 @@ export class Game {
     };
 
     this.#renderer.scene.add(world.root);
-    this.#renderer.setRoomLights(world.lights);
 
     const spawn = layout.playerSpawns[slot % layout.playerSpawns.length] ?? layout.playerSpawns[0]!;
     this.#player = createPlayerState(spawn.position[0], spawn.position[2], spawn.yaw, config.player);
+    // After the spawn is known, so the light budget is filled from the first
+    // frame: a frame drawn with a different number of lights compiles its own
+    // set of shaders, which is exactly what `warmUp()` exists to avoid.
+    this.#renderer.setRoomLights(world.lights, spawn.position[0], spawn.position[2]);
     this.#inventory = createInventory();
     this.#escaped = false;
     this.#over = false;
@@ -1113,7 +1121,10 @@ export class Game {
     this.#noise.clear();
     this.#lockerEntries.length = 0;
 
+    // After `#updateCamera`: culling projects each doorway through the camera
+    // that is about to be rendered with, not the one from the previous tick.
     world.updateVisibility(
+      this.#renderer.camera,
       player.x,
       player.z,
       this.#config.graphics.renderDistanceRooms * this.#config.world.grid.cellSize,
@@ -2372,13 +2383,33 @@ export class Game {
    */
   #lookTag(world: BuiltWorld): { key: string; value: string } | null {
     const camera = this.#renderer.camera;
-    this.#raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-    this.#raycaster.far = this.#config.player.interaction.rayLength;
+    const raycaster = this.#raycaster;
+    raycaster.setFromCamera(CENTRE_SCREEN, camera);
+    raycaster.far = this.#config.player.interaction.rayLength;
 
+    // Two passes, because room geometry is nine tenths of the triangles in the
+    // map and can only ever take a target AWAY. Doors, containers, items and
+    // teammates are small, few, and rejected on a bounding sphere the ray
+    // misses; a room is a couple of hundred merged boxes whose bounding sphere
+    // the camera is standing INSIDE, so every one of its triangles gets tested.
+    // Asking the cheap question first turns a ray that cost 20 ms a tick into
+    // one that usually costs nothing at all.
+    this.#lookCandidates.length = 0;
+    for (const target of world.raycastTargets) this.#lookCandidates.push(target);
     // Teammates are in the scene rather than the world, so they join the ray here.
-    const candidates = [...world.raycastTargets, ...[...this.#remotes.values()].map((remote) => remote.object)];
-    const hit = this.#raycaster.intersectObjects(candidates, true)[0];
-    return hit ? findTag(hit.object) : null;
+    for (const remote of this.#remotes.values()) this.#lookCandidates.push(remote.object);
+
+    const hit = raycaster.intersectObjects(this.#lookCandidates, true)[0];
+    if (!hit) return null;
+
+    // Something is in reach; the only question left is whether a wall is in the
+    // way. Only rooms being drawn can be, and only nearer than the hit itself.
+    this.#lookCandidates.length = 0;
+    for (const occluder of world.occluders) if (occluder.visible) this.#lookCandidates.push(occluder);
+    raycaster.far = hit.distance - 1e-3;
+    const blocked = raycaster.intersectObjects(this.#lookCandidates, true).length > 0;
+
+    return blocked ? null : findTag(hit.object);
   }
 
   #findTarget(world: BuiltWorld): InteractTarget | null {

@@ -296,6 +296,10 @@ async function boot(): Promise<void> {
       scoreboard: [],
     });
     input.requestPointerLock();
+    // The cabin has no loading card to hide behind, but it is one room and its
+    // warm-up is quick. Doing it here still beats compiling the fire's shader
+    // on the frame you first turn to look at it.
+    void renderer.warmUp().catch((error: unknown) => console.warn('[render] shader warm-up failed', error));
   }
 
   /**
@@ -339,10 +343,22 @@ async function boot(): Promise<void> {
       coins: 0,
     });
 
-    worldBuilt = true;
-    // Solo and on the host with nobody else waiting, this comes straight back.
-    net.reportReady();
-    if (goGiven) releaseRun();
+    // Shaders and shadow maps before anyone reports in. Both are one-off costs
+    // three.js otherwise pays on the frame a room first comes into view, and
+    // both are long enough to be felt as a freeze - the loading card is exactly
+    // the right place for them. A driver that refuses is not worth failing a
+    // run over; the old lazy behaviour is the fallback.
+    void renderer
+      .warmUp()
+      .catch((error: unknown) => console.warn('[render] shader warm-up failed', error))
+      .then(() => {
+        // The player may have given up on the load and walked out in the meantime.
+        if (currentRun !== run) return;
+        worldBuilt = true;
+        // Solo and on the host with nobody else waiting, this comes straight back.
+        net.reportReady();
+        if (goGiven) releaseRun();
+      });
   }
 
   /** Everyone is in. The card lifts and the run actually starts running. */

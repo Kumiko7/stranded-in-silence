@@ -254,7 +254,15 @@ Rules:
   sets `castShadow` on nothing, so a room that wants shadows sets it on at most one
   of its own lights - the budget below. Rooms are static, so set
   `light.shadow.autoUpdate = false` and `shadow.needsUpdate = true` once: the map
-  renders on the first visible frame and costs nothing afterwards.
+  is baked at load (`Renderer.warmUp()`) and costs nothing afterwards.
+- **A lit room stays lit when it is culled.** three.js does not light anything
+  from a light whose parent is hidden, so culling never hides a room outright:
+  it hides the parts that hold no light and leaves the path down to each lamp
+  standing (`hidableParts()` in `src/world/worldBuilder.ts`). A fire behind a
+  shut door still spills round it, exactly as before there was any culling. Put
+  a light wherever it belongs and animate it however you like — `flicker()` and
+  `sway()` both work — but do declare it in `BuiltRoom.lights`, because a light
+  logic has not been told about is a light that goes out.
 - **A window may only go on a wall you left out of `doorWalls`.** The generator
   decides doors at run time, so the only walls guaranteed solid for a whole run are
   the ones you never offered. A window on an offered wall is a window in a doorway
@@ -279,9 +287,21 @@ The light budget *is* enforced — a room that quietly adds a third light degrad
 every other room on screen, because three.js compiles every visible light into the
 shader.
 
-Up to 36 rooms exist at once; only `renderDistanceRooms` are rendered, but all are
-resident in memory. Reuse geometry aggressively — build a geometry once at module
-scope and instance it.
+Up to 36 rooms exist at once but all are resident in memory, and only the ones the
+eye can actually reach are drawn — within `renderDistanceRooms`, and through
+doorways that are neither shut nor off screen
+([`../systems/RENDERING.md`](../systems/RENDERING.md)). Reuse geometry
+aggressively — build a geometry once at module scope and instance it.
+
+Two things the culler assumes, both of which are already rules above:
+
+- **A window only goes on a wall left out of `doorWalls`.** That is what tells
+  logic which walls are guaranteed solid — you can see the next room through
+  glass, so a wall that might have a window in it is treated as an opening.
+- Geometry that **leans out of its room** (a light shaft falling through the wall
+  behind its window) is handled: a room is culled by the cells its geometry
+  reaches, not the cells it occupies. It costs that room an extra cell, so keep
+  the overhang to what the look needs.
 
 **Batch rather than fight the budget.** One mesh per box spends 40 draw calls on
 the skirting alone. `art/lib/merge.ts` (`MeshBatcher`) collects posed geometry,

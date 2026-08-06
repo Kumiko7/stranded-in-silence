@@ -271,9 +271,26 @@ export interface GraphicsConfig {
   ambientIntensity: number;
   ambientColor: string;
   minAmbientFloor: number;
-  shadows: { enabled: boolean };
+  /**
+   * How many point lights are enabled at once. A fixed budget rather than a cap:
+   * three.js compiles a program per material per light count, so a set that
+   * changes size recompiles the world mid-run. See `Renderer.updateLights`.
+   */
+  maxActiveLights: number;
+  /** How long a lamp takes to fade in or out of one of those slots. */
+  lightFadeSeconds: number;
+  /** `maxCastingLights` is the shadow-casting share of `maxActiveLights`. */
+  shadows: { enabled: boolean; maxCastingLights: number };
   fog: { enabled: boolean; color: string; density: number };
   renderDistanceRooms: number;
+  /** Portal culling. See `src/world/visibility.ts`. */
+  culling: {
+    enabled: boolean;
+    /** Metres the doorway quad is widened by before it is projected to the screen. */
+    portalMarginMetres: number;
+    /** Fractions of half the viewport the projected rectangle is widened by. */
+    screenMargin: number;
+  };
   /** Merged over the block above while the lobby scene is up. */
   lobby?: DeepPartial<GraphicsConfig>;
 }

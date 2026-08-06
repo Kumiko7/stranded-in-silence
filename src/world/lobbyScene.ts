@@ -45,8 +45,10 @@ export interface LobbyWorld {
   posters: LobbyPoster[];
   lever: LobbyFixture & { setLever(t: number): void };
   wardrobe: LobbyFixture;
-  /** Everything the look-ray may hit. */
+  /** Everything the look-ray is looking FOR: posters, the lever, the wardrobe. */
   raycastTargets: THREE.Object3D[];
+  /** The cabin itself, which the ray can only be stopped by. See `Game.#lookTag`. */
+  occluders: THREE.Object3D[];
   lights: { light: THREE.Light; x: number; z: number }[];
   materials: MaterialLibrary;
   spawns: readonly Pose[];
@@ -64,6 +66,7 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
   const root = new THREE.Group();
   const collision = new CollisionWorld(config.world.grid.cellSize);
   const raycastTargets: THREE.Object3D[] = [];
+  const occluders: THREE.Object3D[] = [];
   const lights: LobbyWorld['lights'] = [];
   const disposers: (() => void)[] = [];
 
@@ -85,7 +88,7 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
   );
 
   root.add(cabin.object);
-  raycastTargets.push(cabin.object);
+  occluders.push(cabin.object);
   collision.add(cabin.colliders, 0, 0);
   // World matrices have to be valid before the lights are ranked by position.
   root.updateMatrixWorld(true);
@@ -166,6 +169,7 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
       z: cabin.anchors.wardrobe.position[2],
     },
     raycastTargets,
+    occluders,
     lights,
     materials,
     spawns: cabin.anchors.playerSpawns,

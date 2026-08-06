@@ -129,6 +129,11 @@ export class MeshBatcher {
         const merged = mergeGeometries(subset.map((entry) => entry.geometry));
         if (!merged) continue;
         merged.computeBoundingSphere();
+        // A box as well as a sphere, because three.js tests it after the sphere
+        // and a merged batch is usually a slab: the floor, the ceiling, one
+        // wall. The interaction ray starts INSIDE the sphere of every one of
+        // them, so without a box it scans all their triangles, every tick.
+        merged.computeBoundingBox();
 
         const mesh = new THREE.Mesh(merged, material);
         mesh.castShadow = casts;

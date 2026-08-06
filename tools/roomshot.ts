@@ -432,9 +432,12 @@ async function run(): Promise<void> {
 
   for (const blueprint of wanted) {
     const layout = layoutFor(blueprint, cellSize);
-    const world = buildWorld(layout, pack, config.world, config.items);
+    // Culling off: a contact sheet is shot from outside the room looking in, and
+    // a review has to show what was authored rather than what a player reaches.
+    const graphics = { ...config.graphics, culling: { ...config.graphics.culling, enabled: false } };
+    const world = buildWorld(layout, pack, config.world, config.items, graphics);
     renderer.scene.add(world.root);
-    renderer.setRoomLights(world.lights);
+    renderer.setRoomLights(world.lights, 0, 0);
 
     const views = viewsFor(blueprint, cellSize, ceilingHeight, eyeHeight);
     const ctx = sheetContext(views.length);
@@ -447,7 +450,7 @@ async function run(): Promise<void> {
       renderer.camera.lookAt(view.look);
       // Same nearest-N light rule the game applies, and nothing culled by distance.
       renderer.updateLights(1, view.from.x, view.from.z);
-      world.updateVisibility(view.from.x, view.from.z, 1e6);
+      world.updateVisibility(renderer.camera, view.from.x, view.from.z, 1e6);
       renderer.render();
       calls = Math.max(calls, renderer.renderer.info.render.calls);
       triangles = Math.max(triangles, renderer.renderer.info.render.triangles);

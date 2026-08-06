@@ -9,8 +9,31 @@ import * as THREE from 'three';
 import type { GraphicsConfig, PlayerConfig } from '@/config/types';
 import { FeedbackLayer } from './feedback';
 
-/** Point lights are per-room; only the nearest few are enabled to keep shaders sane. */
-const MAX_ACTIVE_LIGHTS = 6;
+/** A room lamp, with the world position the "nearest few" ranking sorts on. */
+interface RankedLight {
+  light: THREE.Light;
+  x: number;
+  z: number;
+  /** Scratch: squared distance to the camera, refreshed by each ranking pass. */
+  distance: number;
+  /**
+   * The colour the art asked for. Fading is done by scaling this rather than by
+   * scaling `intensity`, because art already animates intensity - `flicker()`
+   * rewrites it every frame - and the two would fight. Nothing in the game
+   * changes a room lamp's colour after it is built, so this knob is ours.
+   */
+  colour: THREE.Color;
+  /** 0 = off, 1 = as authored. Ramps toward `target` at the config's fade rate. */
+  gain: number;
+  target: number;
+}
+
+/**
+ * How often the "nearest few lamps" ranking is redone. Not a fade rate - the
+ * fade is `graphics.lightFadeSeconds` - just how often the question is asked.
+ * At walking pace a tenth of a second is under 30 cm of travel.
+ */
+const LIGHT_SORT_SECONDS = 0.1;
 
 /**
  * Config values are real three.js light units - no hidden scaling here.
@@ -28,7 +51,14 @@ export class Renderer {
   /** Alert wash, heartbeat, damage flash and health vignettes. */
   readonly feedback: FeedbackLayer;
   readonly #ambient: THREE.AmbientLight;
-  #lights: { light: THREE.Light; x: number; z: number }[] = [];
+  /**
+   * Room lamps, split by whether they cast a shadow, because each pool has its
+   * own fixed budget - see `updateLights`.
+   */
+  #casting: RankedLight[] = [];
+  #plain: RankedLight[] = [];
+  #castingBudget = 0;
+  #plainBudget = 0;
   #lightSortTimer = 0;
 
   /**
@@ -105,30 +135,179 @@ export class Renderer {
     });
   }
 
-  setRoomLights(lights: { light: THREE.Light; x: number; z: number }[]): void {
-    this.#lights = lights;
-    for (const entry of lights) entry.light.visible = false;
-    this.#lightSortTimer = 0;
+  /**
+   * Hands over a scene's room lamps. `x`/`z` is where the camera will be, so the
+   * budgets are already filled on the first frame rather than one tick later.
+   */
+  setRoomLights(lights: { light: THREE.Light; x: number; z: number }[], x = 0, z = 0): void {
+    for (const pool of [this.#casting, this.#plain]) {
+      for (const entry of pool) {
+        entry.light.visible = false;
+        entry.light.color.copy(entry.colour);
+      }
+    }
+
+    const ranked: RankedLight[] = lights.map((entry) => ({
+      ...entry,
+      distance: 0,
+      colour: (entry.light as THREE.PointLight).color.clone(),
+      gain: 0,
+      target: 0,
+    }));
+    this.#casting = ranked.filter((entry) => entry.light.castShadow);
+    this.#plain = ranked.filter((entry) => !entry.light.castShadow);
+
+    // Fixed for the lifetime of the scene, which is the whole point: see below.
+    const total = Math.max(0, this.#graphics.maxActiveLights);
+    this.#castingBudget = Math.min(this.#casting.length, this.#graphics.shadows.maxCastingLights, total);
+    this.#plainBudget = Math.min(this.#plain.length, total - this.#castingBudget);
+
+    // Full brightness straight away: nobody should watch the room they spawned
+    // in come up from black.
+    this.#rank(x, z);
+    for (const pool of [this.#casting, this.#plain]) {
+      for (const entry of pool) {
+        entry.gain = entry.target;
+        entry.light.visible = entry.target === 1;
+        entry.light.color.copy(entry.colour).multiplyScalar(entry.gain);
+      }
+    }
+    this.#lightSortTimer = LIGHT_SORT_SECONDS;
   }
 
   /**
-   * Enables only the nearest lights. three.js compiles every visible light into
-   * the shader, so 36 room lamps at once would be unusable - and a player can
-   * only see a few rooms through the fog anyway.
+   * Enables the nearest lamps, and always exactly as many of them.
+   *
+   * Two things are going on. The first is the obvious one: three.js compiles
+   * every visible light into the shader, so thirty-six room lamps at once would
+   * be unusable, and through the fog you can only see a few rooms anyway.
+   *
+   * The second is why the *count* is fixed rather than capped. A program is
+   * compiled per material PER LIGHT COUNT, so a set that goes 6 lights / 1
+   * shadow one moment and 6 / 2 the next makes three.js recompile every
+   * material in the map - a frozen second, mid-run, the first time you walk
+   * into a room that happens to change the mix. Keeping both counts constant
+   * means everything can be compiled once behind the loading card (`warmUp`)
+   * and never again. A lamp enabled out of its own `distance` costs a slot and
+   * lights nothing, which is a trade worth making.
    */
   updateLights(dt: number, x: number, z: number): void {
+    // `||` would skip the second pool the moment the first is busy.
+    const castingBusy = this.#fade(this.#casting, dt);
+    const plainBusy = this.#fade(this.#plain, dt);
+
     this.#lightSortTimer -= dt;
-    if (this.#lightSortTimer > 0 || this.#lights.length === 0) return;
-    this.#lightSortTimer = 0.2;
+    // Never re-rank mid-handover: the set has to hold still until it is dark.
+    if (castingBusy || plainBusy || this.#lightSortTimer > 0) return;
+    this.#lightSortTimer = LIGHT_SORT_SECONDS;
+    this.#rank(x, z);
+  }
 
-    const ranked = this.#lights
-      .map((entry) => ({ entry, distance: (entry.x - x) ** 2 + (entry.z - z) ** 2 }))
-      .sort((a, b) => a.distance - b.distance);
+  /**
+   * Advances one pool's fades, and hands the slots over once the lamps on their
+   * way out are dark. Returns whether anything is still moving.
+   */
+  #fade(pool: RankedLight[], dt: number): boolean {
+    const step = dt / Math.max(0.01, this.#graphics.lightFadeSeconds);
+    let leaving = false;
+    let moving = false;
 
-    for (let i = 0; i < ranked.length; i++) {
-      const item = ranked[i];
-      if (item) item.entry.light.visible = i < MAX_ACTIVE_LIGHTS;
+    for (const entry of pool) {
+      if (!entry.light.visible || entry.gain === entry.target) continue;
+      entry.gain =
+        entry.target > entry.gain
+          ? Math.min(entry.target, entry.gain + step)
+          : Math.max(entry.target, entry.gain - step);
+      entry.light.color.copy(entry.colour).multiplyScalar(entry.gain);
+      moving = true;
+      if (entry.target === 0) leaving = true;
     }
+    if (leaving) return true;
+
+    // Everything on its way out is black, so the swap itself cannot be seen.
+    // One lamp off and one on in the same pass keeps the count where it was.
+    for (const entry of pool) {
+      if (!entry.light.visible || entry.target !== 0) continue;
+      entry.light.visible = false;
+      entry.light.color.copy(entry.colour);
+      entry.gain = 0;
+    }
+    for (const entry of pool) {
+      if (entry.light.visible || entry.target !== 1) continue;
+      entry.light.visible = true;
+      entry.gain = 0;
+      entry.light.color.copy(entry.colour).multiplyScalar(0);
+      moving = true;
+    }
+    return moving;
+  }
+
+  /** Aims each pool's fades at the nearest `budget` lamps. */
+  #rank(x: number, z: number): void {
+    rankPool(this.#casting, this.#castingBudget, x, z);
+    rankPool(this.#plain, this.#plainBudget, x, z);
+  }
+
+  /* --- warm-up -------------------------------------------------------------- */
+
+  /**
+   * Pays every one-off rendering cost a scene has, while a loading card is
+   * still covering the screen.
+   *
+   * Two of them used to land on the frame a room first came into view, and both
+   * are long enough to be felt:
+   *
+   * - **Shader compilation.** three.js compiles lazily, per material, per light
+   *   count. `updateLights` fixes the light counts, so one pass here compiles
+   *   the exact programs the whole run will use.
+   * - **Shadow maps.** A point light renders six faces the first frame it is
+   *   visible. Room lamps are static (`shadow.autoUpdate` is off in the art),
+   *   so their maps only ever need rendering once - this walks every one of
+   *   them through the active slots to get it done up front, with the whole
+   *   map visible so nothing is missing from a map baked later.
+   */
+  async warmUp(): Promise<void> {
+    const hidden = this.#revealAll();
+    try {
+      await this.renderer.compileAsync(this.scene, this.camera);
+      this.#bakeShadows();
+    } finally {
+      for (const object of hidden) object.visible = false;
+    }
+  }
+
+  /**
+   * Everything visible for the duration of the warm-up, so a shadow map is
+   * baked against the whole map rather than whatever happened to be in view.
+   * Lights are left alone: changing how many are on is the one thing that would
+   * make the warm-up compile the wrong programs.
+   */
+  #revealAll(): THREE.Object3D[] {
+    const hidden: THREE.Object3D[] = [];
+    this.scene.traverse((object) => {
+      if (object.visible || (object as THREE.Light).isLight) return;
+      object.visible = true;
+      hidden.push(object);
+    });
+    return hidden;
+  }
+
+  #bakeShadows(): void {
+    const pool = this.#casting;
+    const budget = this.#castingBudget;
+    if (!this.renderer.shadowMap.enabled || budget === 0) return;
+
+    const wasVisible = pool.map((entry) => entry.light.visible);
+    // Exactly `budget` lamps on for every pass, wrapping round the pool, so the
+    // light count never changes and no pass compiles a program of its own.
+    for (let start = 0; start < pool.length; start += budget) {
+      for (const entry of pool) entry.light.visible = false;
+      for (let i = 0; i < budget; i++) pool[(start + i) % pool.length]!.light.visible = true;
+      this.renderer.render(this.scene, this.camera);
+    }
+    pool.forEach((entry, i) => {
+      entry.light.visible = wasVisible[i] ?? false;
+    });
   }
 
   resize(): void {
@@ -147,4 +326,18 @@ export class Renderer {
     this.feedback.dispose();
     this.renderer.dispose();
   }
+}
+
+/**
+ * Aims the nearest `budget` lamps at full and the rest at black. Sorts in
+ * place - the order is scratch, not meaning.
+ *
+ * Nothing here touches `visible`: that is `#fade`'s job, and only once the lamp
+ * losing its slot has gone dark.
+ */
+function rankPool(pool: RankedLight[], budget: number, x: number, z: number): void {
+  if (pool.length === 0) return;
+  for (const entry of pool) entry.distance = (entry.x - x) ** 2 + (entry.z - z) ** 2;
+  pool.sort((a, b) => a.distance - b.distance);
+  for (let i = 0; i < pool.length; i++) pool[i]!.target = i < budget ? 1 : 0;
 }

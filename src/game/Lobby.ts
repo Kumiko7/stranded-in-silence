@@ -162,7 +162,6 @@ export class Lobby {
     const world = buildLobbyScene(this.#config, mapIds);
     this.#world = world;
     this.#renderer.scene.add(world.root);
-    this.#renderer.setRoomLights(world.lights);
 
     const spawn = world.spawns[slot % world.spawns.length] ?? world.spawns[0];
     this.#player = createPlayerState(
@@ -171,6 +170,8 @@ export class Lobby {
       spawn?.rotationY ?? 0,
       this.#config.player,
     );
+    // The arrival spot, so the light budget is filled before the first frame.
+    this.#renderer.setRoomLights(world.lights, spawn?.position[0] ?? 0, spawn?.position[2] ?? 0);
 
     this.#starting = false;
     this.#wardrobeOpen = false;
@@ -643,8 +644,12 @@ export class Lobby {
     // A poster wall is looked at from further back than a door is opened from.
     this.#raycaster.far = this.#config.player.interaction.rayLength * 1.6;
 
+    // Posters first, the cabin only if one was found: the same two-pass ray the
+    // run uses, and for the same reason (`Game.#lookTag`).
     const hit = this.#raycaster.intersectObjects(world.raycastTargets, true)[0];
     if (!hit) return null;
+    this.#raycaster.far = hit.distance - 1e-3;
+    if (this.#raycaster.intersectObjects(world.occluders, true).length > 0) return null;
 
     const tagged = findTag(hit.object);
     if (!tagged) return null;

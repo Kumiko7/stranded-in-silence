@@ -53,8 +53,8 @@ stranded/
 | `shared/` | Types and constants used by BOTH client and signalling server: net message shapes, event names, enums | nothing |
 | `save/` | Persistence. `localStorage` in browser, OS save dir when packaged. Options, binds, meta progress. **Holds the numbers; never applies them** — `main.tsx` hands them to `render`/`input`/`audio`, which `save/` is not allowed to know about | `config` |
 | `input/` | Raw device → **action** ids, rebinding, pointer lock | `config`, `save` |
-| `render/` | `WebGLRenderer`, camera rig, lighting rig, post-processing, room streaming, material cache | `config`, `art` |
-| `world/` | Map generation, room graph, grid ↔ world transforms, collision, doors, containers, spawns | `config`, `art` (blueprints only), `core` |
+| `render/` | `WebGLRenderer`, camera rig, lighting rig and its fixed light budget, shader/shadow warm-up, gameplay-feedback layer, material cache | `config`, `art` |
+| `world/` | Map generation, room graph, grid ↔ world transforms, collision, doors, containers, spawns, what is visible from where | `config`, `art` (blueprints only), `core` |
 | `entities/` | Player, item, container, door, trap state + behaviour | `world`, `config` |
 | `ai/` | Enemy state machine, perception (sight/hearing), pathfinding, noise bus | `world`, `entities`, `config` |
 | `net/` | WebRTC mesh, host/client sim split, snapshots, prediction, reconciliation, lobby codes | `shared`, `core`, `config` |
@@ -138,7 +138,7 @@ world/generation ── reads ──► config/world.json  (grid, doors, content
         │
         ├──► world/collision  builds the static collision grid
         ├──► ai/navigation    builds the room graph + per-room nav
-        └──► render/streaming calls art pack build() per room, on demand
+        └──► world/worldBuilder calls art pack build() per room, up front
 ```
 
 The generator is **art-agnostic** and the renderer is **layout-agnostic**. Full
@@ -153,22 +153,30 @@ transmit two values and rebuild it. Every `rng` call in generation and in art
 ## 7. The frame
 
 ```
-fixedUpdate (30 Hz)                      render (display Hz)
+fixedUpdate (60 Hz)                      render (display Hz)
 ──────────────────                       ───────────────────
-input.sample()                           camera rig from interpolated player state
-local player prediction                  art object transforms from sim state
-host only: authoritative sim             room streaming in/out
-  ├ player movement + collision          post-processing (alert, heartbeat, damage)
-  ├ interactions (doors/chests/items)    HUD DOM updates (throttled)
-  ├ noise bus → enemy hearing            renderer.render()
+input.sample()                           gameplay feedback (alert, heartbeat, damage)
+camera rig from player state             HUD DOM updates (throttled)
+one look-ray down the crosshair          renderer.render()
+host only: authoritative sim
+  ├ player movement + collision
+  ├ interactions (doors/chests/items)
+  ├ noise bus → enemy hearing
   ├ enemy perception + FSM + pathing
   └ run state (down/revive/escape/win)
+remote bodies from the snapshot buffer
+culling: portals, then the light budget
 net.send(snapshot @ 15 Hz)
 voice.updateAttenuation()
 ```
 
 Sim code lives in plain data structures. The only place a sim value becomes a
-`THREE` value is `render/`, in the render step.
+`THREE` value is `render/` and the art seam in `world/`.
+
+Culling sits at the end of the fixed step rather than in the render step because
+it projects each doorway through the camera, and the camera is set there. Several
+frames may be drawn from one tick's answer; the margins in `graphics.json →
+culling` are what covers the gap. See [`systems/RENDERING.md`](systems/RENDERING.md).
 
 ---
 
@@ -223,6 +231,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Change what stops a thrown item | `src/world/wallGrid.ts` — deliberately NOT the collision world |
 | Change how the maze is built | `src/world/generation.ts` — [`systems/GENERATION.md`](systems/GENERATION.md) |
 | Change enemy behaviour | `src/ai/` — [`systems/AI.md`](systems/AI.md) |
+| Change what gets drawn, or chase a frame-rate problem | `src/render/`, `src/world/visibility.ts` — [`systems/RENDERING.md`](systems/RENDERING.md) |
 | Change the lobby cabin's look | `art/shared/lobby/` — review it with `/tools/roomshot.html?map=lobby` |
 | Change what the lobby *does* | `src/game/Lobby.ts` + `src/world/lobbyScene.ts` |
 | Add a menu / screen | `src/ui/screens/` — [`systems/UI.md`](systems/UI.md) |
@@ -271,6 +280,7 @@ being simple.
 | **Sound occlusion** (walls/doors muffling audio, noise or voice) | Propagation is distance-only everywhere. One rule, one place to change. |
 | **Directional movement penalties** | Movement is speed-uniform — backing away from the enemy costs nothing, by design. |
 | **Graphics quality tiers / presets** | `graphics.json` is flat. A tier system is a merge layer over it, and the config loader's merge is already generic. |
+| **Room streaming** (building and disposing rooms as you walk) | Every room is built up front and culled. `BuiltWorld.updateVisibility` is the seam; at 33 rooms and a 110 ms build there is nothing to gain yet. |
 | **Post-processing beyond gameplay feedback** | Only the effects the design calls for exist (alert state, heartbeat proximity, damage). No general bloom/grain/aberration stack. |
 | **Accessibility settings** (UI scale, reduce flashing, colourblind modes) | UI sizes derive from one base; effects are driven through a single feedback module. |
 | **Config-mismatch detection between peers** | Peers ship `(mapId, seed)` and are assumed to share a build. Hashing config is additive. |
@@ -299,3 +309,4 @@ being simple.
 | [`systems/NETWORKING.md`](systems/NETWORKING.md) | Multiplayer |
 | [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) | Sound or voice chat |
 | [`systems/UI.md`](systems/UI.md) | Menus and HUD |
+| [`systems/RENDERING.md`](systems/RENDERING.md) | Lights, culling, frame cost |

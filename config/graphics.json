@@ -13,11 +13,18 @@
   "ambientColor": "#2a2f45",
   "minAmbientFloor": 0.8,
 
+  "$lights": "three.js compiles a shader program per material PER LIGHT COUNT, so a light set that changes size mid-run recompiles the whole map a room at a time - which is a frozen frame every time. `maxActiveLights` and `shadows.maxCastingLights` are therefore a fixed BUDGET, not a cap: the renderer always enables exactly this many of each (nearest first), so the count a shader sees never changes once a world is up. A lamp enabled out of range costs a slot and contributes nothing, which is the point.",
+  "maxActiveLights": 6,
+
+  "$lightFadeSeconds": "A lamp taking or losing one of those slots fades rather than switches, or you watch rooms come on as you walk up to them. The handover is sequential - the outgoing lamp goes to black, then the slot changes hands, then the new one comes up - so this is half of a full changeover.",
+  "lightFadeSeconds": 0.45,
+
   "shadows": {
     "enabled": true,
     "type": "pcfsoft",
     "mapSize": 1024,
-    "maxCastingLights": 4
+    "$maxCastingLights": "Of `maxActiveLights`, how many are always shadow casters. Room lamps declare their own `castShadow` (at most one per room, see art/ROOM_FORMAT.md) and their maps are baked once at load, so this is a fragment-shader cost, not a per-frame render.",
+    "maxCastingLights": 2
   },
 
   "fog": {
@@ -30,6 +37,14 @@
   },
 
   "renderDistanceRooms": 3,
+
+  "culling": {
+    "$doc": "The manor is a graph of sealed boxes joined by doorways, so 'can this room be seen' has an exact answer: flood out from the cell the camera stands in, through openings that are not shut doors, narrowing the screen rectangle at every doorway. A room nothing can see into is not drawn. This runs INSIDE `renderDistanceRooms` - it can only ever hide something the distance test was already about to hide, so it cannot introduce pop-in.",
+    "enabled": true,
+    "$margins": "Safety. `portalMarginMetres` widens each doorway before it is projected, because the wall reveal around an opening is visible at grazing angles - that one is worth having. `screenMargin` widens the projected rectangle, in fractions of half the viewport, and is only numerical slack: the camera is set in the same simulation tick that culls, and does not move between the frames drawn from it, so there is no lag to cover. It compounds through every doorway in a sight line, so keep it small - 0.1 cost a third of the draw calls in an opened-up map.",
+    "portalMarginMetres": 0.4,
+    "screenMargin": 0.02
+  },
 
   "lobby": {
     "$doc": "Overrides merged over the block above while the lobby scene is up. The lobby is the one bright place in the game: daylight off snow, a fire, and only enough fog to give the mountains depth.",
