@@ -202,6 +202,9 @@ interface PendingClaim {
    * were rather than costing you the item you already had.
    */
   displaced?: string | null;
+  x?: number;
+  y?: number;
+  z?: number;
 }
 
 /** The one item id logic names directly: E on a locked door has to find it. */
@@ -765,8 +768,13 @@ export class Game {
     if (def && def.occupiesSlot === false) this.#collect(worldItemId, def, by, at);
 
     // Only now does the hand this went into let go of what it was holding.
-    const player = this.#player;
-    if (pending?.displaced && player) this.#dropIntoWorld(pending.displaced, player);
+    if (pending?.displaced) {
+      if (pending.x !== undefined && pending.y !== undefined && pending.z !== undefined) {
+        this.#dropAt(pending.displaced, pending.x, pending.y, pending.z);
+      } else if (this.#player) {
+        this.#dropIntoWorld(pending.displaced, this.#player);
+      }
+    }
   }
 
   /* --- replicated world events -------------------------------------------- */
@@ -1705,7 +1713,14 @@ export class Game {
     // the host this browser IS the arbiter: taking it off the floor first would
     // have it rule that the item was already gone and deny its own pick-up.
     // A displaced item waits for the answer too, so a refused swap costs nothing.
-    this.#claim('take', worldItemId, 0, { itemId: item.itemId, hand, displaced });
+    this.#claim('take', worldItemId, 0, {
+      itemId: item.itemId,
+      hand,
+      displaced,
+      x: item.x,
+      y: item.y,
+      z: item.z,
+    });
 
     // A client shows it gone at once; on the host the grant has already done it.
     world.removeItem(worldItemId);
@@ -2377,19 +2392,22 @@ export class Game {
     this.#audio.sustain('itemUse', soundId, { on: true });
   }
 
-  #dropIntoWorld(itemId: string, player: PlayerState): void {
+  #dropAt(itemId: string, x: number, y: number, z: number): void {
     const world = this.#world;
     if (!world) return;
 
     // Ids are namespaced by peer so two players dropping at once cannot collide.
     const id = `drop:${this.#net.selfId}:${this.#dropCount++}`;
+    world.spawnItem(id, itemId, x, y, z);
+    this.#net.broadcast({ t: 'drop', id, itemId, x, y, z });
+    this.#emitNoise('itemDrop', x, z);
+  }
+
+  #dropIntoWorld(itemId: string, player: PlayerState): void {
     const reach = this.#config.items.defaults.dropForwardOffset;
     const x = player.x - Math.sin(player.yaw) * reach;
     const z = player.z - Math.cos(player.yaw) * reach;
-
-    world.spawnItem(id, itemId, x, 0, z);
-    this.#net.broadcast({ t: 'drop', id, itemId, x, y: 0, z });
-    this.#emitNoise('itemDrop', x, z);
+    this.#dropAt(itemId, x, 0, z);
   }
 
   /**
