@@ -78,6 +78,11 @@ body {
   pointer-events: none;
 }
 
+#screen-root,
+#hud-root {
+  zoom: var(--ui-scale, 1);
+}
+
 /* --- controls ------------------------------------------------------------ */
 
 .btn {
@@ -882,6 +887,17 @@ body {
 .overlay--options {
   background: #04050ad8;
   backdrop-filter: blur(6px);
+}
+
+.panel--options {
+  height: min(620px, 85vh);
+  display: flex;
+  flex-direction: column;
+}
+
+.panel--options .panel__body {
+  flex: 1;
+  overflow-y: auto;
 }
 
 /* --- tabs ----------------------------------------------------------------- */

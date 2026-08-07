@@ -66,7 +66,19 @@ async function boot(): Promise<void> {
   const renderer = new Renderer(canvas, config.graphics, config.player);
   const input = new Input(config.input, canvas);
   const detachInput = input.attach();
-  addEventListener('resize', () => renderer.resize());
+  
+    // Calculate UI scale relative to a 720p reference resolution
+  function updateUiScale(): void {
+    const scale = Math.max(0.65, Math.min(window.innerWidth / 1080, window.innerHeight / 720));
+    document.documentElement.style.setProperty('--ui-scale', String(scale));
+  }
+
+  // Initial calculation and update on window resize
+  updateUiScale();
+  addEventListener('resize', () => {
+    renderer.resize();
+    updateUiScale();
+  });
 
   // Rendering the Tone.js sound recipes needs no user gesture, so it starts now
   // and finishes long before anything asks to be played.

@@ -27,7 +27,7 @@
 
     "ui.hover": { "bus": "ui", "synth": "ui.hover", "files": ["sfx/ui_hover.ogg"], "volume": 0.35, "cooldownSeconds": 0.04 },
     "ui.click": { "bus": "ui", "synth": "ui.click", "files": ["sfx/ui_click.ogg"], "volume": 0.7 },
-    "ui.back": { "bus": "ui", "synth": "ui.back", "files": ["sfx/ui_back.ogg"], "volume": 0.7 },
+    "ui.back": { "bus": "ui", "synth": "ui.back", "files": ["sfx/ui_back.ogg"], "volume": 0.07 },
 
     "player.footstep.walk": { "bus": "sfx", "synth": "footstep.walk", "files": ["sfx/footstep_walk.ogg"], "volume": 0.5, "pitchRange": [0.92, 1.08] },
     "player.footstep.sprint": { "bus": "sfx", "synth": "footstep.sprint", "files": ["sfx/footstep_sprint.ogg"], "volume": 0.8, "pitchRange": [0.95, 1.05] },
