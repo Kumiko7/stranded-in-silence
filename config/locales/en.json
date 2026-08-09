@@ -60,6 +60,10 @@
   "hud.interact.mapLocked": "Not yet built",
   "hud.interact.wardrobe": "Open the wardrobe",
   "hud.interact.difficulty": "Set difficulty",
+  "hud.interact.pickRandom": "Leave it to chance",
+  "hud.interact.takeDart": "Take a dart",
+  "hud.interact.dartsFull": "Hands full",
+  "lobby.dart.name": "Dart",
   "hud.map.completed": "Escaped",
   "hud.map.notCompleted": "Never escaped",
 

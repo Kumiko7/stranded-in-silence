@@ -61,6 +61,10 @@
   "hud.interact.mapLocked": "Ainda não construído",
   "hud.interact.wardrobe": "Abrir o guarda-roupa",
   "hud.interact.difficulty": "Mudar a dificuldade",
+  "hud.interact.pickRandom": "Deixar na sorte",
+  "hud.interact.takeDart": "Pegar um dardo",
+  "hud.interact.dartsFull": "Mãos ocupadas",
+  "lobby.dart.name": "Dardo",
   "hud.map.completed": "Você escapou",
   "hud.map.notCompleted": "Nunca escapou",
 

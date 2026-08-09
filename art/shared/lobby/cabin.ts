@@ -45,6 +45,44 @@ const WINDOW_HALF = 3.5;
 const WINDOW_SILL = 0.95;
 const WINDOW_HEAD = 2.85;
 
+/**
+ * The two holes in the east gable, both of them measured along Z.
+ *
+ * The mirror is a lit chamber behind a pane of glass with a copy of the player
+ * standing in it; the fence is a waist-high rail across a full-height opening
+ * into the dart annex. Both need the logs left out over their span, which is why
+ * that wall is built as panels rather than as one box.
+ */
+const MIRROR_Z = -1.55;
+const MIRROR_HALF = 0.6;
+const MIRROR_SILL = 0.05;
+const MIRROR_HEAD = 2.2;
+/** How far the chamber behind the glass runs back, past the wall. */
+const MIRROR_DEPTH = 0.95;
+
+export const FENCE_FROM = 0.4;
+export const FENCE_TO = 3.95;
+const FENCE_HEAD = 2.45;
+/** Rail height. Chest high on a standing player: see over, never step over. */
+export const FENCE_RAIL = 1.15;
+
+/**
+ * The dart annex on the far side of that fence: its own little room, floored,
+ * walled and lit, with nothing in it but the board, the scoreboard and the
+ * lamp over them. It is never walked into - the perimeter collider still stops
+ * you at the fence - so it is built as scenery you look at through an opening.
+ */
+const ANNEX_DEPTH = 2.0;
+const ANNEX_HEIGHT = 2.75;
+/** Inner face of the annex's far wall: what a dart is thrown at. */
+export const BOARD_X = HALF_X + WALL + ANNEX_DEPTH;
+/** Centre of the board, and of the throwing line in front of it. */
+export const BOARD_Z = 1.55;
+/** Regulation, and it happens to sit dead centre of the opening. */
+export const BOARD_HEIGHT = 1.73;
+const SCOREBOARD_Z = 3.0;
+const SCOREBOARD_Y = 1.12;
+
 export interface Pose {
   readonly position: readonly [number, number, number];
   readonly rotationY: number;
@@ -56,12 +94,16 @@ export interface CabinAnchors {
   /** One per poster slot, bottom-centre of the frame, already facing the room. */
   readonly posters: readonly Pose[];
   readonly wardrobe: Pose;
-  /** Where the player's own model stands while the wardrobe is open. */
+  /** Inside the mirror: where the player's own copy stands. */
   readonly mannequin: Pose;
   /** Camera pose for the wardrobe panel: model on the right, options on the left. */
   readonly wardrobeCamera: { readonly position: readonly [number, number, number]; readonly yaw: number; readonly pitch: number };
   readonly lever: Pose;
-  readonly minigame: Pose;
+  /** The rack of darts on the cabin side of the fence. */
+  readonly dartStand: Pose;
+  /** The board on the annex's far wall, at its CENTRE rather than its bottom. */
+  readonly dartboard: Pose;
+  readonly scoreboard: Pose;
 }
 
 export interface BuiltCabin {
@@ -118,9 +160,11 @@ export function buildCabin(ctx: ArtBuildContext, posterSlots: number): BuiltCabi
   floorAndCeiling(b);
   logWalls(b);
   window_(b);
+  mirrorWall(b);
   fireplace(b);
   posterWall(b, posterSlots);
   furniture(b);
+  dartAnnex(b);
   outside(b);
   lighting(b);
 
@@ -138,19 +182,31 @@ export function buildCabin(ctx: ArtBuildContext, posterSlots: number): BuiltCabi
       ],
       posters: posterAnchors(posterSlots),
       // Everything on the +X gable faces -X, which from a -Z default is a
-      // quarter turn the other way.
-      wardrobe: { position: [HALF_X - 0.42, 0, -2.9], rotationY: Math.PI / 2 },
-      // Standing out in front of the open doors, turned back toward the camera.
-      mannequin: { position: [HALF_X - 1.65, 0, -2.2], rotationY: 2.257 },
+      // quarter turn the other way. The wardrobe is pushed to the window end of
+      // that wall to leave room for the mirror beside it.
+      wardrobe: { position: [HALF_X - 0.42, 0, -3.35], rotationY: Math.PI / 2 },
       /**
-       * Parked across from the mannequin and turned a third of a radian past it,
-       * which is what puts the model on the right of the screen and leaves the
-       * left half clear for the wardrobe panel.
+       * Inside the mirror, not beside the wardrobe.
+       *
+       * The player's own model used to stand out on the floorboards, which read
+       * as a fourth player standing very still - so it now stands in a lit
+       * chamber behind a pane of glass, at about the depth a reflection of
+       * somebody a metre from the mirror would be.
        */
-      wardrobeCamera: { position: [HALF_X - 3.6, 1.5, -0.6], yaw: -0.544, pitch: -0.12 },
+      mannequin: { position: [HALF_X + 0.52, 0, MIRROR_Z], rotationY: Math.PI / 2 },
+      /**
+       * Square on to the mirror and turned a third of a radian past it, which is
+       * what puts the model on the right of the screen and leaves the left half
+       * clear for the wardrobe panel.
+       */
+      wardrobeCamera: { position: [3.5, 1.5, -0.9], yaw: -1.0, pitch: -0.117 },
       // Turned to face +X: the players arrive east of it and walk west.
       lever: { position: [0, 0, 0.2], rotationY: -Math.PI / 2 },
-      minigame: { position: [HALF_X - 0.1, 1.1, 2.1], rotationY: Math.PI / 2 },
+      // In front of the fence, square on to the dartboard through it.
+      dartStand: { position: [HALF_X - 1.05, 0, BOARD_Z], rotationY: -Math.PI / 2 },
+      // Both hang on the annex's far wall, so both face back into the cabin.
+      dartboard: { position: [BOARD_X, BOARD_HEIGHT, BOARD_Z], rotationY: Math.PI / 2 },
+      scoreboard: { position: [BOARD_X, SCOREBOARD_Y, SCOREBOARD_Z], rotationY: Math.PI / 2 },
     },
     dispose: built.dispose,
   };
@@ -213,7 +269,11 @@ function floorAndCeiling(b: Builder): void {
  */
 function logCourses(b: Builder, alongX: boolean, face: number, centre: number, span: number, from: number, to: number): void {
   const radius = LOG_COURSE * 0.56;
-  for (let y = from + LOG_COURSE / 2; y < to; y += LOG_COURSE) {
+  // Courses sit on ONE grid for the whole cabin rather than starting fresh at
+  // the bottom of each panel - otherwise the logs either side of the window,
+  // the mirror and the fence run at different heights and the wall falls apart.
+  const first = Math.ceil((from - LOG_COURSE / 2) / LOG_COURSE) * LOG_COURSE + LOG_COURSE / 2;
+  for (let y = first; y < to; y += LOG_COURSE) {
     const geometry = new THREE.CylinderGeometry(radius, radius, span, 7);
     b.geo(
       'cabin.log',
@@ -244,6 +304,21 @@ function perimeter(b: Builder): void {
   b.collider({ kind: 'box', center: [insetX + thickness, 0], halfExtents: [thickness, HALF_Z + 2] });
 }
 
+/**
+ * One panel of a gable wall: the log box plus the courses on its inner face.
+ * `x` is the centre of the wall box; the face the courses sit on is derived from
+ * which side of the room it is.
+ */
+function gablePanel(b: Builder, sign: number, fromZ: number, toZ: number, fromY: number, toY: number): void {
+  const width = toZ - fromZ;
+  const height = toY - fromY;
+  if (width <= 0.002 || height <= 0.002) return;
+
+  const centre = (fromZ + toZ) / 2;
+  b.box('cabin.log', [WALL, height, width], [sign * (HALF_X + WALL / 2), fromY, centre], 0, { tile: 1.9 });
+  logCourses(b, false, sign * HALF_X, centre, width, fromY, toY);
+}
+
 function logWalls(b: Builder): void {
   const span = HALF_X * 2 + WALL * 2;
 
@@ -251,11 +326,30 @@ function logWalls(b: Builder): void {
   b.box('cabin.log', [span, EAVE + 0.1, WALL], [0, 0, HALF_Z + WALL / 2], 0, { tile: 1.9 });
   logCourses(b, true, HALF_Z, 0, span, 0, EAVE);
 
-  // Gable ends: the fireplace stands against one, the wardrobe against the other.
-  for (const sign of [-1, 1]) {
-    b.box('cabin.log', [WALL, EAVE + 0.1, HALF_Z * 2 + WALL * 2], [sign * (HALF_X + WALL / 2), 0, 0], 0, { tile: 1.9 });
-    logCourses(b, false, sign * HALF_X, 0, HALF_Z * 2, 0, EAVE);
+  const end = HALF_Z + WALL;
 
+  // West gable: the fireplace stands against it, and it is unbroken.
+  gablePanel(b, -1, -end, end, 0, EAVE + 0.1);
+
+  /**
+   * East gable, in five pieces around the mirror and the fence. The wardrobe
+   * stands at the window end of it, then the mirror, then the opening into the
+   * dart annex - which is why nothing else is allowed to lean on this wall.
+   */
+  gablePanel(b, 1, -end, MIRROR_Z - MIRROR_HALF, 0, EAVE + 0.1);
+  gablePanel(b, 1, MIRROR_Z - MIRROR_HALF, MIRROR_Z + MIRROR_HALF, 0, MIRROR_SILL);
+  gablePanel(b, 1, MIRROR_Z - MIRROR_HALF, MIRROR_Z + MIRROR_HALF, MIRROR_HEAD, EAVE + 0.1);
+  gablePanel(b, 1, MIRROR_Z + MIRROR_HALF, FENCE_FROM, 0, EAVE + 0.1);
+  gablePanel(b, 1, FENCE_FROM, FENCE_TO, FENCE_HEAD, EAVE + 0.1);
+  gablePanel(b, 1, FENCE_TO, end, 0, EAVE + 0.1);
+
+  // Lintels over the two openings: the timber actually carrying the wall above.
+  b.box('beam', [WALL + 0.16, 0.2, MIRROR_HALF * 2 + 0.3], [HALF_X + WALL / 2, MIRROR_HEAD - 0.2, MIRROR_Z], 0, { tile: 1.3 });
+  b.box('beam', [WALL + 0.16, 0.24, FENCE_TO - FENCE_FROM + 0.4], [HALF_X + WALL / 2, FENCE_HEAD - 0.24, (FENCE_FROM + FENCE_TO) / 2], 0, {
+    tile: 1.3,
+  });
+
+  for (const sign of [-1, 1]) {
     // The triangle above the wall plate is boarded, not logged - which is how
     // these were really built, and it keeps the ridge end from reading as a slab.
     const steps = 7;
@@ -271,6 +365,210 @@ function logWalls(b: Builder): void {
       );
     }
   }
+}
+
+/* --- the mirror ---------------------------------------------------------------- */
+
+/**
+ * The mirror on the east gable, and the chamber behind it.
+ *
+ * This is a **fake** mirror and is meant to be. A real one is a second render
+ * pass through a reflected camera, and the only thing in the cabin worth
+ * reflecting is the player's own model - which was already being built and
+ * stood on the floorboards, where it read as a fourth player standing very
+ * still. So the model moved *into* the wall instead: a lit, boarded chamber
+ * behind a tinted pane, floored with the same boards as the room, at about the
+ * depth a reflection of somebody a metre out would sit at.
+ *
+ * `src/game/Lobby.ts` puts the copy at `anchors.mannequin`, which is inside
+ * here. Nothing about that changed - only where the anchor points.
+ */
+function mirrorWall(b: Builder): void {
+  const face = HALF_X - LOG_PROUD;
+  const inner = HALF_X;
+  const back = HALF_X + MIRROR_DEPTH;
+  const half = MIRROR_HALF;
+  const centre = (inner + back) / 2;
+  const depth = back - inner;
+
+  // Chamber: same floorboards as the room, dark boards everywhere else. The
+  // floor is what sells it - a reflection stands on the floor you are on.
+  b.box('cabin.floor', [depth + 0.2, 0.08, half * 2], [centre, -0.08, MIRROR_Z], 0, { tile: 2.2, castShadow: false });
+  b.box('timberDark', [depth, 0.1, half * 2 + 0.2], [centre, MIRROR_HEAD, MIRROR_Z], 0, { tile: 1.0 });
+  b.box('timberDark', [0.1, MIRROR_HEAD + 0.1, half * 2 + 0.2], [back, 0, MIRROR_Z], 0, { tile: 1.0 });
+  for (const sign of [-1, 1]) {
+    b.box('timberDark', [depth, MIRROR_HEAD + 0.1, 0.1], [centre, 0, MIRROR_Z + sign * (half + 0.05)], 0, { tile: 1.0 });
+  }
+
+  /**
+   * A lamp inside it. Without one the copy is lit by ambient alone and reads as
+   * a silhouette in a cupboard; with one the chamber glows faintly, which is
+   * also what stops the glass reading as a black rectangle.
+   */
+  const glow = new THREE.PointLight(0xffe6c6, 3.4, 4.2, 2);
+  glow.position.set(inner + 0.42, 2.0, MIRROR_Z);
+  b.light(glow);
+
+  // The pane. Tinted, glossy and mostly transparent: enough to say "glass",
+  // not enough to hide what is behind it.
+  b.box('mirrorGlass', [0.03, MIRROR_HEAD - MIRROR_SILL, half * 2], [face - 0.015, MIRROR_SILL, MIRROR_Z], 0, {
+    castShadow: false,
+    receiveShadow: false,
+  });
+
+  /**
+   * Two pale streaks raked across the glass.
+   *
+   * This is the whole trick. Without them the chamber reads as a lit alcove
+   * with somebody standing in it - the frame alone does not say "mirror",
+   * because a display case has a frame too. A sheen that does not move when you
+   * do is the one cue every fake mirror in every game leans on, and it costs two
+   * transparent quads.
+   */
+  for (const [offset, extent, thickness] of [
+    [0.24, 0.86, 0.1],
+    [-0.14, 0.5, 0.045],
+  ] as const) {
+    // Thin along the normal (X), tall in Y, `thickness` wide in Z, then raked by
+    // spinning it about the normal so it runs corner to corner.
+    const streak = boxGeometry(0.008, (MIRROR_HEAD - MIRROR_SILL) * extent, thickness);
+    b.geo('mirrorSheen', streak, tiltMatrix([face - 0.035, (MIRROR_HEAD + MIRROR_SILL) / 2, MIRROR_Z + offset], [0.34, 0, 0]), {
+      castShadow: false,
+      receiveShadow: false,
+      consume: true,
+    });
+  }
+
+  /**
+   * Frame: two stiles, two rails, a moulded inner lip, a pediment and brass
+   * bosses. Deliberately HEAVY - a thin surround round a lit recess reads as a
+   * doorway with somebody standing in it, and no amount of glass fixes that.
+   */
+  const proud = 0.2;
+  const fx = face - proud / 2;
+  const outerHalf = half + 0.12;
+  const tall = MIRROR_HEAD - MIRROR_SILL + 0.48;
+  b.box('timber', [proud, tall, 0.24], [fx, MIRROR_SILL - 0.24, MIRROR_Z - outerHalf], 0, { tile: 0.7 });
+  b.box('timber', [proud, tall, 0.24], [fx, MIRROR_SILL - 0.24, MIRROR_Z + outerHalf], 0, { tile: 0.7 });
+  b.box('timber', [proud, 0.24, half * 2 + 0.48], [fx, MIRROR_SILL - 0.24, MIRROR_Z], 0, { tile: 0.7 });
+  b.box('timber', [proud, 0.24, half * 2 + 0.48], [fx, MIRROR_HEAD, MIRROR_Z], 0, { tile: 0.7 });
+  // Inner lip: a dark bead right against the glass, which is what reads as the
+  // edge of a mirror rather than as the edge of a hole.
+  for (const sz of [-1, 1]) {
+    b.box('timberDark', [0.06, MIRROR_HEAD - MIRROR_SILL, 0.05], [face - 0.055, MIRROR_SILL, MIRROR_Z + sz * (half - 0.02)], 0, {
+      tile: 0.5,
+    });
+  }
+  b.box('timberDark', [0.06, 0.05, half * 2], [face - 0.055, MIRROR_HEAD - 0.05, MIRROR_Z], 0, { tile: 0.5 });
+  b.box('timberDark', [0.06, 0.05, half * 2], [face - 0.055, MIRROR_SILL, MIRROR_Z], 0, { tile: 0.5 });
+  b.box('timberDark', [proud + 0.09, 0.08, half * 2 + 0.66], [face - (proud + 0.09) / 2, MIRROR_HEAD + 0.24, MIRROR_Z], 0, {
+    tile: 0.7,
+  });
+  for (const sz of [-1, 1]) {
+    for (const sy of [MIRROR_SILL - 0.16, MIRROR_HEAD + 0.06]) {
+      b.box('brass', [0.06, 0.08, 0.08], [face - proud - 0.02, sy, MIRROR_Z + sz * outerHalf], 0, { tile: 0.2 });
+    }
+  }
+
+  // A shelf under it, with the sort of thing that ends up on one.
+  b.box('timberDark', [0.24, 0.05, half * 2 + 0.66], [face - 0.12, MIRROR_SILL - 0.42, MIRROR_Z], 0, { tile: 0.6 });
+  b.box('ceramic', [0.11, 0.14, 0.11], [face - 0.13, MIRROR_SILL - 0.37, MIRROR_Z - 0.5], 0.4, { tile: 0.3 });
+  b.box('brass', [0.08, 0.1, 0.08], [face - 0.12, MIRROR_SILL - 0.37, MIRROR_Z + 0.58], -0.3, { tile: 0.2 });
+
+  // The frame stands proud of the wall the perimeter collider is drawn on, so
+  // it gets one of its own - otherwise you can put your head through it.
+  b.collider({ kind: 'box', center: [face - proud / 2, MIRROR_Z], halfExtents: [proud / 2, outerHalf + 0.07] });
+}
+
+/* --- the dart annex -------------------------------------------------------------- */
+
+/**
+ * The fence across the east gable's big opening, and the room on the far side
+ * of it. You can see over the fence and you can throw over it; you cannot walk
+ * over it, because the cabin's perimeter collider was never cut for this
+ * opening and does not need to be.
+ *
+ * The board and the scoreboard are placed at anchors by `lobbyScene.ts` - logic
+ * drives both. Everything here is the room they live in.
+ */
+function dartAnnex(b: Builder): void {
+  const inner = HALF_X + WALL;
+  const width = FENCE_TO - FENCE_FROM;
+  const centreZ = (FENCE_FROM + FENCE_TO) / 2;
+  const depth = ANNEX_DEPTH;
+
+  /* --- the room ------------------------------------------------------------ */
+
+  /**
+   * Floor, ceiling, far wall and two sides, all in DARK timber. The cabin is
+   * pale pine everywhere else and the annex started out the same, which blew the
+   * board out completely - a white disc with a dot in it. A dartboard has to be
+   * the brightest thing in the room it is in, and the cheapest way to arrange
+   * that is to make the room dark.
+   */
+  b.box('cabin.floor', [depth + 0.3, 0.2, width + 0.6], [inner + depth / 2, -0.2, centreZ], 0, {
+    tile: 2.2,
+    castShadow: false,
+  });
+  b.box('timberDark', [depth + 0.3, 0.14, width + 0.6], [inner + depth / 2, ANNEX_HEIGHT, centreZ], 0, {
+    tile: 1.1,
+    castShadow: false,
+  });
+  b.box('timberDark', [0.2, ANNEX_HEIGHT + 0.14, width + 0.6], [inner + depth + 0.1, 0, centreZ], 0, { tile: 1.1 });
+  for (const sign of [-1, 1]) {
+    b.box('timberDark', [depth + 0.3, ANNEX_HEIGHT + 0.14, 0.2], [inner + depth / 2, 0, centreZ + sign * (width / 2 + 0.2)], 0, {
+      tile: 1.1,
+    });
+  }
+  // Skirting, and a board along the foot of the far wall where the wides land.
+  b.box('beam', [depth + 0.2, 0.18, 0.1], [inner + depth / 2, 0, centreZ - width / 2 - 0.08], 0, { tile: 0.9 });
+  b.box('beam', [depth + 0.2, 0.18, 0.1], [inner + depth / 2, 0, centreZ + width / 2 + 0.08], 0, { tile: 0.9 });
+  b.box('beam', [0.1, 0.18, width + 0.2], [inner + depth - 0.05, 0, centreZ], 0, { tile: 0.9 });
+  // Corner posts at the FRONT corners only. They were at the back, where they
+  // stood right in front of the scoreboard and took a digit off every score.
+  for (const sign of [-1, 1]) {
+    b.box('beam', [0.14, ANNEX_HEIGHT, 0.14], [inner + 0.07, 0, centreZ + sign * (width / 2 - 0.07)], 0, { tile: 0.9 });
+  }
+
+  /* --- the fence ------------------------------------------------------------ */
+
+  // Reveal boards lining the opening, then the fence itself in it.
+  for (const sign of [-1, 1]) {
+    b.box('timberDark', [WALL + 0.1, FENCE_HEAD, 0.08], [HALF_X + WALL / 2, 0, centreZ + sign * (width / 2 - 0.04)], 0, {
+      tile: 0.8,
+    });
+  }
+
+  const fx = HALF_X + WALL / 2;
+  const posts = 6;
+  for (let i = 0; i < posts; i++) {
+    const z = FENCE_FROM + 0.1 + (i * (width - 0.2)) / (posts - 1);
+    b.box('timberDark', [0.11, FENCE_RAIL, 0.11], [fx, 0, z], 0, { tile: 0.5 });
+  }
+  // Two rails and a broad capping board you can lean a drink on.
+  b.box('timber', [0.09, 0.09, width], [fx, 0.42, centreZ], 0, { tile: 1.0 });
+  b.box('timber', [0.09, 0.09, width], [fx, 0.8, centreZ], 0, { tile: 1.0 });
+  b.box('timber', [WALL + 0.14, 0.09, width + 0.1], [fx, FENCE_RAIL, centreZ], 0, { tile: 1.0 });
+  // Chicken wire, in the form of a few slim uprights between the posts: enough
+  // to say "barrier", cheap enough to see straight through.
+  for (let i = 0; i < 15; i++) {
+    const z = FENCE_FROM + 0.18 + (i * (width - 0.36)) / 14;
+    b.box('iron', [0.03, FENCE_RAIL - 0.09, 0.03], [fx, 0, z], 0, { tile: 0.3 });
+  }
+
+  /* --- light --------------------------------------------------------------- */
+
+  // A shaded lamp on the annex ceiling, hung over the board. The cabin's own
+  // lights are all on the wrong side of a wall from here.
+  const shadeY = ANNEX_HEIGHT - 0.45;
+  b.box('iron', [0.03, 0.45, 0.03], [BOARD_X - 0.55, shadeY, BOARD_Z], 0, { tile: 0.3 });
+  const shade = new THREE.ConeGeometry(0.3, 0.24, 10, 1, true);
+  b.geo('iron', shade, tiltMatrix([BOARD_X - 0.55, shadeY - 0.02, BOARD_Z], [Math.PI, 0, 0]), { tile: 0.4, consume: true });
+  b.box('lampGlow', [0.12, 0.1, 0.12], [BOARD_X - 0.61, shadeY - 0.14, BOARD_Z - 0.06], 0, { castShadow: false });
+
+  const lamp = new THREE.PointLight(0xfff0d2, 7, 5, 2);
+  lamp.position.set(BOARD_X - 0.7, shadeY - 0.1, BOARD_Z);
+  b.light(lamp);
 }
 
 /**
@@ -330,101 +628,148 @@ function window_(b: Builder): void {
 
 /* --- the fire ------------------------------------------------------------------ */
 
+/**
+ * The inglenook.
+ *
+ * The proportions here are all in service of one thing: from the middle of the
+ * room you should see FIRE, not masonry. The opening is deliberately huge (2 m
+ * across, 1.4 m tall) and everything above the mantel is a hood that steps in
+ * and back on its way to the ridge, rather than the full-height slab of stone
+ * this used to be - which was the single largest surface in the cabin and made
+ * the whole west end read as a quarry face.
+ */
 function fireplace(b: Builder): void {
   const x = -HALF_X;
   const breadth = 3.0;
   const proud = 0.62;
 
-  // Chimney breast: full height, from floor to the ridge, with a battered base.
-  b.solid('cabin.stone', [proud, RIDGE, breadth], [x + proud / 2, 0, 0], 0, { tile: 2.6 });
-  b.solid('cabin.stone', [proud + 0.3, 1.2, breadth + 0.4], [x + (proud + 0.3) / 2, 0, 0], 0, { tile: 2.6 });
-
-  // The opening, formed by two cheeks and a soot-blackened back.
-  const mouthWidth = 1.6;
-  const mouthHeight = 1.15;
+  const mouthWidth = 2.0;
+  const mouthHeight = 1.42;
   const hearth = 0.28;
+  /** Top of the opening: the underside of the bressummer beam. */
+  const lintel = hearth + mouthHeight;
+
+  // Battered base, and the two cheeks the beam sits on. There is no stone at
+  // all directly over the fire - the beam spans it, as it would in a real one.
+  b.solid('cabin.stone', [proud + 0.3, 1.2, breadth + 0.4], [x + (proud + 0.3) / 2, 0, 0], 0, { tile: 2.6 });
   for (const sign of [-1, 1]) {
     const width = (breadth - mouthWidth) / 2;
-    b.box('cabin.stone', [proud + 0.34, mouthHeight + 0.1, width], [x + (proud + 0.34) / 2, hearth, sign * (mouthWidth + width) / 2], 0, { tile: 2.6 });
+    b.box('cabin.stone', [proud + 0.34, lintel, width], [x + (proud + 0.34) / 2, 0, (sign * (mouthWidth + width)) / 2], 0, {
+      tile: 2.6,
+    });
   }
-  b.box('cabin.soot', [0.1, mouthHeight, mouthWidth], [x + 0.34, hearth, 0], 0, { tile: 1.2 });
-  b.box('cabin.soot', [proud + 0.3, 0.08, mouthWidth], [x + (proud + 0.3) / 2, hearth + mouthHeight, 0], 0, { tile: 1.2 });
+  b.box('cabin.soot', [0.12, mouthHeight + 0.5, mouthWidth], [x + 0.3, hearth, 0], 0, { tile: 1.2 });
 
   // Raised hearthstone, which is also the thing that stops you standing in it.
   b.solid('cabin.stone', [proud + 0.55, hearth, breadth + 0.4], [x + (proud + 0.55) / 2, 0, 0], 0, { tile: 2.6 });
 
-  // Mantel: one enormous adzed beam, and the clutter that lives on it.
-  b.box('beam', [proud + 0.5, 0.26, breadth + 0.1], [x + (proud + 0.5) / 2, hearth + mouthHeight + 0.14, 0], 0, { tile: 1.4 });
-  b.box('ceramic', [0.2, 0.3, 0.2], [x + 0.5, hearth + mouthHeight + 0.4, -0.95], 0.3, { tile: 0.4 });
-  b.box('brass', [0.16, 0.22, 0.16], [x + 0.46, hearth + mouthHeight + 0.4, 1.05], -0.2, { tile: 0.4 });
-  b.box('timberDark', [0.1, 0.34, 0.5], [x + 0.5, hearth + mouthHeight + 0.4, 0.2], 0.08, { tile: 0.5 });
+  // Mantel: one enormous adzed beam spanning the opening, and the clutter on it.
+  const mantel = 0.3;
+  b.box('beam', [proud + 0.5, mantel, breadth + 0.1], [x + (proud + 0.5) / 2, lintel, 0], 0, { tile: 1.4 });
+  b.box('ceramic', [0.2, 0.3, 0.2], [x + 0.5, lintel + mantel, -1.1], 0.3, { tile: 0.4 });
+  b.box('brass', [0.16, 0.22, 0.16], [x + 0.46, lintel + mantel, 1.2], -0.2, { tile: 0.4 });
+  b.box('timberDark', [0.1, 0.34, 0.5], [x + 0.5, lintel + mantel, 0.35], 0.08, { tile: 0.5 });
+
+  /**
+   * The hood. Five courses, each narrower and shallower than the one below, so
+   * the chimney tapers away toward the ridge instead of standing over the room.
+   */
+  const hoodBottom = lintel + mantel;
+  const courses = 5;
+  const course = (RIDGE - hoodBottom) / courses;
+  for (let i = 0; i < courses; i++) {
+    const t = i / courses;
+    const width = breadth * (1 - t * 0.6);
+    const depth = proud * (1 - t * 0.4);
+    b.box('cabin.stone', [depth, course + 0.02, width], [x + depth / 2, hoodBottom + t * (RIDGE - hoodBottom), 0], 0, {
+      tile: 2.6,
+    });
+  }
 
   /* --- the fire itself --------------------------------------------------- */
 
-  const fireX = x + 0.62;
+  const fireX = x + 0.58;
   const fireY = hearth + 0.04;
 
-  // Logs, criss-crossed. Charcoal is faintly emissive, so the pile glows from
-  // within rather than only being lit from outside.
+  // A wrought grate, so the pile sits UP in the middle of the opening rather
+  // than lying on the floor of it where the hearthstone hides half of it.
+  for (const sign of [-1, 1]) {
+    b.box('iron', [0.42, 0.22, 0.06], [fireX - 0.21, fireY, sign * 0.5], 0, { tile: 0.3 });
+  }
+  for (let i = 0; i < 7; i++) {
+    b.box('iron', [0.36, 0.03, 0.03], [fireX - 0.18, fireY + 0.2, -0.48 + i * 0.16], 0, { tile: 0.3 });
+  }
+
+  // Logs, criss-crossed on the grate. Charcoal is faintly emissive, so the pile
+  // glows from within rather than only being lit from outside.
   const logs: readonly (readonly [number, number, number, number])[] = [
-    [fireX - 0.06, 0.09, -0.3, 0.5],
-    [fireX + 0.08, 0.1, 0.28, -0.7],
-    [fireX, 0.24, 0.0, 0.15],
-    [fireX + 0.02, 0.22, -0.22, -1.1],
+    [fireX - 0.08, 0.24, -0.34, 0.5],
+    [fireX + 0.1, 0.25, 0.32, -0.7],
+    [fireX - 0.02, 0.4, 0.02, 0.15],
+    [fireX + 0.04, 0.38, -0.26, -1.1],
+    [fireX - 0.04, 0.53, 0.16, 0.9],
+    [fireX + 0.06, 0.55, -0.12, -0.35],
   ];
   for (const [lx, ly, lz, yaw] of logs) {
-    const geometry = new THREE.CylinderGeometry(0.075, 0.085, 0.9, 7);
+    const geometry = new THREE.CylinderGeometry(0.08, 0.09, 1.05, 7);
     b.geo('charcoal', geometry, tiltMatrix([lx, fireY + ly, lz], [0, yaw, Math.PI / 2]), {
       tile: 0.5,
       consume: true,
     });
   }
 
-  // Embers under the logs.
-  for (let i = 0; i < 7; i++) {
-    b.box('ember', [0.07, 0.03, 0.07], [fireX + b.range(-0.16, 0.16), fireY, b.range(-0.5, 0.5)], b.range(0, 1.5), {
+  // Embers, spread the full width of the grate. Small and flat on purpose - at
+  // any size at all they stop being coals and start being marbles.
+  for (let i = 0; i < 16; i++) {
+    b.box('ember', [0.05, 0.02, 0.05], [fireX + b.range(-0.22, 0.22), fireY + 0.21, b.range(-0.6, 0.6)], b.range(0, 1.5), {
       tile: 0.2,
       castShadow: false,
     });
   }
 
   /**
-   * The flame. Six cones on their own node - not batched, because they are
-   * scaled and swayed every frame. Cosmetic motion belongs to art, driven from
+   * The flame. Cones on their own node - not batched, because they are scaled
+   * and swayed every frame. Cosmetic motion belongs to art, driven from
    * `onBeforeRender`, so it stops dead the moment the lobby is torn down.
+   *
+   * Eighteen of them rather than nine: the opening is now wide enough that a
+   * thin row of tongues in the middle of it read as a candle in a cave.
    */
   const flames = new THREE.Group();
-  flames.position.set(fireX, fireY + 0.18, 0);
+  flames.position.set(fireX, fireY + 0.5, 0);
   b.attach(flames);
 
   const tongues: { mesh: THREE.Mesh; phase: number; base: number }[] = [];
   // Tall and narrow: a flame is a tongue, and a squat cone reads as a blob.
-  const flameGeometry = new THREE.ConeGeometry(0.11, 0.86, 6, 1, true);
-  const coreGeometry = new THREE.ConeGeometry(0.07, 0.44, 6, 1, true);
+  const flameGeometry = new THREE.ConeGeometry(0.13, 1.02, 6, 1, true);
+  const coreGeometry = new THREE.ConeGeometry(0.09, 0.5, 6, 1, true);
   b.own(() => {
     flameGeometry.dispose();
     coreGeometry.dispose();
   });
 
   // Outer tongues spread along the log pile; the pale cores sit low inside them.
-  for (let i = 0; i < 9; i++) {
-    const core = i >= 6;
+  const OUTER = 12;
+  for (let i = 0; i < 18; i++) {
+    const core = i >= OUTER;
     const mesh = new THREE.Mesh(core ? coreGeometry : flameGeometry, b.mat(core ? 'flameCore' : 'flame'));
-    const spread = core ? 0.26 : 0.46;
+    // Spaced rather than random, so no two tongues land on top of each other.
+    const lane = core ? (i - OUTER) / 5 - 0.5 : (i % 6) / 5 - 0.5;
     mesh.position.set(
-      b.range(-0.08, 0.08),
-      core ? 0.02 : 0.36,
-      // Spaced rather than random, so no two tongues land on top of each other.
-      (((i % 3) - 1) * spread) / 1.2 + b.range(-0.08, 0.08),
+      b.range(-0.14, 0.14) + (core ? 0 : (Math.floor(i / 6) - 0.5) * 0.18),
+      core ? 0.04 : 0.42,
+      lane * (core ? 0.78 : 1.16) + b.range(-0.09, 0.09),
     );
     flames.add(mesh);
-    tongues.push({ mesh, phase: b.range(0, Math.PI * 2), base: core ? b.range(0.8, 1.1) : b.range(0.65, 1.15) });
+    // A wide spread of resting heights: a row of tongues the same length reads
+    // as a pilot light, not as a fire.
+    tongues.push({ mesh, phase: b.range(0, Math.PI * 2), base: core ? b.range(0.75, 1.15) : b.range(0.45, 1.25) });
   }
 
-  const fireLight = new THREE.PointLight(0xffa451, 22, 15, 2);
-  fireLight.position.set(fireX + 0.1, fireY + 0.55, 0);
+  const fireLight = new THREE.PointLight(0xffa451, 34, 19, 2);
+  fireLight.position.set(fireX + 0.2, fireY + 0.8, 0);
   fireLight.castShadow = true;
-  fireLight.shadow.camera.far = 16;
+  fireLight.shadow.camera.far = 20;
   fireLight.shadow.bias = -0.004;
   b.light(fireLight);
 
@@ -439,12 +784,12 @@ function fireplace(b: Builder): void {
     }
     // The light flickers with the flames rather than on a timer of its own, so
     // the shadows on the far wall always agree with what the fire is doing.
-    fireLight.intensity = 18 + (sum / tongues.length) * 7;
+    fireLight.intensity = 28 + (sum / tongues.length) * 10;
   });
 
   // Fire irons and a basket of split logs, because a fire needs feeding.
-  b.box('iron', [0.05, 0.9, 0.05], [x + 0.9, hearth, 1.35], 0.1, { tile: 0.4 });
-  b.box('iron', [0.05, 0.86, 0.05], [x + 1.0, hearth, 1.45], -0.14, { tile: 0.4 });
+  b.box('iron', [0.05, 0.9, 0.05], [x + 0.9, hearth, 1.55], 0.1, { tile: 0.4 });
+  b.box('iron', [0.05, 0.86, 0.05], [x + 1.0, hearth, 1.65], -0.14, { tile: 0.4 });
   b.solid('timberDark', [0.62, 0.42, 0.62], [x + 1.35, 0, -1.5], 0.2, { tile: 0.6 });
   for (let i = 0; i < 5; i++) {
     const geometry = new THREE.CylinderGeometry(0.07, 0.08, 0.56, 6);
@@ -520,33 +865,23 @@ function furniture(b: Builder): void {
   b.box('ceramic', [0.16, 0.1, 0.16], [-3.5, 0.44, -0.2], 0.3, { tile: 0.3 });
   b.box('paper', [0.28, 0.03, 0.36], [-3.3, 0.44, 0.25], -0.2, { tile: 0.4 });
 
-  // The long table down the middle of the room, where the lever stands at one
-  // end and everyone naturally gathers at the other.
-  const tableX = -0.4;
-  b.solid('timber', [3.4, 0.1, 1.2], [tableX, 0.74, -2.4], 0, { tile: 1.2 });
-  for (const [dx, dz] of [[-1.5, -0.45], [1.5, -0.45], [-1.5, 0.45], [1.5, 0.45]] as const) {
-    b.box('timberDark', [0.14, 0.74, 0.14], [tableX + dx, 0, -2.4 + dz], 0, { tile: 0.5 });
-  }
-  b.box('timberDark', [3.0, 0.1, 0.12], [tableX, 0.58, -2.4], 0, { tile: 0.6 });
-  bench(b, tableX - 0.1, -3.25, 0);
-  bench(b, tableX + 0.1, -1.55, 0);
-  // A lantern and a couple of mugs on it.
-  standingLantern(b, tableX + 1.2, 0.84, -2.4);
-  b.box('ceramic', [0.11, 0.13, 0.11], [tableX - 0.5, 0.84, -2.55], 0.2, { tile: 0.3 });
-  b.box('ceramic', [0.11, 0.13, 0.11], [tableX - 0.2, 0.84, -2.2], -0.5, { tile: 0.3 });
+  // The middle of the hall is deliberately clear: it is where four people stand
+  // to talk before a run, and the lever is the only thing that belongs in it.
 
-  // Bookshelf against the east gable, south of the minigame wall - the poster
-  // board owns the whole of the +Z wall and nothing may stand in front of it.
-  const shelfX = HALF_X - 0.35;
-  b.solid('timber', [0.34, 2.0, 1.4], [shelfX, 0, 3.4], 0, { tile: 1.0 });
+  // Bookshelf against the WEST gable, past the chimney breast. It used to stand
+  // on the east one; the dart fence owns that wall now, and the poster board
+  // owns the whole of +Z, so this corner is the only wall left it fits on.
+  const shelfX = -HALF_X + 0.35;
+  const shelfZ = 3.3;
+  b.solid('timber', [0.34, 2.0, 1.4], [shelfX, 0, shelfZ], 0, { tile: 1.0 });
   for (let shelf = 0; shelf < 4; shelf++) {
     const y = 0.34 + shelf * 0.42;
-    b.box('timberDark', [0.3, 0.04, 1.3], [shelfX, y, 3.4], 0, { tile: 0.6 });
-    let z = 2.85;
-    while (z < 3.9) {
+    b.box('timberDark', [0.3, 0.04, 1.3], [shelfX, y, shelfZ], 0, { tile: 0.6 });
+    let z = shelfZ - 0.55;
+    while (z < shelfZ + 0.5) {
       const w = b.range(0.04, 0.09);
       const h = b.range(0.2, 0.32);
-      b.box(b.pick(['cushion', 'cushionGreen', 'timberDark', 'hide']), [0.22, h, w], [shelfX - 0.02, y + 0.04, z], 0, {
+      b.box(b.pick(['cushion', 'cushionGreen', 'timberDark', 'hide']), [0.22, h, w], [shelfX + 0.02, y + 0.04, z], 0, {
         tile: 0.3,
       });
       z += w + 0.012;
@@ -564,21 +899,11 @@ function furniture(b: Builder): void {
   // Antler chandelier over the middle of the hall.
   chandelier(b, 0, -1.0);
 
-  // Wall lanterns on the gable ends, clear of both the chimney breast and the
-  // poster board.
+  // Wall lanterns on the gable ends, clear of the chimney breast, the bookshelf
+  // and the fence opening.
   lantern(b, -HALF_X + 0.1, 1.75, -2.9, [1, 0]);
-  lantern(b, -HALF_X + 0.1, 1.75, 2.9, [1, 0]);
-  lantern(b, HALF_X - 0.1, 1.75, 0.4, [-1, 0]);
-}
-
-/** The same lantern, standing on a table rather than hanging off a wall. */
-function standingLantern(b: Builder, x: number, y: number, z: number): void {
-  b.box('brass', [0.17, 0.04, 0.17], [x, y, z], 0, { tile: 0.3 });
-  b.box('glass', [0.14, 0.24, 0.14], [x, y + 0.04, z], 0, { castShadow: false });
-  b.box('lampGlow', [0.07, 0.14, 0.07], [x, y + 0.09, z], 0, { castShadow: false });
-  b.box('brass', [0.2, 0.05, 0.2], [x, y + 0.28, z], 0, { tile: 0.3 });
-  const hoop = new THREE.TorusGeometry(0.05, 0.01, 5, 10, Math.PI);
-  b.geo('iron', hoop, tiltMatrix([x, y + 0.33, z], [0, 0, 0]), { consume: true });
+  lantern(b, -HALF_X + 0.1, 1.75, 2.1, [1, 0]);
+  lantern(b, HALF_X - 0.1, 1.75, -0.6, [-1, 0]);
 }
 
 function armchair(b: Builder, x: number, z: number, yaw: number): void {
@@ -600,13 +925,6 @@ function armchair(b: Builder, x: number, z: number, yaw: number): void {
     b.box('hide', [0.14, 0.3, 0.86], [arm[0], 0.42, arm[2]], yaw, { tile: 0.9 });
   }
   b.box('fur', [0.7, 0.06, 0.4], [x, 0.58, z], yaw + 0.1, { tile: 0.6 });
-}
-
-function bench(b: Builder, x: number, z: number, yaw: number): void {
-  b.solid('timber', [2.6, 0.08, 0.4], [x, 0.46, z], yaw, { tile: 1.0 });
-  for (const dx of [-1.05, 1.05]) {
-    b.box('timberDark', [0.12, 0.46, 0.34], [x + dx, 0, z], yaw, { tile: 0.5 });
-  }
 }
 
 /**
@@ -756,28 +1074,161 @@ function outside(b: Builder): void {
     }
   }
 
-  // A treeline on the near slope, thinning as it climbs.
-  for (let i = 0; i < 44; i++) {
-    const tx = b.range(-46, 46);
-    const tz = b.range(-38, -9);
-    // Nothing directly in front of the window: the mountains are the view.
-    if (Math.abs(tx) < 6 && tz > -16) continue;
+  treeline(b);
+  snowfall(b);
+}
 
-    const height = b.range(3.5, 8);
-    const trunk = new THREE.CylinderGeometry(0.12, 0.2, height * 0.35, 5);
-    b.geo('pineTrunk', trunk, poseMatrix([tx, -0.9 + height * 0.175, tz]), { ...flat, tile: 1, consume: true });
-    for (let tier = 0; tier < 3; tier++) {
-      const t = tier / 3;
-      const skirt = new THREE.ConeGeometry(height * (0.3 - t * 0.08), height * 0.42, 6, 1);
-      b.geo('pineNeedle', skirt, poseMatrix([tx, -0.9 + height * (0.3 + t * 0.24), tz]), {
-        ...flat,
-        tile: 3,
-        consume: true,
-      });
-    }
+/** Ground level outside, which the whole view is built down from. */
+const GROUND = -0.9;
+
+/**
+ * One conifer.
+ *
+ * Three cones stacked on a stick is what this used to be, and from the window
+ * seat - which is where players stand and look - it read as exactly that. A fir
+ * is a *stack of skirts on a visible trunk*, each skirt narrower than the one
+ * under it, each carrying snow on its shoulder, and it comes to a spire rather
+ * than a blunt point. That is six or seven tiers, not three, and the snow is
+ * what makes it belong to this mountain rather than to a park.
+ *
+ * Every piece is `consume: true` and shares three materials, so a hundred of
+ * them still merge down to three draw calls. None of it casts or receives a
+ * shadow: it is scenery on the far side of the glass.
+ */
+function conifer(b: Builder, x: number, z: number, height: number): void {
+  const flat = { castShadow: false, receiveShadow: false } as const;
+
+  // Trunk, tapered, plus a root flare - a pole stuck in snow reads as a pole.
+  const trunkHeight = height * 0.74;
+  b.geo(
+    'pineTrunk',
+    new THREE.CylinderGeometry(height * 0.011, height * 0.028, trunkHeight, 6),
+    poseMatrix([x, GROUND + trunkHeight / 2, z]),
+    { ...flat, tile: 1.4, consume: true },
+  );
+  b.geo(
+    'pineTrunk',
+    new THREE.ConeGeometry(height * 0.062, height * 0.13, 6, 1),
+    poseMatrix([x, GROUND + height * 0.065, z]),
+    { ...flat, tile: 1.2, consume: true },
+  );
+
+  // Clear trunk under the lowest skirt, and how wide the tree is at that skirt.
+  const bare = height * 0.13;
+  const spread = b.range(0.22, 0.3);
+  const tiers = 7 + Math.floor(b.range(0, 3));
+  /** Which way the whole tree leans. Nothing outdoors grows plumb. */
+  const leanX = b.range(-0.05, 0.05);
+  const leanZ = b.range(-0.05, 0.05);
+
+  for (let i = 0; i < tiers; i++) {
+    const t = i / tiers;
+    const base = GROUND + bare + t * (height - bare) * 0.86;
+    const radius = height * spread * (1 - t * 0.82) * b.range(0.86, 1.08);
+    // Deep overlap between tiers: a fir is a continuous mass of needles with
+    // whorls IN it, not a stack of separate skirts with air between them.
+    const skirt = height * (0.34 - t * 0.14);
+    const drift = base - GROUND;
+    // Lean, plus a free spin and a little wander per whorl.
+    const tilt: readonly [number, number, number] = [
+      leanX + b.range(-0.05, 0.05),
+      b.range(0, Math.PI),
+      leanZ + b.range(-0.05, 0.05),
+    ];
+    const px = x + leanX * drift * 0.4 + b.range(-0.04, 0.04) * height * 0.1;
+    const pz = z - leanZ * drift * 0.4 + b.range(-0.04, 0.04) * height * 0.1;
+
+    b.geo(
+      t < 0.4 ? 'pineNeedleDeep' : 'pineNeedle',
+      new THREE.ConeGeometry(radius, skirt, 7, 1),
+      tiltMatrix([px, base + skirt / 2, pz], tilt),
+      { ...flat, tile: 2.4, consume: true },
+    );
+
+    /**
+     * Snow on the shoulder of that whorl.
+     *
+     * Deliberately NOT a ring round the whole skirt - the first attempt was, and
+     * a dozen even white bands up a cone reads as a wedding cake from the window
+     * seat. It is a small, off-centre, differently-spun cone that catches part
+     * of the shoulder and leaves the rest green, and only the upper whorls carry
+     * it at all, because snow falls from above.
+     */
+    if (t < 0.25) continue;
+    b.geo(
+      'snowCap',
+      new THREE.ConeGeometry(radius * 0.72, skirt * 0.42, 6, 1),
+      tiltMatrix(
+        [px + b.range(-0.06, 0.06) * radius, base + skirt * 0.5, pz + b.range(-0.06, 0.06) * radius],
+        [tilt[0] + b.range(-0.09, 0.09), b.range(0, Math.PI), tilt[2] + b.range(-0.09, 0.09)],
+      ),
+      { ...flat, tile: 2, consume: true },
+    );
   }
 
-  snowfall(b);
+  // The spire, which is the silhouette people actually recognise, with a cap of
+  // snow on the very tip of it.
+  const tipX = x + leanX * height * 0.4;
+  const tipZ = z - leanZ * height * 0.4;
+  b.geo(
+    'pineNeedle',
+    new THREE.ConeGeometry(height * 0.055, height * 0.24, 6, 1),
+    tiltMatrix([tipX, GROUND + height * 0.92, tipZ], [leanX, 0, leanZ]),
+    { ...flat, tile: 1.6, consume: true },
+  );
+  b.geo(
+    'snowCap',
+    new THREE.ConeGeometry(height * 0.032, height * 0.1, 6, 1),
+    tiltMatrix([tipX, GROUND + height * 0.99, tipZ], [leanX, 0, leanZ]),
+    { ...flat, tile: 1.4, consume: true },
+  );
+}
+
+/**
+ * The treeline on the near slope: clumps rather than a scatter, because that is
+ * how conifers actually grow and because an even sprinkle reads as wallpaper.
+ * Nothing lands directly in front of the window - the mountains are the view.
+ */
+function treeline(b: Builder): void {
+  const flat = { castShadow: false, receiveShadow: false } as const;
+  const clear = (x: number, z: number): boolean => Math.abs(x) < 6.5 && z > -17;
+
+  for (let clump = 0; clump < 16; clump++) {
+    const cx = b.range(-54, 54);
+    const cz = b.range(-42, -10);
+    if (clear(cx, cz)) continue;
+
+    // A clump is one big tree and its neighbours, all a little shorter.
+    const tall = b.range(5.5, 10);
+    const count = 2 + Math.floor(b.range(0, 5));
+    for (let i = 0; i < count; i++) {
+      const x = cx + b.range(-5.5, 5.5);
+      const z = cz + b.range(-4.5, 4.5);
+      if (clear(x, z)) continue;
+      conifer(b, x, z, i === 0 ? tall : tall * b.range(0.42, 0.86));
+    }
+
+    // A snapped-off trunk or a stump at the edge of most clumps. Cheap, and it
+    // is what stops a stand of firs looking like it was planted this morning.
+    if (b.range(0, 1) > 0.45) {
+      const sx = cx + b.range(-6, 6);
+      const sz = cz + b.range(-5, 5);
+      if (clear(sx, sz)) continue;
+      const stub = b.range(0.6, 2.6);
+      b.geo(
+        'pineTrunk',
+        new THREE.CylinderGeometry(stub * 0.09, stub * 0.16, stub, 6),
+        tiltMatrix([sx, GROUND + stub / 2, sz], [b.range(-0.12, 0.12), 0, b.range(-0.12, 0.12)]),
+        { ...flat, tile: 1.2, consume: true },
+      );
+      b.geo(
+        'snowCap',
+        new THREE.CylinderGeometry(stub * 0.11, stub * 0.11, 0.06, 6),
+        poseMatrix([sx, GROUND + stub, sz]),
+        { ...flat, tile: 1, consume: true },
+      );
+    }
+  }
 }
 
 /**

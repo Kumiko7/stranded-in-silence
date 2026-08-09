@@ -23,8 +23,9 @@ import { buildFlashBurst } from './vfx/flashBurst';
 import { buildPlayer } from './characters/player';
 import { buildGhost } from './characters/ghost';
 import { hatArt } from './characters/hats';
-import { buildLever, buildMinigamePlaceholder, buildWardrobe } from './lobby/fixtures';
-import { buildPosterBlank, buildPosterMansion, buildPosterTest, buildPosterViscera } from './lobby/poster';
+import { buildLever, buildWardrobe } from './lobby/fixtures';
+import { buildDart, buildDartStand, buildDartboard, buildScoreboard } from './lobby/darts';
+import { buildPosterBlank, buildPosterMansion, buildPosterRandom, buildPosterTest, buildPosterViscera } from './lobby/poster';
 
 export const sharedArt: ArtRegistry = {
   'door.standard': buildDoor,
@@ -54,12 +55,17 @@ export const sharedArt: ArtRegistry = {
   // a map with no poster of its own falls back to `poster.blank`, which is also
   // what hangs in the slots no map has claimed yet.
   'poster.blank': buildPosterBlank,
+  'poster.random': buildPosterRandom,
   'poster.mansion': buildPosterMansion,
   'poster.viscera': buildPosterViscera,
   'poster.test': buildPosterTest,
   'lobby.wardrobe': buildWardrobe,
   'lobby.lever': buildLever,
-  'lobby.minigame': buildMinigamePlaceholder,
+  // The dart minigame, on the far side of the fence in the east gable.
+  'lobby.dartboard': buildDartboard,
+  'lobby.scoreboard': buildScoreboard,
+  'lobby.dartStand': buildDartStand,
+  'lobby.dart': buildDart,
 
   /**
    * The cosmetic hats (`art/shared/characters/hats.ts`). They are spread in

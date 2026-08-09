@@ -124,6 +124,11 @@ export interface ArtApi {
   setMark?(hex: string): void;
   /** `lobby.lever`: 0..1 along the lever's travel. */
   setLever?(t: number): void;
+  /**
+   * `lobby.scoreboard`: one score per player, in the order the rows are drawn.
+   * Rows past the end of the list go dark - a two-player lobby shows two lines.
+   */
+  setScores?(scores: readonly number[]): void;
   /** `vfx.throwArc`: the aim line, flattened as `[x, y, z, ...]` in world space. */
   setArc?(points: readonly number[]): void;
   /**

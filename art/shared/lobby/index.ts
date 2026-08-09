@@ -6,7 +6,8 @@
  * anchors it hands back - exactly the split `worldBuilder.ts` uses for rooms and
  * their doors and containers.
  */
-export { buildCabin as buildLobby, HALF_X, HALF_Z, EAVE, RIDGE } from './cabin';
+export { buildCabin as buildLobby, HALF_X, HALF_Z, EAVE, RIDGE, BOARD_X, BOARD_Z, BOARD_HEIGHT, FENCE_RAIL } from './cabin';
 export type { BuiltCabin, CabinAnchors, Pose } from './cabin';
 export { createLobbyMaterials } from './materials';
 export { POSTER_WIDTH, POSTER_HEIGHT } from './poster';
+export { BOARD_RADIUS } from './darts';

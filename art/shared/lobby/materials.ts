@@ -65,6 +65,14 @@ const unlit = (color: number, opacity = 1, fog = true): (() => THREE.Material) =
     side: THREE.DoubleSide,
   });
 
+/**
+ * One lit seven-segment glyph for the dart scoreboard. Unlit, because a digital
+ * display is a light source: shading it would make the score dim in the corner
+ * of a room where the score is the only thing worth reading.
+ */
+const glyph = (value: number): (() => THREE.Material) => () =>
+  new THREE.MeshBasicMaterial({ map: tex.segmentDigit(value) });
+
 export function createLobbyMaterials(): MaterialLibrary {
   return materialLibrary({
     /* --- the shell -------------------------------------------------------- */
@@ -136,6 +144,13 @@ export function createLobbyMaterials(): MaterialLibrary {
       emissiveIntensity: 0.12,
       roughness: 0.95,
     }),
+    'poster.random': standard(0xffffff, {
+      map: tex.posterRandom,
+      emissive: 0xffffff,
+      emissiveMap: tex.posterRandom,
+      emissiveIntensity: 0.14,
+      roughness: 0.95,
+    }),
     // The completion tick. Unlit green so it is unmistakable at a glance.
     'poster.tick': unlit(0x4fbe6a),
     /**
@@ -148,20 +163,57 @@ export function createLobbyMaterials(): MaterialLibrary {
 
     glass: standard(0xcfe3f2, { roughness: 0.04, metalness: 0.05, transparent: 0.14 }),
     mirror: standard(0xa9b4c2, { roughness: 0.06, metalness: 1 }),
+    /**
+     * The big mirror's pane. Deliberately *mostly* transparent - what makes it
+     * read as a mirror is the frame, the chamber behind it and the copy standing
+     * in there; the glass only has to add a cold sheen over the top. Opaque
+     * metal would hide the one thing the whole fixture exists to show.
+     */
+    mirrorGlass: standard(0xbdd2e6, { roughness: 0.05, metalness: 0.9, transparent: 0.22 }),
+    /** The raked highlights on that pane. Unlit, or they stop being a highlight. */
+    mirrorSheen: unlit(0xeaf3ff, 0.22),
 
     /* --- the fire ---------------------------------------------------------- */
     flame: unlit(0xff8a2b, 0.9),
     flameCore: unlit(0xffdc86),
     ember: unlit(0xff5a1e, 0.9),
-    charcoal: standard(0x2f2b28, { roughness: 1, emissive: 0xff5a1e, emissiveIntensity: 0.5 }),
+    // Charred wood with a glow in the cracks. It was hotter than this and the
+    // log pile read as a heap of molten cylinders through the flames.
+    charcoal: standard(0x2f2b28, { roughness: 1, emissive: 0xff5a1e, emissiveIntensity: 0.26 }),
     lampGlow: standard(0xffe0aa, { emissive: 0xffcf95, emissiveIntensity: 1.4, roughness: 0.6, transparent: 0.9 }),
+
+    /* --- the dart annex ------------------------------------------------------ */
+
+    // The sisal, printed. Faintly self-lit for the same reason a poster is: it
+    // hangs three metres behind a fence and still has to be readable.
+    'dart.board': standard(0xffffff, {
+      map: tex.dartboard,
+      emissive: 0xffffff,
+      emissiveMap: tex.dartboard,
+      emissiveIntensity: 0.04,
+      roughness: 0.92,
+    }),
+    'dart.surround': standard(0x241f1c, { roughness: 0.95 }),
+    'dart.barrel': standard(0xbcc2cb, { roughness: 0.32, metalness: 0.9 }),
+    'dart.flight': standard(0xd8593c, { roughness: 0.8, side: THREE.DoubleSide }),
+    'score.panel': standard(0xffffff, { map: tex.scoreSlate, roughness: 0.55, metalness: 0.2 }),
+    // Cloned per row by the scoreboard builder, which tints it - see setScores().
+    'score.pip': () => new THREE.MeshBasicMaterial({ color: 0xffffff }),
+    'score.blank': glyph(-1),
+    ...Object.fromEntries(Array.from({ length: 10 }, (_, value) => [`score.digit${value}`, glyph(value)])),
 
     /* --- outside ----------------------------------------------------------- */
     snow: standard(0xffffff, { map: tex.snow, roughness: 0.72 }),
     rock: standard(0xffffff, { map: tex.rockFace, roughness: 0.95, flat: true }),
     snowCap: standard(0xffffff, { map: tex.snowCap, roughness: 0.8, flat: true }),
-    pineNeedle: standard(0x3d5a46, { roughness: 1, flat: true }),
-    pineTrunk: standard(0x5a4433, { roughness: 0.95 }),
+    pineNeedle: standard(0xffffff, { map: tex.pineFoliage, roughness: 1, flat: true }),
+    /**
+     * The lower skirts, and the trees furthest back. Same needles, tinted down
+     * and cooled: a fir is darker at the bottom than at the crown, and the fog
+     * alone does not get that across at fifteen metres.
+     */
+    pineNeedleDeep: standard(0x7e8f88, { map: tex.pineFoliage, roughness: 1, flat: true }),
+    pineTrunk: standard(0xffffff, { map: tex.pineBark, roughness: 0.95 }),
     // The sky is the far distance itself, so fog must not be applied to it.
     sky: standard(0xffffff, {
       map: tex.sky,

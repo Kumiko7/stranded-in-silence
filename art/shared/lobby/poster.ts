@@ -140,6 +140,12 @@ function posterBuilder(materialName: string): ArtBuilder {
 
 /** A slot with nothing pinned in it: a map that does not exist yet. */
 export const buildPosterBlank = posterBuilder('poster.blank');
+/**
+ * "Whichever one you like." Structurally an ordinary poster - same frame, same
+ * tick, same mark - because it has to be pressed, marked and tallied exactly
+ * like the maps it hangs beside. What it resolves to is `src/game/Lobby.ts`.
+ */
+export const buildPosterRandom = posterBuilder('poster.random');
 export const buildPosterMansion = posterBuilder('poster.mansion');
 export const buildPosterViscera = posterBuilder('poster.viscera');
 export const buildPosterTest = posterBuilder('poster.test');

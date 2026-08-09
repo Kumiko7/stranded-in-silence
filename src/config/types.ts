@@ -19,6 +19,8 @@ export interface GameConfig {
     allReadyStartSeconds: number;
     /** How many frames the poster wall has. Slots past the map list hang blank. */
     posterSlots: number;
+    /** Whether a "?" poster hangs after the maps. Picking it picks for you. */
+    randomPoster: boolean;
   };
   /** The post-run scoreboard: which counters it shows, in order. */
   scoring: {
@@ -465,8 +467,46 @@ export interface UiConfig {
   };
 }
 
+/**
+ * The lobby dart minigame (`config/darts.json`). Kept apart from the run's
+ * throwables on purpose - see the `$doc` in that file.
+ */
+export interface DartsConfig {
+  throw: {
+    speed: number;
+    gravity: number;
+    releaseHeightOffset: number;
+    radius: number;
+    maxFlightSeconds: number;
+  };
+  wind: {
+    /** Lateral acceleration in m/s², at full strength. */
+    strength: number;
+    /** Two periods per axis. They must not divide each other. */
+    periodSeconds: number[];
+    verticalScale: number;
+  };
+  board: {
+    radius: number;
+    /** Every ring below is a fraction of `radius`. */
+    innerBull: number;
+    outerBull: number;
+    trebleInner: number;
+    trebleOuter: number;
+    doubleInner: number;
+    doubleOuter: number;
+    innerBullScore: number;
+    outerBullScore: number;
+    /** Bed values clockwise from twelve o'clock. */
+    sectors: number[];
+  };
+  stick: { seconds: number; maxInWorld: number };
+  hand: { offset: number[]; raiseSeconds: number };
+}
+
 export interface Config {
   audio: AudioConfig;
+  darts: DartsConfig;
   difficulty: DifficultyConfig;
   game: GameConfig;
   player: PlayerConfig;

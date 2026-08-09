@@ -247,9 +247,23 @@ stops new hats being cheap.
 The cabin (`art/shared/lobby/`) is not a map and has no art pack, so it brings its own
 material library (`createLobbyMaterials()`) which still satisfies §3.1 in full. It is
 built by `buildLobby(ctx, posterSlots)` and returns **anchors** — arrival spots, one
-per poster slot, the wardrobe, the mannequin, the wardrobe camera, the lever and the
-minigame wall. `src/world/lobbyScene.ts` places the pieces below at them, exactly as
-`worldBuilder.ts` places doors and chests in a room.
+per poster slot, the wardrobe, the mannequin, the wardrobe camera, the lever, the dart
+stand, the dartboard and the scoreboard. `src/world/lobbyScene.ts` places the pieces
+below at them, exactly as `worldBuilder.ts` places doors and chests in a room.
+
+Two things in the cabin are **not** shared art and are built into `cabin.ts` instead,
+because both are holes in a wall and geometry has to be left out for them:
+
+- **The mirror** on the east gable — a lit, boarded chamber behind a tinted pane with
+  two raked highlights on it. It is a *fake*: the player's own model is placed at
+  `anchors.mannequin`, which is inside the chamber, at about the depth a reflection of
+  somebody a metre out would sit at. A real mirror is a second render pass, and the
+  only thing in the room worth reflecting is that one model. The fake is what stopped
+  the model reading as a fourth player standing very still on the floorboards.
+- **The fence and the dart annex** on the same wall — a chest-high rail across a
+  full-height opening, and a small dark room beyond it. The perimeter collider was
+  never cut for that opening, so you can see over and throw over but never walk
+  through, and `npm run validate:art` floods the cabin to prove it.
 
 ### `poster.*` — `0.72 m` wide × `1.02 m` tall, origin at the BOTTOM CENTRE
 
@@ -264,6 +278,11 @@ key, so the name reaches the player through the interact prompt and the expediti
 panel. `maps.json → maps.<id>.posterArtId` names the builder; an id that is not
 registered falls back to `poster.blank`, which is also what hangs in the slots no map
 has claimed. Adding the nineteenth map's poster is a texture plus one registry line.
+
+`poster.random` — the `?` — is the same builder with a different print, and that is
+the point: it is pressed, marked and tallied exactly like a map, and only resolved to
+one at the moment a run starts. `game.json → lobby.randomPoster` hangs it in the frame
+straight after the last real map.
 
 `mark`'s material must be **cloned** before tinting, for the same reason the ghost
 clones its alert material.
@@ -282,11 +301,43 @@ clones its alert material.
 | `handle` | Pivots along the lever's travel. Logic calls `api.setLever(t)`, `t` in `0..1`. |
 | `interactAnchor` | Prompt position. |
 
-### `lobby.minigame` — scenery
+### `lobby.dartStand` — `0.5 × 0.4 m` footprint, `1.05 m` tall
 
-No parts, no interaction, no collider: the wall a minigame goes on (plan step 46).
-Build it as something visibly *covered* rather than as blank wall — "this is coming"
-is the whole message.
+| Part | Purpose |
+| --- | --- |
+| `interactAnchor` | Prompt position. |
+
+The rack you take darts from, on the cabin side of the fence. It never runs out, so
+the darts standing in it are geometry: taking one does not remove one.
+
+### `lobby.dartboard` — origin at the CENTRE, facing -Z
+
+No parts and no api, and the only piece in the lobby whose origin is **not** at its
+base. A board is hung at a height, and its rings, its scoring and where a dart sticks
+are all measured from the middle; measuring from the floor would mean every caller
+subtracting the same number. Logic scores a dart from `config/darts.json` and the
+anchor pose, and the board's texture is painted from the same ring fractions, so the
+picture and the maths cannot come apart.
+
+### `lobby.scoreboard` — `1.32 × 1.08 m`, origin at the BOTTOM CENTRE
+
+| Part | Purpose |
+| --- | --- |
+| `rows` | The twelve digit planes and four pips, as one node. |
+
+A seven-segment display: one small plane per digit, with a material per glyph. Eleven
+materials (ten digits and an unlit one) are shared by all twelve planes, so
+`api.setScores(scores)` swaps `mesh.material` and touches nothing else — no canvas, no
+text, and nothing for `t()` to translate, which matters because art cannot reach it.
+Rows past the end of `scores` go dark, pip and all.
+
+### `lobby.dart` — `0.16 m` long, origin at its CENTRE, point along -Z
+
+No parts. Pointing along -Z rather than standing upright is what lets logic aim it
+with a single `lookAt` down its velocity: this is a thing whose whole life is spent
+pointing where it is going, or where it went. The same builder serves the dart in your
+hand, the one in flight and the ones stuck in the board, so it is merged down to two
+meshes and **cloned** per dart — a dozen in the board share one set of geometry.
 
 ## 3.1 Materials shared art asks for
 
@@ -315,8 +366,9 @@ with a border, a centre line and detail where a door has detail. `viscera`'s
 | `vfx.flash` | `vfx.flashBurst` — **cloned** by the builder so one flare fading does not dim every other one |
 | `playerBody`, `playerMask` | `player.masked` — both are **cloned** by the builder so `setColour` tints one player, not all of them. `playerBody` carries three shades and `playerMask` the trim |
 | `ghostShroud`, `ghostAlert` | `enemy.ghost` — both are **cloned** by the builder so it can tint per alert level without touching the shared cache |
-| `timberDark`, `poster.blank`, `poster.<map>`, `poster.tick`, `poster.mark` | `poster.*` (lobby only) |
-| `timber`, `timberPale`, `timberDark`, `iron`, `brass`, `copper`, `mirror`, `canvas`, `cushion`, `cushionGreen` | `lobby.wardrobe`, `lobby.lever`, `lobby.minigame` (lobby only) |
+| `timberDark`, `poster.blank`, `poster.random`, `poster.<map>`, `poster.tick`, `poster.mark` | `poster.*` (lobby only) |
+| `timber`, `timberPale`, `timberDark`, `iron`, `brass`, `copper`, `mirror`, `mirrorGlass`, `mirrorSheen`, `canvas`, `cushion`, `cushionGreen` | `lobby.wardrobe`, `lobby.lever`, the mirror (lobby only) |
+| `dart.board`, `dart.surround`, `dart.barrel`, `dart.flight`, `score.panel`, `score.pip`, `score.blank`, `score.digit0`…`score.digit9` | `lobby.dartboard`, `lobby.scoreboard`, `lobby.dartStand`, `lobby.dart` (lobby only). `score.pip` is **cloned** per row before it is tinted |
 
 Adding a shared piece that needs a new material means adding it to this table and
 to every pack.

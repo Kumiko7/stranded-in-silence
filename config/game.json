@@ -15,7 +15,9 @@
     "mapVoteMode": "highest-votes-random-tiebreak",
     "allowRandomMap": true,
     "$note": "`posterSlots` is how many frames the poster wall has, not how many maps exist. Slots past the enabled map list hang blank white posters.",
-    "posterSlots": 20
+    "posterSlots": 20,
+    "$randomPoster": "A `?` poster hung in the frame straight after the last real map. Pressing E on it is a vote for `whatever everyone else is not choosing`: solo it rolls a map on the spot, and in company a random vote never beats a specific one - see src/game/Lobby.ts.",
+    "randomPoster": true
   },
 
   "run": {

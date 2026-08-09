@@ -15,22 +15,26 @@
 import * as THREE from 'three';
 import { clearGeometryCache } from '@art/lib/build';
 import type { RoomDims } from '@art/lib/contract';
+import { resolveArt } from '@art/shared/index';
 import type { Config } from '@/config/index';
 import { randomSeed, stream } from '@/core/rng';
 import { applyLook, createPlayerState, eyeHeight, stepPlayer, type PlayerState } from '@/entities/player';
+import { createDart, dartVelocity, stepDart, type Dart, type DartLanding, type DartWorld } from '@/entities/dart';
+import { HANDS, type Hand } from '@/entities/items';
 import type { Audio } from '@/audio/index';
 import type { Input } from '@/input/index';
 import type { LobbySnapshot, Net, RunStart } from '@/net/index';
 import type { Renderer } from '@/render/Renderer';
 import type { Save } from '@/save/index';
 import type { VoiceChat } from '@/voice/index';
-import { buildLobbyScene, type LobbyPoster, type LobbyWorld } from '@/world/lobbyScene';
+import { buildLobbyScene, RANDOM_PICK, type LobbyPoster, type LobbyWorld } from '@/world/lobbyScene';
 import { createPlayerBody, defaultCosmetic, type Cosmetic, type PlayerBody } from '@/render/playerBody';
+import type { UseView } from './Game';
 
 /** What the look-ray is offering in the cabin. Everything here is a press, not a hold. */
 export interface LobbyTarget {
-  kind: 'poster' | 'posterEmpty' | 'wardrobe' | 'lever';
-  /** Map id for a poster, the fixture name otherwise. */
+  kind: 'poster' | 'posterEmpty' | 'wardrobe' | 'lever' | 'dartStand';
+  /** The pick id for a poster, the fixture name otherwise. */
   id: string;
   verbKey: string;
   /** Locale key naming what the prompt is about, where there is one. */
@@ -61,6 +65,13 @@ export interface LobbyView {
 export interface LobbyHooks {
   onInteractTargetChange(target: LobbyTarget | null): void;
   onViewChange(view: LobbyView): void;
+  /**
+   * A dart went into a hand, or left one. Locale keys, not item ids: the cabin
+   * has no item roster to look them up in, and the HUD only wants the words.
+   */
+  onHandsChange(hands: { left: string | null; right: string | null }): void;
+  /** What the hand buttons are offering, or null when they are offering nothing. */
+  onUseChange(use: UseView | null): void;
   /** The player opened the wardrobe. The screen layer takes it from here. */
   onWardrobe(open: boolean): void;
   /** The countdown finished, or a solo player pressed E. Time to load a map. */
@@ -78,6 +89,18 @@ const MOVE_RATE_HZ = 10;
 /** Highlight colours for the poster mark: your own pick reads differently. */
 const MARK_MINE = '#d8593c';
 const MARK_OTHER = '#8a8677';
+
+/** Hand button -> hand, in the order the two are polled. Same as a run's. */
+const USE_ACTIONS: readonly (readonly [string, Hand])[] = [
+  ['useLeft', 'left'],
+  ['useRight', 'right'],
+];
+
+/** The one thing you can hold in the cabin. There is no item roster in here. */
+const DART_NAME_KEY = 'lobby.dart.name';
+
+/** How far behind the surface a landed dart's origin sits, so its point buries. */
+const DART_BURY = 0.045;
 
 export class Lobby {
   readonly #config: Config;
@@ -97,6 +120,31 @@ export class Lobby {
   #target: LobbyTarget | null = null;
   #moveTimer = 0;
   #dims: RoomDims;
+  /** The enabled maps, in poster order. What a `?` pick is resolved against. */
+  #mapIds: readonly string[] = [];
+
+  /* --- the dart minigame ---------------------------------------------------- */
+  /** Which hands hold a dart. The stand never runs out, so this is two booleans. */
+  #hands = { left: false, right: false };
+  /** The hand whose button is down, with a dart drawn in front of the camera. */
+  #ready: Hand | null = null;
+  #readyArt: THREE.Object3D | null = null;
+  /** 0..1 as the held dart is brought up. Pure presentation. */
+  #readyBlend = 0;
+  /** One dart, built once and cloned per throw - geometry and materials shared. */
+  #dartTemplate: { object: THREE.Object3D; dispose?: () => void } | null = null;
+  #flying: { dart: Dart; object: THREE.Object3D }[] = [];
+  /** Landed darts, oldest first, each with the time it gets pulled out again. */
+  #landed: { object: THREE.Object3D; until: number }[] = [];
+  #dartCount = 0;
+  /**
+   * Seconds since this browser entered the cabin. The wind is a pure function
+   * of it, and a throw carries its own reading so every peer blows the same way.
+   */
+  #clock = 0;
+  /** Dart totals per peer. Self-reported, and wiped the moment anyone leaves. */
+  #scores = new Map<string, number>();
+  #useSignature = '';
 
   /* --- lobby state --------------------------------------------------------- */
   /** The host's copy is authoritative; a client's is the last snapshot it got. */
@@ -159,6 +207,7 @@ export class Lobby {
 
     const world = buildLobbyScene(this.#config, mapIds);
     this.#world = world;
+    this.#mapIds = mapIds;
     this.#renderer.scene.add(world.root);
 
     const spawn = world.spawns[slot % world.spawns.length] ?? world.spawns[0];
@@ -177,6 +226,22 @@ export class Lobby {
     this.#moveTimer = 0;
     this.#target = null;
     this.#hooks.onInteractTargetChange(null);
+
+    // Dart scores belong to a visit, not to a profile: walking out of the cabin
+    // for any reason at all wipes them, and `start()` is every way back in.
+    this.#clock = 0;
+    this.#dartCount = 0;
+    this.#scores.clear();
+    this.#hands = { left: false, right: false };
+    this.#dartTemplate = this.#buildDart();
+    this.#readyArt = this.#dartTemplate?.object.clone() ?? null;
+    if (this.#readyArt) {
+      this.#readyArt.visible = false;
+      this.#renderer.scene.add(this.#readyArt);
+    }
+    this.#pushHands();
+    this.#pushUse(null);
+    this.#pushScores();
 
     // A poster's tick is a fact about THIS player, not about the session: it is
     // there because you escaped that map, not because your team did.
@@ -216,6 +281,20 @@ export class Lobby {
     this.#remotes.clear();
     if (this.#mannequin) this.#disposeBody(this.#mannequin);
     this.#mannequin = null;
+
+    // Every dart in the air, in the board and in a hand. Clones share the
+    // template's geometry and materials, so only the template is disposed.
+    for (const entry of this.#flying) this.#renderer.scene.remove(entry.object);
+    for (const entry of this.#landed) this.#renderer.scene.remove(entry.object);
+    this.#flying = [];
+    this.#landed = [];
+    if (this.#readyArt) this.#renderer.scene.remove(this.#readyArt);
+    this.#readyArt = null;
+    this.#ready = null;
+    this.#dartTemplate?.dispose?.();
+    this.#dartTemplate = null;
+    this.#scores.clear();
+
     this.#renderer.setRoomLights([]);
     this.#world = null;
     this.#player = null;
@@ -242,6 +321,7 @@ export class Lobby {
     body.body.object.position.set(body.target.x, 0, body.target.z);
     this.#remotes.set(id, body);
     this.#pushView();
+    this.#pushScores();
   }
 
   removeRemote(id: string): void {
@@ -249,6 +329,8 @@ export class Lobby {
     if (!remote) return;
     this.#disposeBody(remote);
     this.#remotes.delete(id);
+    this.#scores.delete(id);
+    this.#pushScores();
 
     // A player who leaves takes their pick with them, which can be what tips the
     // countdown into its short form.
@@ -376,22 +458,41 @@ export class Lobby {
    * A solo player is not waiting for anybody, so pressing E on a poster starts
    * the run there and then. In company it records a pick and opens - or shortens
    * - the countdown.
+   *
+   * `pickId` is a map id, or `RANDOM_PICK` from the `?` poster. The two are
+   * tallied identically and only told apart when a map actually has to be named.
    */
-  #pick(mapId: string): void {
+  #pick(pickId: string): void {
     if (this.#playerCount === 1 && this.#isHost) {
-      this.#beginRun(mapId);
+      this.#beginRun(this.#resolve(pickId));
       return;
     }
 
     const self = this.#net.selfId;
     // Pressing E on the poster you already picked withdraws it, which is the
     // only way to change your mind back to nothing.
-    const next = this.#state.picks[self] === mapId ? null : mapId;
+    const next = this.#state.picks[self] === pickId ? null : pickId;
 
     if (this.#isHost) this.applyPick(self, next);
     else this.#net.sendPick(next);
 
     this.#audio.play('ui.click');
+  }
+
+  /** A pick, as a map. `RANDOM_PICK` becomes one of the enabled maps here. */
+  #resolve(pickId: string): string {
+    if (pickId !== RANDOM_PICK) return pickId;
+    return this.#randomMap();
+  }
+
+  /**
+   * `Math.random()` is right here, as it is in `#winner()`: this is a host-only
+   * decision that is then broadcast as a concrete `(mapId, seed)`, not something
+   * peers re-derive.
+   */
+  #randomMap(): string {
+    const ids = this.#mapIds.length ? this.#mapIds : [this.#config.maps.defaultMapId];
+    return ids[Math.floor(Math.random() * ids.length)] ?? this.#config.maps.defaultMapId;
   }
 
   #pullLever(): void {
@@ -458,14 +559,22 @@ export class Lobby {
 
   /**
    * Most-picked map wins; a tie is broken at random, per
-   * `game.json -> lobby.mapVoteMode`. `Math.random()` is right here - this is a
-   * host-only decision that is then broadcast, not something peers re-derive.
+   * `game.json -> lobby.mapVoteMode`.
+   *
+   * **A `?` vote never beats a real one.** Somebody who picked the manor wants
+   * the manor; somebody who picked `?` has said they do not mind - so the random
+   * votes are dropped from the tally entirely, and the dice only come out when
+   * there is nothing else left to count. That also makes `?` the right thing to
+   * press when you genuinely have no preference, instead of a way to overrule
+   * three people who do.
    */
   #winner(): string {
     const counts = new Map<string, number>();
-    for (const mapId of Object.values(this.#state.picks)) {
-      counts.set(mapId, (counts.get(mapId) ?? 0) + 1);
+    for (const pickId of Object.values(this.#state.picks)) {
+      if (pickId === RANDOM_PICK) continue;
+      counts.set(pickId, (counts.get(pickId) ?? 0) + 1);
     }
+    if (counts.size === 0) return this.#randomMap();
 
     let best = 0;
     for (const count of counts.values()) best = Math.max(best, count);
@@ -502,9 +611,9 @@ export class Lobby {
     const mine = this.#state.picks[self] ?? null;
 
     for (const poster of world.posters) {
-      const on = poster.mapId !== null && picked.has(poster.mapId);
+      const on = poster.pickId !== null && picked.has(poster.pickId);
       poster.mark.visible = on;
-      if (on) poster.setMark(poster.mapId === mine ? MARK_MINE : MARK_OTHER);
+      if (on) poster.setMark(poster.pickId === mine ? MARK_MINE : MARK_OTHER);
     }
   }
 
@@ -522,11 +631,13 @@ export class Lobby {
     const tally: PickTally[] = [...counts.entries()]
       .map(([mapId, votes]) => ({
         mapId,
-        nameKey: this.#config.maps.maps[mapId]?.nameKey ?? 'map.unknown.name',
+        nameKey: mapId === RANDOM_PICK ? 'map.random.name' : this.#config.maps.maps[mapId]?.nameKey ?? 'map.unknown.name',
         votes,
         mine: mapId === mine,
       }))
-      .sort((a, b) => b.votes - a.votes);
+      // A `?` never outranks a real pick, so it never sits at the top of the
+      // list that says what the team is doing either.
+      .sort((a, b) => Number(a.mapId === RANDOM_PICK) - Number(b.mapId === RANDOM_PICK) || b.votes - a.votes);
 
     const difficultyId = this.#state.difficultyId;
     this.#hooks.onViewChange({
@@ -574,6 +685,11 @@ export class Lobby {
 
     this.#updateCamera(dt, player);
     this.#updateInteraction(walking, world);
+    // After the camera: the held dart is pinned to it, and a throw is aimed
+    // down it. Both would be one frame stale otherwise.
+    this.#updateDartHands(walking);
+    this.#updateReadyArt(dt);
+    this.#updateDarts(dt);
     this.#updateVoice(dt, player);
     this.#updateCountdown(dt);
     this.#interpolateRemotes(dt);
@@ -642,6 +758,9 @@ export class Lobby {
       case 'lever':
         this.#pullLever();
         break;
+      case 'dartStand':
+        this.#takeDart();
+        break;
       case 'posterEmpty':
         // Nothing to pick. The prompt already said so.
         break;
@@ -676,22 +795,303 @@ export class Lobby {
     if (tagged.value === 'lever') {
       return { kind: 'lever', id: 'lever', verbKey: 'hud.interact.difficulty' };
     }
+    if (tagged.value === 'dartStand') {
+      // Both hands full is still a target, just a useless one - saying so beats
+      // the prompt silently disappearing when you already have what it offers.
+      const full = this.#hands.left && this.#hands.right;
+      return { kind: 'dartStand', id: 'dartStand', verbKey: full ? 'hud.interact.dartsFull' : 'hud.interact.takeDart' };
+    }
     return null;
   }
 
   #posterTarget(poster: LobbyPoster): LobbyTarget {
-    if (!poster.mapId) {
+    if (!poster.pickId) {
       return { kind: 'posterEmpty', id: `slot:${poster.slot}`, verbKey: 'hud.interact.mapLocked' };
     }
 
-    const nameKey = this.#config.maps.maps[poster.mapId]?.nameKey ?? 'map.unknown.name';
-    const chosen = this.#state.picks[this.#net.selfId] === poster.mapId;
+    const chosen = this.#state.picks[this.#net.selfId] === poster.pickId;
+    if (poster.pickId === RANDOM_PICK) {
+      return {
+        kind: 'poster',
+        id: RANDOM_PICK,
+        verbKey: chosen ? 'hud.interact.pickMapAgain' : 'hud.interact.pickRandom',
+        nameKey: 'map.random.name',
+      };
+    }
+
+    const nameKey = this.#config.maps.maps[poster.pickId]?.nameKey ?? 'map.unknown.name';
     return {
       kind: 'poster',
-      id: poster.mapId,
+      id: poster.pickId,
       verbKey: chosen ? 'hud.interact.pickMapAgain' : 'hud.interact.pickMap',
       nameKey,
     };
+  }
+
+  /* --- darts ---------------------------------------------------------------- */
+
+  /**
+   * The whole minigame, in one place.
+   *
+   * Deliberately NOT the run's throwing code with different numbers. A thrown
+   * flask aims down an arc that has to be drawn because it is the only honest
+   * way to show a ballistic curve indoors; a dart is thrown at one disc across
+   * an open room, and drawing a line to it would answer the only question the
+   * game is asking. So there is no arc: the dart comes up in front of you while
+   * the button is down, and where the crosshair is when you let go is where it
+   * goes - give or take a draught nobody can see.
+   */
+  #buildDart(): { object: THREE.Object3D; dispose?: () => void } | null {
+    const world = this.#world;
+    if (!world) return null;
+    const art = resolveArt('lobby.dart')({ materials: world.materials, rng: stream(0, 'dart'), dims: this.#dims });
+    // The template itself is never in the scene: every dart is a clone of it, so
+    // a dozen in the board share one set of geometry and materials.
+    return { object: art.object, dispose: art.dispose };
+  }
+
+  #takeDart(): void {
+    const hand = HANDS.find((each) => !this.#hands[each]);
+    if (!hand) return;
+    this.#hands[hand] = true;
+    this.#audio.play('item.pickup');
+    this.#pushHands();
+    // The prompt now says "hands full", so it has to be re-pushed.
+    this.#target = null;
+  }
+
+  /**
+   * The hand buttons. A hand with a dart in it draws on the press and throws on
+   * the release; a hand without one does nothing at all.
+   */
+  #updateDartHands(enabled: boolean): void {
+    if (!enabled) {
+      this.#cancelReady();
+      return;
+    }
+
+    const ready = this.#ready;
+    if (ready) {
+      const action = ready === 'left' ? 'useLeft' : 'useRight';
+      // Escape puts the dart back down rather than throwing it: it is the "I did
+      // not mean that" gesture everywhere else in the game too.
+      if (this.#input.justPressed('pauseMenu')) this.#cancelReady();
+      else if (!this.#input.isDown(action)) this.#throwDart(ready);
+      else this.#pushUse({ verbKey: 'hud.use.aiming', itemNameKey: null, keyCode: this.#handKey(ready), hintKey: '', hold: false, progress: 0 });
+      return;
+    }
+
+    for (const [action, hand] of USE_ACTIONS) {
+      if (!this.#input.justPressed(action) || !this.#hands[hand]) continue;
+      this.#ready = hand;
+      this.#readyBlend = 0;
+      return;
+    }
+
+    // Nothing is being thrown, but the HUD should still say what COULD be.
+    const holding = HANDS.find((hand) => this.#hands[hand]);
+    this.#pushUse(
+      holding
+        ? {
+            verbKey: 'hud.use.throw',
+            itemNameKey: DART_NAME_KEY,
+            keyCode: this.#handKey(holding),
+            hintKey: '',
+            hold: false,
+            progress: 0,
+          }
+        : null,
+    );
+  }
+
+  #cancelReady(): void {
+    this.#ready = null;
+    if (this.#readyArt) this.#readyArt.visible = false;
+    this.#pushUse(null);
+  }
+
+  /** Brings the held dart up into view and keeps it pinned to the camera. */
+  #updateReadyArt(dt: number): void {
+    const art = this.#readyArt;
+    if (!art) return;
+
+    const wanted = this.#ready ? 1 : 0;
+    const rate = Math.max(0.01, this.#config.darts.hand.raiseSeconds);
+    this.#readyBlend += Math.sign(wanted - this.#readyBlend) * (dt / rate);
+    this.#readyBlend = Math.max(0, Math.min(1, this.#readyBlend));
+
+    art.visible = this.#readyBlend > 0.001;
+    if (!art.visible) return;
+
+    const camera = this.#renderer.camera;
+    const [ox = 0.16, oy = -0.15, oz = -0.42] = this.#config.darts.hand.offset;
+    // Rises into place from below rather than appearing, which is the whole job
+    // of `raiseSeconds`.
+    art.position.set(ox, oy - (1 - this.#readyBlend) * 0.22, oz).applyMatrix4(camera.matrixWorld);
+    art.quaternion.copy(camera.quaternion);
+    // Held across the line of sight rather than straight down it, or all you can
+    // see of a dart pointing away from you is its flights.
+    art.rotateY(0.42);
+    art.rotateX(-0.12);
+  }
+
+  #throwDart(hand: Hand): void {
+    const player = this.#player;
+    this.#cancelReady();
+    if (!player || !this.#hands[hand]) return;
+
+    this.#hands[hand] = false;
+    this.#pushHands();
+
+    const darts = this.#config.darts;
+    const from = {
+      x: player.x,
+      y: eyeHeight(player, this.#config.player) + darts.throw.releaseHeightOffset,
+      z: player.z,
+    };
+    const velocity = dartVelocity(darts, player.yaw, player.pitch);
+    const id = `dart:${this.#net.selfId}:${this.#dartCount++}`;
+
+    this.#spawnDart(id, this.#net.selfId, from, velocity, this.#clock);
+    this.#net.broadcast({
+      t: 'dart',
+      id,
+      owner: this.#net.selfId,
+      x: from.x,
+      y: from.y,
+      z: from.z,
+      vx: velocity.x,
+      vy: velocity.y,
+      vz: velocity.z,
+      wind: this.#clock,
+    });
+    this.#audio.play('item.throw');
+  }
+
+  /** A peer threw one. Its flight is re-run here rather than streamed. */
+  dartThrown(
+    id: string,
+    ownerId: string,
+    from: { x: number; y: number; z: number },
+    velocity: { x: number; y: number; z: number },
+    wind: number,
+  ): void {
+    if (ownerId === this.#net.selfId) return;
+    this.#spawnDart(id, ownerId, from, velocity, wind);
+    this.#audio.play('item.throw', { at: from });
+  }
+
+  /** A peer's running total. They keep their own; nobody arbitrates a scoreboard. */
+  setDartScore(id: string, score: number): void {
+    this.#scores.set(id, Math.max(0, Math.round(score)));
+    this.#pushScores();
+  }
+
+  #spawnDart(
+    id: string,
+    ownerId: string,
+    from: { x: number; y: number; z: number },
+    velocity: { x: number; y: number; z: number },
+    wind: number,
+  ): void {
+    const template = this.#dartTemplate;
+    if (!this.#world || !template) return;
+
+    const object = template.object.clone();
+    object.position.set(from.x, from.y, from.z);
+    aimAlong(object, velocity.x, velocity.y, velocity.z);
+    this.#renderer.scene.add(object);
+    this.#flying.push({ dart: createDart(id, ownerId, from, velocity, wind), object });
+  }
+
+  #updateDarts(dt: number): void {
+    const world = this.#world;
+    if (!world) return;
+    this.#clock += dt;
+
+    // Pull the oldest ones out, by age and by count. A board that never clears
+    // ends up a pin cushion, and every dart in it is a draw call.
+    const { maxInWorld } = this.#config.darts.stick;
+    while (this.#landed.length > 0) {
+      const oldest = this.#landed[0];
+      if (!oldest || (oldest.until > this.#clock && this.#landed.length <= maxInWorld)) break;
+      this.#renderer.scene.remove(oldest.object);
+      this.#landed.shift();
+    }
+
+    if (this.#flying.length === 0) return;
+
+    const dartWorld: DartWorld = {
+      config: this.#config.darts,
+      board: { ...world.darts.board, radius: this.#config.darts.board.radius },
+      fence: { distance: world.darts.fenceDistance, top: world.darts.fenceTop },
+      floorY: 0,
+    };
+
+    const landed: string[] = [];
+    for (const entry of this.#flying) {
+      const landing = stepDart(entry.dart, dt, dartWorld);
+      entry.object.position.set(entry.dart.x, entry.dart.y, entry.dart.z);
+      aimAlong(entry.object, entry.dart.vx, entry.dart.vy, entry.dart.vz);
+      if (!landing) continue;
+      landed.push(entry.dart.id);
+      this.#landDart(entry, landing);
+    }
+    if (landed.length) this.#flying = this.#flying.filter((entry) => !landed.includes(entry.dart.id));
+  }
+
+  #landDart(entry: { dart: Dart; object: THREE.Object3D }, landing: DartLanding): void {
+    const { dart, object } = entry;
+    // Back it off along its own flight so the point buries and the barrel stands
+    // out of the surface, rather than the whole dart floating on it.
+    const speed = Math.hypot(dart.vx, dart.vy, dart.vz) || 1;
+    object.position.set(
+      landing.x - (dart.vx / speed) * DART_BURY,
+      landing.y - (dart.vy / speed) * DART_BURY,
+      landing.z - (dart.vz / speed) * DART_BURY,
+    );
+    this.#landed.push({ object, until: this.#clock + this.#config.darts.stick.seconds });
+    this.#audio.play('item.impact', { at: { x: landing.x, z: landing.z } });
+
+    // Only the thrower counts their own darts, exactly as only a player's own
+    // client counts their own footsteps for the run scoreboard. Everybody else
+    // is running this flight for the picture.
+    const self = this.#net.selfId;
+    if (dart.ownerId !== self || !landing.hit || landing.hit.score <= 0) return;
+
+    const total = (this.#scores.get(self) ?? 0) + landing.hit.score;
+    this.#scores.set(self, total);
+    this.#net.broadcast({ t: 'dartScore', id: self, score: total });
+    this.#pushScores();
+  }
+
+  /**
+   * The board in the annex. Rows are ordered by peer id, which is the one
+   * ordering every peer agrees on - a shared object in the world must not read
+   * differently depending on who is looking at it.
+   */
+  #pushScores(): void {
+    const ids = [this.#net.selfId, ...this.#remotes.keys()].sort();
+    this.#world?.darts.setScores(ids.map((id) => this.#scores.get(id) ?? 0));
+  }
+
+  #handKey(hand: Hand): string {
+    return this.#input.bindingFor(hand === 'left' ? 'useLeft' : 'useRight');
+  }
+
+  #pushHands(): void {
+    this.#hooks.onHandsChange({
+      left: this.#hands.left ? DART_NAME_KEY : null,
+      right: this.#hands.right ? DART_NAME_KEY : null,
+    });
+  }
+
+  /** Pushed on change only: this is asked every frame and answers the same thing. */
+  #pushUse(use: UseView | null): void {
+    const signature = use ? `${use.verbKey}|${use.itemNameKey ?? ''}|${use.keyCode}` : '';
+    if (signature === this.#useSignature) return;
+    this.#useSignature = signature;
+    this.#hooks.onUseChange(use);
   }
 
   /* --- voice ---------------------------------------------------------------- */
@@ -740,6 +1140,21 @@ export class Lobby {
   }
 }
 
+/**
+ * Points a dart's nose down its own velocity.
+ *
+ * `lookAt` aims an ordinary object's +Z at the target and a dart's point is on
+ * its -Z, so the target is the position with the velocity subtracted rather than
+ * added. Scratch vector at module scope: this runs once per dart per frame.
+ */
+const AIM = new THREE.Vector3();
+
+function aimAlong(object: THREE.Object3D, vx: number, vy: number, vz: number): void {
+  if (vx === 0 && vy === 0 && vz === 0) return;
+  AIM.set(object.position.x - vx, object.position.y - vy, object.position.z - vz);
+  object.lookAt(AIM);
+}
+
 /** Signed shortest way round from `from` to `to`. */
 function shortestAngle(from: number, to: number): number {
   let delta = to - from;
@@ -751,6 +1166,8 @@ function shortestAngle(from: number, to: number): number {
 /** Walks up to the nearest ancestor carrying one of the interaction tags. */
 function findTag(object: THREE.Object3D): { key: string; value: string } | null {
   const keys = ['posterSlot', 'lobbyId'];
+  // `lobbyScenery` is deliberately not in that list: the board and the
+  // scoreboard are behind a fence and there is nothing to press on either.
   let node: THREE.Object3D | null = object;
   while (node) {
     for (const key of keys) {
