@@ -13,6 +13,7 @@
  * the countdown entirely - there is nobody to wait for.
  */
 import * as THREE from 'three';
+import { clearGeometryCache } from '@art/lib/build';
 import type { RoomDims } from '@art/lib/contract';
 import type { Config } from '@/config/index';
 import { randomSeed, stream } from '@/core/rng';
@@ -220,6 +221,8 @@ export class Lobby {
     this.#player = null;
     this.#target = null;
     this.#wardrobeOpen = false;
+    // Last, once the cabin and every body in it are down. See `art/lib/build.ts`.
+    clearGeometryCache();
   }
 
   /* --- people -------------------------------------------------------------- */

@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { getArtPack } from '@art/packs/index';
 import { resolveArt } from '@art/shared/index';
+import { clearGeometryCache } from '@art/lib/build';
 import type { RoomDims } from '@art/lib/contract';
 import { configForMap, type Config } from '@/config/index';
 import { rangeInt, stream, type Rng } from '@/core/rng';
@@ -457,7 +458,9 @@ export class Game {
   }
 
   end(): void {
-    this.#audio.stopSustains();
+    // Freed rather than silenced: a run's sustains include one key per alarm
+    // clock it spawned, and those keys never come round again.
+    this.#audio.releaseSustains();
     this.#audio.music.setScene('menu');
     this.#clearItemState();
     if (this.#world) {
@@ -482,6 +485,10 @@ export class Game {
     this.#doorsById.clear();
     this.#pending.clear();
     this.#run.clear();
+    // Last, once the world, the bodies and the hunter are all down: the shared
+    // box cache belongs to the build that filled it, and every mesh holding one
+    // of its buffers has just gone. See `art/lib/build.ts`.
+    clearGeometryCache();
   }
 
   /**
@@ -489,7 +496,7 @@ export class Game {
    * or in the scene, so this has to run BEFORE the world is torn down.
    */
   #clearItemState(): void {
-    for (const effect of this.#effects.all) this.#audio.sustain(`effect:${effect.id}`, null, { on: false });
+    for (const effect of this.#effects.all) this.#audio.releaseSustain(`effect:${effect.id}`);
     for (const id of this.#effectArt.keys()) this.#world?.removeDecor(id);
     for (const id of this.#projectileArt.keys()) this.#world?.removeDecor(id);
     this.#effectArt.clear();
@@ -2328,7 +2335,9 @@ export class Game {
   }
 
   #endEffect(effect: Effect): void {
-    this.#audio.sustain(`effect:${effect.id}`, null, { on: false });
+    // An effect id is minted once and never reused, so its voice goes with it -
+    // a long run gets through a lot of alarm clocks.
+    this.#audio.releaseSustain(`effect:${effect.id}`);
     this.#world?.removeDecor(effectId(effect.id));
     this.#effectArt.delete(effectId(effect.id));
   }

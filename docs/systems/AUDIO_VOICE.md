@@ -44,6 +44,21 @@ candidate files, volume, pitch range, loop flag, `spatial`, cooldown.
 the caller drives per frame — the heartbeat, the hunter's drone, a hold in progress —
 and passing a different `soundId` for the same key swaps it.
 
+**Silencing a sustain keeps its voice; only `release` frees one.** `sustain(key,
+null, { on: false })` leaves the nodes built, because a hold that is started and
+abandoned every few ticks would otherwise churn them. That is right for the fixed
+keys and wrong for a key minted per thing — `effect:<id>`, one per alarm clock —
+because every voice left behind is an HRTF panner wired to a bus for the rest of the
+session. Those keys go through `releaseSustain(key)`, and `Game.end()` calls
+`releaseSustains()` so a run's voices do not outlive it.
+
+| Call | Nodes |
+| --- | --- |
+| `sustain(key, null, { on: false })` | kept, silent, ready to start again |
+| `stopSustains()` | all kept, all silent — a pause |
+| `releaseSustain(key)` | faded out, then freed |
+| `releaseSustains()` | all faded out, then freed — a teardown |
+
 ### Where the numbers live
 
 | Kind | Lives in | Why |

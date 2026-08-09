@@ -478,9 +478,11 @@ export function buildWorld(
       for (const entry of cullable) entry.object.visible = visibility.anyVisible(entry.cells);
     },
     dispose(): void {
-      // Geometry is intentionally NOT disposed here: art/lib/build.ts caches box
-      // geometry by size across worlds, so disposing it would break the next run.
-      // Art that allocates outside the cache returns its own `dispose`.
+      // Box geometry is not disposed here: it is shared through the cache in
+      // art/lib/build.ts, which is freed as a whole by `clearGeometryCache()`
+      // once the last thing built from it is down - `Game.end()` does that
+      // after this returns. Art that allocates outside the cache (a merged
+      // batch, a lathe) returns its own `dispose`.
       for (const id of [...decor.keys()]) removeDecor(id);
       for (const dispose of disposers) dispose();
       // A shadow map is a render target the renderer holds until the light that

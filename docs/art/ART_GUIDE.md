@@ -80,9 +80,20 @@ survive being seen three times:
   `npm run validate:art` (§7), and `document.createElement('canvas')` would work in
   a browser and throw there. `art/lib/textures.ts` has the seeded noise, the colour
   helpers and the cache; `art/packs/mansion/textures.ts` is a worked example.
-- Cache textures at **module scope**, like the geometry cache in `art/lib/build.ts`.
-  `MaterialLibrary.dispose()` deliberately leaves them alone so the next run reuses
-  them.
+- Cache textures at **module scope**. There is a fixed set of them — one per named
+  recipe — so the cache is bounded and `MaterialLibrary.dispose()` deliberately
+  leaves them alone for the next run to reuse.
+  **A cache keyed on numbers a room made up is a different thing**: the box cache in
+  `art/lib/build.ts` is keyed by size, and because art sizes furniture from the
+  seeded RNG, a new seed mints a new key for nearly every box it places. It pays for
+  itself inside one build and would grow forever across runs, so it is scoped to a
+  world and freed by `clearGeometryCache()` (`Game.end()` / `Lobby.end()` call it).
+  If you add a cache, know which of those two it is.
+- **A size-keyed cache in a pack must call `ownGeometryCache()`**, once, at module
+  scope beside it — that is what gives it the same per-world lifetime. Both packs'
+  `kit/props.ts` do it for their `cyl` / `ball` / `ring` / `quad` / `spike` / `disc`
+  helpers. One viscera build fills those with 2,677 geometries; unregistered, every
+  one of them is retained until the tab closes and nothing will report it.
 - Vertex colours are cheap and great for grime, water lines and soot.
 
 ## 5. Geometry
@@ -155,7 +166,7 @@ sound is positioned correctly (e.g. `handle` on a door).
 art/
 ├─ lib/            Contract types + helper builders shared by ALL art
 │  ├─ contract.ts  the art/logic contract - the only thing src/ may import
-│  ├─ build.ts     cached box geometry, colliders, the material library
+│  ├─ build.ts     per-world cached box geometry, colliders, the material library
 │  ├─ merge.ts     MeshBatcher: merge by material, world-space UV baking
 │  └─ textures.ts  seeded noise + DataTexture builders (no canvas, ever)
 ├─ shared/         Gameplay art used by every map

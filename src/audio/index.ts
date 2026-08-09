@@ -213,9 +213,32 @@ export class Audio {
     );
   }
 
-  /** Everything looping stops. Called when a run ends, however it ends. */
+  /** Everything looping stops. The voices are kept, ready to be started again. */
   stopSustains(): void {
     for (const entry of this.#sustains.values()) entry.voice?.stop();
+  }
+
+  /**
+   * Frees one sustain outright, rather than silencing it.
+   *
+   * `sustain(key, null, { on: false })` deliberately KEEPS a key's voice, so a
+   * hold that is started and abandoned every few ticks does not churn nodes.
+   * That is right for the handful of fixed keys and wrong for a key minted per
+   * thing - `effect:<id>` - because the voice it leaves behind is an HRTF
+   * panner wired to a bus for the rest of the session, and nothing will ever
+   * ask for that key again.
+   */
+  releaseSustain(key: string): void {
+    const entry = this.#sustains.get(key);
+    if (!entry) return;
+    entry.voice?.dispose();
+    this.#sustains.delete(key);
+  }
+
+  /** Every sustain freed. Called when a run is torn down, not merely paused. */
+  releaseSustains(): void {
+    for (const entry of this.#sustains.values()) entry.voice?.dispose();
+    this.#sustains.clear();
   }
 
   /** Where the ears are, in world space. Driven from the camera every frame. */

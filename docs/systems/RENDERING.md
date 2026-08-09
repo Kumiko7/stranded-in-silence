@@ -115,7 +115,8 @@ opened-up map. It is only numerical slack: culling runs in the same fixed tick
 that sets the camera, and the camera does not move between the frames drawn from
 that tick, so there is no lag for it to cover.
 
-**Cost grows as a team opens the map up, and that is real rather than a leak.**
+**Within one run, cost grows as a team opens the map up, and that is real rather
+than a leak.**
 An open door is an open sight line. Measured over a whole map: 40 average draw
 calls with every door shut, 106 with all 35 open. Simulating four minutes in one
 spot showed no growth in objects, textures, programs or frame time, and the HUD
@@ -125,6 +126,39 @@ and feedback layers build their DOM once, so there is nothing accumulating.
 with every object forced visible, and comparing the framebuffers: 0.03 % of
 pixels differ on average, and the worst case is a one-pixel z-fighting seam
 between two rooms' back-to-back walls that is *absent* from the culled image.
+
+## 3a. Across runs, a scene has to leave nothing behind
+
+Lobby → run → lobby is a loop a session goes round all evening, and it used to
+get slower every time round. Three kinds of thing survived a teardown, none of
+them visible in a profile of a single run:
+
+| Leaked | Per cycle | Fix |
+| --- | --- | --- |
+| The cabin fire's cube shadow map — a render target the renderer holds until the light that owns it is disposed | 1 texture | `lobbyScene.dispose()` now disposes light shadows, as `worldBuilder.dispose()` already did |
+| Size-keyed geometry caches at module scope — the shared box cache in `art/lib/build.ts` **and one per shape in each pack's `kit/props.ts`**. Art sizes furniture from the seeded RNG, so a new seed reuses almost nothing and mints fresh keys for nearly everything it places | ~1,270 geometries (mansion), ~3,450 (viscera) | A cache belongs to one world: `clearGeometryCache()` at the tail of `Game.end()` and `Lobby.end()`, with pack caches joining it through `ownGeometryCache()` |
+| Sustained audio voices keyed `effect:<id>` — silenced but kept, each an HRTF panner still wired to a bus | one per alarm clock | `releaseSustain()` / `releaseSustains()`, see [`AUDIO_VOICE.md`](AUDIO_VOICE.md) |
+
+**Verified** by driving lobby-run-lobby cycles through the dev handle and reading
+`renderer.info` at the bottom of each. Afterwards, over 20 cycles on unique seeds:
+textures, geometries and programs flat and identical every cycle, heap growth
+0.025 MB per cycle (noise) against 2.6 MB before. At a pinned camera and a fixed
+seed, draw calls, triangles, CPU render time and GPU time (`EXT_disjoint_timer_
+query_webgl2`) are identical cycle to cycle. WeakRefs to each cycle's roots,
+meshes and materials confirm all of them are collected, and the cache sizes go
+back to exactly zero on every teardown.
+
+The invariant to keep: **anything a build allocates is freed by the teardown of
+the thing that built it.** The one deliberate exception is the texture cache in
+`art/lib/textures.ts`, which is bounded by a fixed set of named recipes — it
+plateaus (70 textures with both packs loaded) instead of growing.
+
+Worth knowing when chasing the next one: a leak like this is invisible in
+`renderer.info` when the geometry is only ever *cloned* into a `MeshBatcher`
+merge, because it is never uploaded to the GPU. It shows up as JS heap and as GC
+pressure, so measure both — and the cheapest decisive test is to rebuild the
+**same seed** twice. Sizes come from the seeded RNG, so a real cache reuses
+everything on a repeat and a growing one only grows on new seeds.
 
 ## 4. The interaction ray is two passes
 

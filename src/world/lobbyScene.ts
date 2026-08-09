@@ -177,6 +177,11 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
     wardrobeCamera: cabin.anchors.wardrobeCamera,
     dispose(): void {
       for (const dispose of disposers) dispose();
+      // A shadow map is a render target the renderer holds until the light that
+      // owns it is disposed - exactly as in `worldBuilder.dispose`. The cabin
+      // is entered once per run rather than once per session, so the fire's
+      // cube map is a fresh one every time a team comes back from a map.
+      for (const entry of lights) (entry.light as THREE.PointLight).shadow?.dispose();
       root.clear();
       materials.dispose();
       collision.clear();

@@ -20,6 +20,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
+import { ownGeometryCache } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { poseMatrix, subUV, tiltMatrix } from '../../../lib/merge';
@@ -77,6 +78,12 @@ export function wallPose(
 
 /* --- geometry caches ----------------------------------------------------------- */
 
+/**
+ * Keyed by size, exactly like the box cache in `art/lib/build.ts`, and freed by
+ * the same `clearGeometryCache()` when a world comes down - the sizes come from
+ * the seeded RNG, so a new seed reuses almost nothing and these would otherwise
+ * grow for as long as the tab is open. Register every cache added here.
+ */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 export function cyl(rTop: number, rBot: number, h: number, seg = 10): THREE.CylinderGeometry {
   const key = `${rTop},${rBot},${h},${seg}`;
@@ -142,6 +149,8 @@ export function disc(r: number, seg = 20): THREE.CircleGeometry {
   }
   return geo;
 }
+
+for (const cache of [cylCache, sphereCache, coneCache, torusCache, planeCache, discCache]) ownGeometryCache(cache);
 
 /** Upright cylinder whose `y` is its bottom. */
 export function post(

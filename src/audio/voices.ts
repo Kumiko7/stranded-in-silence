@@ -94,9 +94,16 @@ export class Voice {
     this.#gain.gain.linearRampToValueAtTime(target, now + FADE_SECONDS);
   }
 
+  /**
+   * Frees the whole chain. The disconnect waits for the same fade `stop()`
+   * schedules - tearing the gain out from under a ramp is exactly the click
+   * that fade exists to avoid, and a run ending is when this happens most.
+   */
   dispose(): void {
     this.stop();
-    this.#gain.disconnect();
-    this.#panner?.disconnect();
+    setTimeout(() => {
+      this.#gain.disconnect();
+      this.#panner?.disconnect();
+    }, FADE_SECONDS * 1000 + 40);
   }
 }
