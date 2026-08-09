@@ -75,6 +75,10 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | How long the host waits at the loading screen | `net.json` | `connection.loadTimeoutSeconds` — after this the run starts without whoever is missing |
 | Lobby countdown, player cap, run rules | `game.json` | `lobby.*`, `session.*`, `run.*` |
 | How many frames the poster wall has | `game.json` | `lobby.posterSlots` — slots past the map list hang blank |
+| Whether the `?` poster hangs at all | `game.json` | `lobby.randomPoster` — a random vote never outranks a specific one, so this is "I don't mind", not "surprise everybody" |
+| How a dart flies, and how hard the bull is | `darts.json` | `throw.*`, `wind.*` — deliberately **not** `items.json`: a dart is thrown at a disc four metres away and a flask is thrown down a corridor, and one set of numbers cannot serve both |
+| The dartboard's rings and bed order | `darts.json` | `board.*` — fractions of `board.radius`, and `art/shared/lobby/textures.ts` paints the same fractions, so the picture and the scoring cannot disagree |
+| How long a dart stays in the board | `darts.json` | `stick.seconds`, `.maxInWorld` |
 | What the lobby wardrobe offers | `player.json` | `customisation.colours`, `.defaultColourId` |
 | Which hats the wardrobe sells, and for how much | `player.json` | `customisation.hats` — `artId` must resolve in `art/shared/index.ts`, `cost` is in banked coins and `0` means owned from the start. The order here is the order the shop lists them in, so it doubles as the price ladder |
 | UI colours, fonts, HUD layout | `ui.json` | `theme.*`, `hud.*` |
@@ -123,7 +127,9 @@ renderer settings) need a page refresh; values read per frame (speeds) apply liv
 
 ## Adding a new config value
 
-1. Put it in the file that owns the system (see the table above).
+1. Put it in the file that owns the system (see the table above). A whole new
+   *file* also needs its name in the `required` list in `src/config/index.ts`,
+   or a missing one boots silently as `undefined` instead of failing loudly.
 2. Add its type to `src/config/types.ts`.
 3. Read it via the config accessor — never `import cfg from '../../config/x.json'`.
 4. If it is player-facing, add an options-menu entry and a locale key.

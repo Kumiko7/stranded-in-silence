@@ -61,6 +61,10 @@
   "hud.interact.mapLocked": "未実装",
   "hud.interact.wardrobe": "ワードローブを開く",
   "hud.interact.difficulty": "難易度を変える",
+  "hud.interact.pickRandom": "運任せにする",
+  "hud.interact.takeDart": "ダーツを取る",
+  "hud.interact.dartsFull": "両手がふさがっている",
+  "lobby.dart.name": "ダーツ",
   "hud.map.completed": "脱出済み",
   "hud.map.notCompleted": "未脱出",
 

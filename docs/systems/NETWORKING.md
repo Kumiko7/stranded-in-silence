@@ -32,6 +32,8 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 > | `setDifficulty {difficultyId}` | any → host | Anyone may pull the lever. |
 > | `runStart {run}` | host → all | `{ mapId, seed, difficultyId }`. The countdown finished, or a solo player pressed `E`. |
 > | `lobbyMove {id, x, z, yaw}` | any → all | Cabin transforms at 10 Hz. Nothing in a foyer needs the run's rate. |
+> | `dart {id, owner, position, velocity, wind}` | any → all | A dart, as its release state — every peer re-runs the flight, exactly as they do for a `throw`. `wind` is the thrower's wind clock, and it is here because the draught is a function of time and no two browsers have been in the cabin for the same number of seconds. |
+> | `dartScore {id, score}` | any → all | A running total, sent whole. Self-reported: nobody arbitrates a scoreboard, and a message lost on the way costs nothing because the next one carries the truth. |
 > | `scene {id, scene}` | any → all | `lobby` or `run`. Re-announced whenever a peer joins. |
 > | `cosmetic {id, colourId}` | any → all | The wardrobe choice, re-announced the same way. |
 >

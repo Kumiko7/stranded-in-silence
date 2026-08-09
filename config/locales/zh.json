@@ -61,6 +61,10 @@
   "hud.interact.mapLocked": "尚未开放",
   "hud.interact.wardrobe": "打开衣柜",
   "hud.interact.difficulty": "调整难度",
+  "hud.interact.pickRandom": "交给运气",
+  "hud.interact.takeDart": "拿一支飞镖",
+  "hud.interact.dartsFull": "双手已满",
+  "lobby.dart.name": "飞镖",
   "hud.map.completed": "已逃出",
   "hud.map.notCompleted": "从未逃出",
 

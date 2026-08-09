@@ -236,6 +236,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Change what gets drawn, or chase a frame-rate problem | `src/render/`, `src/world/visibility.ts` — [`systems/RENDERING.md`](systems/RENDERING.md) |
 | Change the lobby cabin's look | `art/shared/lobby/` — review it with `/tools/roomshot.html?map=lobby` |
 | Change what the lobby *does* | `src/game/Lobby.ts` + `src/world/lobbyScene.ts` |
+| Tune the lobby dart minigame | `config/darts.json` — its own file, never `items.json`. The physics are `src/entities/dart.ts` and the furniture is `art/shared/lobby/darts.ts` |
 | Add a menu / screen | `src/ui/screens/` — [`systems/UI.md`](systems/UI.md) |
 | Add a language | `config/locales/<code>.json` + `manifest.json`, then `npm run validate:locales` — [`LOCALISATION.md`](LOCALISATION.md) |
 | Change how a key looks on screen | `config/input.json → keyLabels` for the word, `src/ui/keys.ts` for the shape |

@@ -61,6 +61,10 @@
   "hud.interact.mapLocked": "Ещё не построено",
   "hud.interact.wardrobe": "Открыть шкаф",
   "hud.interact.difficulty": "Сменить сложность",
+  "hud.interact.pickRandom": "Положиться на случай",
+  "hud.interact.takeDart": "Взять дротик",
+  "hud.interact.dartsFull": "Руки заняты",
+  "lobby.dart.name": "Дротик",
   "hud.map.completed": "Пройдено",
   "hud.map.notCompleted": "Ни разу не пройдено",
 

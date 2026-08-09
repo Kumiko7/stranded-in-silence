@@ -330,10 +330,17 @@ function Loading({ state }: { state: UiState }) {
 
 /**
  * The lobby's own HUD: a crosshair, the interact prompt, and the expedition
- * panel. No roster and no hand slots - there is nothing to carry and nobody to
- * lose in here.
+ * panel. No roster - there is nobody to lose in here.
+ *
+ * The hand slots ARE the run's, and appear the moment you take a dart off the
+ * stand. That is the point of them: the minigame is played with exactly the
+ * controls the game is played with, so it doubles as somewhere to learn them.
+ * Empty hands show nothing at all, because most visits to the cabin never touch
+ * a dart and a permanent pair of "Empty" boxes would just be furniture.
  */
 function LobbyHud({ state }: { state: UiState }) {
+  const carrying = state.hands.left !== null || state.hands.right !== null;
+
   return (
     <div class="hud">
       <div class="hud__crosshair" />
@@ -349,7 +356,16 @@ function LobbyHud({ state }: { state: UiState }) {
             </span>
           </div>
         )}
+
+        {state.use && <UsePrompt use={state.use} />}
       </div>
+
+      {carrying && (
+        <div class="hud__hands">
+          <HandSlot nameKey={state.hands.left} code={state.useLeftKey} />
+          <HandSlot nameKey={state.hands.right} code={state.useRightKey} />
+        </div>
+      )}
 
       {state.lobby && <LobbyPanel view={state.lobby} maxPlayers={state.maxPlayers} />}
     </div>

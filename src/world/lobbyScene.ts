@@ -10,7 +10,7 @@
 import * as THREE from 'three';
 import type { ArtBuildContext, Collider, MaterialLibrary, RoomDims } from '@art/lib/contract';
 import { hasArt, resolveArt } from '@art/shared/index';
-import { buildLobby, createLobbyMaterials, type Pose } from '@art/shared/lobby/index';
+import { buildLobby, createLobbyMaterials, FENCE_RAIL, HALF_X, type Pose } from '@art/shared/lobby/index';
 import type { Config } from '@/config/index';
 import { stream } from '@/core/rng';
 import { CollisionWorld } from './collision';
@@ -18,11 +18,22 @@ import { CollisionWorld } from './collision';
 /** Hung in a slot no map has claimed yet, and in place of a missing poster art. */
 const BLANK_POSTER = 'poster.blank';
 
+/**
+ * What a pick records when somebody presses E on the `?` poster.
+ *
+ * It is a pick like any other - it is tallied, it marks the frame, it opens the
+ * countdown - and it is only resolved to an actual map at the moment the run
+ * starts. Not a map id, and deliberately unable to collide with one.
+ */
+export const RANDOM_PICK = '*random';
+
 export interface LobbyPoster {
   /** Position on the wall, left to right then down. Stable across peers. */
   slot: number;
-  /** The map this poster advertises, or null for an empty frame. */
+  /** The map this poster advertises. Null for the `?` and for empty frames. */
   mapId: string | null;
+  /** What pressing E on it records: a map id, `*random`, or null for a blank. */
+  pickId: string | null;
   object: THREE.Object3D;
   /** Shown once the local player has escaped this map themselves. */
   tick: THREE.Object3D;
@@ -45,6 +56,16 @@ export interface LobbyWorld {
   posters: LobbyPoster[];
   lever: LobbyFixture & { setLever(t: number): void };
   wardrobe: LobbyFixture;
+  /** The rack you take darts from. */
+  dartStand: LobbyFixture;
+  /** Where a dart is thrown, and what it is thrown at. World space. */
+  darts: {
+    board: { x: number; y: number; z: number; nx: number; nz: number };
+    /** The fence, as a distance in front of the board along its normal. */
+    fenceDistance: number;
+    fenceTop: number;
+    setScores(scores: readonly number[]): void;
+  };
   /** Everything the look-ray is looking FOR: posters, the lever, the wardrobe. */
   raycastTargets: THREE.Object3D[];
   /** The cabin itself, which the ray can only be stopped by. See `Game.#lookTag`. */
@@ -121,9 +142,14 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
   /* --- the poster wall ---------------------------------------------------- */
 
   const posters: LobbyPoster[] = [];
+  // The `?` takes the frame straight after the last real map, so it sits with
+  // the maps rather than out on its own at the end of a row of blanks.
+  const randomSlot = config.game.lobby.randomPoster ? mapIds.length : -1;
+
   cabin.anchors.posters.forEach((pose, slot) => {
-    const mapId = mapIds[slot] ?? null;
-    const wanted = mapId ? (config.maps.maps[mapId]?.posterArtId ?? BLANK_POSTER) : BLANK_POSTER;
+    const random = slot === randomSlot;
+    const mapId = random ? null : mapIds[slot] ?? null;
+    const wanted = random ? 'poster.random' : mapId ? config.maps.maps[mapId]?.posterArtId ?? BLANK_POSTER : BLANK_POSTER;
     // A map whose poster art has not been drawn yet still gets a frame and is
     // still playable - it just hangs blank, like the slots with no map at all.
     const artId = hasArt(wanted) ? wanted : BLANK_POSTER;
@@ -132,6 +158,7 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
     posters.push({
       slot,
       mapId,
+      pickId: random ? RANDOM_PICK : mapId,
       object: art.object,
       tick: art.parts['tick'] ?? art.object,
       mark: art.parts['mark'] ?? art.object,
@@ -148,8 +175,21 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
     key: 'lobbyId',
     value: 'wardrobe',
   });
-  // Scenery until step 46: tagged with nothing, so the look-ray walks past it.
-  place('lobby.minigame', 'minigame', cabin.anchors.minigame, { key: 'lobbyScenery', value: 'minigame' });
+
+  /* --- the dart minigame ---------------------------------------------------- */
+
+  const standArt = place('lobby.dartStand', 'dartStand', cabin.anchors.dartStand, {
+    key: 'lobbyId',
+    value: 'dartStand',
+  });
+  // Neither of these is ever looked AT - they are behind a fence nobody can
+  // reach - so both are tagged as scenery and the look-ray walks past them.
+  const boardPose = cabin.anchors.dartboard;
+  place('lobby.dartboard', 'dartboard', boardPose, { key: 'lobbyScenery', value: 'dartboard' });
+  const scoreArt = place('lobby.scoreboard', 'scoreboard', cabin.anchors.scoreboard, {
+    key: 'lobbyScenery',
+    value: 'scoreboard',
+  });
 
   root.updateMatrixWorld(true);
 
@@ -167,6 +207,18 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
       object: wardrobeArt.object,
       x: cabin.anchors.wardrobe.position[0],
       z: cabin.anchors.wardrobe.position[2],
+    },
+    dartStand: {
+      object: standArt.object,
+      x: cabin.anchors.dartStand.position[0],
+      z: cabin.anchors.dartStand.position[2],
+    },
+    darts: {
+      // The board faces -X, so its normal points back down the throwing line.
+      board: { x: boardPose.position[0], y: boardPose.position[1], z: boardPose.position[2], nx: -1, nz: 0 },
+      fenceDistance: boardPose.position[0] - (HALF_X + 0.17),
+      fenceTop: FENCE_RAIL,
+      setScores: scoreArt.api?.setScores?.bind(scoreArt.api) ?? ((): void => {}),
     },
     raycastTargets,
     occluders,

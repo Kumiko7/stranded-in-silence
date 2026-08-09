@@ -297,6 +297,11 @@ async function shootLobby(): Promise<void> {
   renderer.scene.add(world.root);
   renderer.setRoomLights(world.lights);
 
+  // A full house on the dart scoreboard. It is driven by `src/game/Lobby.ts`,
+  // which is not running here, and an unlit display tells you nothing about
+  // whether the digits are legible from the throwing line.
+  world.darts.setScores([180, 41, 7, 260]);
+
   // The mannequin is placed by `src/game/Lobby.ts`, not by the scene - but the
   // wardrobe view exists to answer "does the model land on the right", so the
   // sheet has to stand one there too.
@@ -326,9 +331,11 @@ async function shootLobby(): Promise<void> {
     // What you actually see the instant you arrive.
     { label: 'arrival', from, look: from.clone().add(at(-Math.sin(yaw) * 6, -0.35, -Math.cos(yaw) * 6)) },
     { label: 'the window', from: at(0.5, eye, 1.2), look: at(0, 1.9, -12) },
+    { label: 'the treeline', from: at(-0.6, eye, 0.4), look: at(-16, 1.6, -26) },
     { label: 'the fire', from: at(-1.4, eye, 0.2), look: at(-5.6, 1.0, 0) },
     { label: 'the poster wall', from: at(0, eye, -0.4), look: at(0, 1.8, 6) },
     { label: 'posters, close', from: at(-2.6, eye, 2.4), look: at(-2.2, 1.5, 5) },
+    { label: 'the mirror', from: at(3.3, eye, -2.5), look: at(5.9, 1.25, -1.55) },
     // Built from the pose the game actually uses, not from a lookAt: the whole
     // question this view answers is whether the model lands on the right.
     (() => {
@@ -343,7 +350,17 @@ async function shootLobby(): Promise<void> {
       };
     })(),
     { label: 'the difficulty lever', from: at(world.lever.x + 1.9, eye, world.lever.z + 0.5), look: at(world.lever.x, 0.9, world.lever.z) },
-    { label: 'the minigame wall', from: at(2.6, eye, 2.6), look: at(6.0, 1.4, 2.1) },
+    // Over the fence at the board, from roughly where a player throws from.
+    {
+      label: 'at the fence',
+      from: at(5.4, eye, world.darts.board.z),
+      look: at(world.darts.board.x, world.darts.board.y, world.darts.board.z),
+    },
+    {
+      label: 'the dart stand',
+      from: at(world.dartStand.x - 2.5, eye, world.dartStand.z - 1.7),
+      look: at(world.dartStand.x, 1.05, world.dartStand.z),
+    },
     { label: 'overview', from: at(4.6, 3.0, 3.4), look: at(-2.0, 1.2, -1.2) },
   ];
 

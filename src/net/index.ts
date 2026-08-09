@@ -119,6 +119,31 @@ export type NetMessage =
   /** Any -> all, on an interval. Silence for `timeoutSeconds` is a disconnect. */
   | { t: 'ping'; id: string }
   | { t: 'lobbyMove'; id: string; x: number; z: number; yaw: number }
+  /**
+   * A dart, as its release state plus the thrower's wind clock. Every peer
+   * re-runs the same flight from it, exactly as they do for a `throw` - the
+   * clock is here because the wind is a function of time and two browsers have
+   * not been in the cabin for the same number of seconds
+   * (`src/entities/dart.ts`).
+   */
+  | {
+      t: 'dart';
+      id: string;
+      owner: string;
+      x: number;
+      y: number;
+      z: number;
+      vx: number;
+      vy: number;
+      vz: number;
+      wind: number;
+    }
+  /**
+   * A player's running dart total. Self-reported and sent whole, like the run's
+   * `stats` block and for the same reason: nobody arbitrates a scoreboard, and
+   * a message lost on the way costs nothing because the next one is the truth.
+   */
+  | { t: 'dartScore'; id: string; score: number }
   /** Any -> all, on change and on anyone joining. Voice reads it across scenes. */
   | { t: 'scene'; id: string; scene: Scene }
   | { t: 'cosmetic'; id: string; colourId: string; hatId: string }
@@ -208,6 +233,16 @@ export interface NetEvents {
   /** Somebody pulled the lever (host only, for the same reason). */
   onDifficulty(difficultyId: string): void;
   onLobbyMove(id: string, x: number, z: number, yaw: number): void;
+  /** A peer threw a dart. Its flight is re-simulated locally, not replicated. */
+  onDartThrown(
+    id: string,
+    owner: string,
+    from: { x: number; y: number; z: number },
+    velocity: { x: number; y: number; z: number },
+    wind: number,
+  ): void;
+  /** A peer's dart total. Replaces whatever was held for them. */
+  onDartScore(id: string, score: number): void;
   onCosmetic(id: string, cosmetic: Cosmetic): void;
   onPeerJoin(id: string): void;
   onPeerLeave(id: string): void;
@@ -728,6 +763,18 @@ export class Net {
         break;
       case 'lobbyMove':
         this.#events.onLobbyMove(message.id, message.x, message.z, message.yaw);
+        break;
+      case 'dart':
+        this.#events.onDartThrown(
+          message.id,
+          message.owner,
+          { x: message.x, y: message.y, z: message.z },
+          { x: message.vx, y: message.vy, z: message.vz },
+          message.wind,
+        );
+        break;
+      case 'dartScore':
+        this.#events.onDartScore(message.id, message.score);
         break;
       case 'scene':
         this.#scenes.set(message.id, message.scene);

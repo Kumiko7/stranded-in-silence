@@ -1,0 +1,49 @@
+{
+  "$doc": "The lobby dart minigame. Deliberately its OWN file rather than a block in items.json: a dart shares its maths with a thrown flask and nothing else, and every number here is tuned against a board four metres away rather than against a corridor. Tuning one must never move the other.",
+
+  "throw": {
+    "$doc": "Flight. Faster and much flatter than an item throw (items.json -> defaults.throw), because there is no aim arc here to read the drop off. All you have is a crosshair, so the drop has to be small enough to learn in three throws.",
+    "speed": 24.0,
+    "gravity": 4.0,
+    "$releaseHeightOffset": "Relative to the eye, as for throwables - but ZERO here, deliberately. A throwable is aimed down a drawn arc, so releasing from below the eye costs you nothing; a dart is aimed down a crosshair, and every centimetre of offset is a centimetre the crosshair lies by on top of the drop. Tested at -0.12 and every dart landed 17 cm low: 5 cm of honest ballistics and 12 cm of nothing.",
+    "releaseHeightOffset": 0.0,
+    "radius": 0.02,
+    "maxFlightSeconds": 3.0
+  },
+
+  "wind": {
+    "$doc": "A draught across the annex. It is HIDDEN - nothing on screen ever shows it - and it is the entire difficulty of the minigame: far too weak to make you miss the board, quite strong enough to cost you the bull if you do not read where your last three landed.",
+    "$note": "A lateral ACCELERATION rather than a velocity, so a longer throw drifts further and the compensation you learn is a real one. Two sine terms per axis with periods that do not divide each other, so it drifts continuously and never settles into a pattern worth memorising. At 3.2 m/s^2 over a 0.14 s flight that is about 3 cm of drift - five times the radius of the inner bull, twice the radius of the 25, and a seventh of the radius of the board. So: the bull is a real prize, and the board is never in danger.",
+    "strength": 3.2,
+    "periodSeconds": [23.0, 9.5],
+    "$verticalScale": "The up-and-down component, as a fraction of the sideways one. Weaker, because it lands on top of the drop the player is already compensating for.",
+    "verticalScale": 0.45
+  },
+
+  "board": {
+    "$doc": "Regulation. Every ring is a FRACTION of `radius`, and art/shared/lobby/textures.ts paints the same fractions - so the picture and the scoring cannot disagree about where a treble is.",
+    "radius": 0.2255,
+    "innerBull": 0.0282,
+    "outerBull": 0.0705,
+    "trebleInner": 0.439,
+    "trebleOuter": 0.4745,
+    "doubleInner": 0.7184,
+    "doubleOuter": 0.7539,
+    "innerBullScore": 50,
+    "outerBullScore": 25,
+    "$sectors": "Clockwise from the top, starting with the bed at twelve o'clock.",
+    "sectors": [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
+  },
+
+  "stick": {
+    "$doc": "How long a dart stays where it landed, and how many are drawn at once before the oldest is pulled out. Nothing about this is simulated once a dart has landed - it is a model sitting in a hole.",
+    "seconds": 25.0,
+    "maxInWorld": 14
+  },
+
+  "hand": {
+    "$doc": "The dart held ready while the button is down, in the camera's own frame: right of the crosshair, below it, and forward. There is no aim arc - this IS the aim feedback.",
+    "offset": [0.19, -0.14, -0.52],
+    "raiseSeconds": 0.09
+  }
+}

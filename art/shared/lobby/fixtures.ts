@@ -1,6 +1,6 @@
 /**
- * The three things in the cabin that logic drives: the wardrobe, the difficulty
- * lever and the minigame wall that is not a minigame yet.
+ * Two of the things in the cabin that logic drives: the wardrobe and the
+ * difficulty lever. The dart minigame's pieces are in `darts.ts`.
  *
  * Contracts are in docs/art/SHARED_ART.md. Each is a shared-art builder rather
  * than part of the cabin geometry, because logic has to find, tag and animate
@@ -9,7 +9,7 @@
 import * as THREE from 'three';
 import type { ArtBuildContext, BuiltArt } from '../../lib/contract';
 import { boxGeometry } from '../../lib/build';
-import { MeshBatcher, poseMatrix, tiltMatrix } from '../../lib/merge';
+import { MeshBatcher, poseMatrix } from '../../lib/merge';
 
 /** `y` is the bottom face, as everywhere else in art. */
 function at(size: readonly [number, number, number], position: readonly [number, number, number], rotationY = 0): THREE.Matrix4 {
@@ -182,82 +182,5 @@ export function buildLever(ctx: ArtBuildContext): BuiltArt {
       shaft.geometry.dispose();
       grip.geometry.dispose();
     },
-  };
-}
-
-/* --- the minigame wall --------------------------------------------------------- */
-
-/**
- * `lobby.minigame` - the wall a minigame goes on (plan step 46).
- *
- * Deliberately a covered frame rather than a blank patch of wall: a dust sheet
- * roped over something wall-mounted reads as "this is coming", which is exactly
- * what it is. It is scenery - no parts, no interaction, nothing for logic to do.
- */
-export function buildMinigamePlaceholder(ctx: ArtBuildContext): BuiltArt {
-  const object = new THREE.Group();
-  const batch = new MeshBatcher();
-
-  const timber = ctx.materials.get('timberDark');
-  const canvas = ctx.materials.get('canvas');
-  const rope = ctx.materials.get('timber');
-  const add = (
-    material: THREE.Material,
-    size: readonly [number, number, number],
-    position: readonly [number, number, number],
-    rotation: readonly [number, number, number] = [0, 0, 0],
-  ): void => {
-    batch.add(
-      material,
-      boxGeometry(size[0], size[1], size[2]),
-      tiltMatrix([position[0], position[1] + size[1] / 2, position[2]], rotation),
-      { tile: 0.8 },
-    );
-  };
-
-  const width = 2.1;
-  const height = 1.5;
-
-  // The frame, and the boarded-up back panel inside it.
-  add(timber, [width, 0.12, 0.16], [0, height, 0]);
-  add(timber, [width, 0.12, 0.16], [0, -0.12, 0]);
-  add(timber, [0.12, height, 0.16], [-width / 2 + 0.06, 0, 0]);
-  add(timber, [0.12, height, 0.16], [width / 2 - 0.06, 0, 0]);
-  add(timber, [width - 0.24, height, 0.06], [0, 0, 0.03]);
-
-  // Two boards nailed across the frame: the universal shorthand for "not open".
-  for (const angle of [0.42, -0.42]) {
-    add(rope, [width * 1.06, 0.16, 0.05], [0, -0.08, -0.05], [0, 0, angle]);
-  }
-
-  /**
-   * The sheet over it. Five narrow panels, each on its own depth so they cannot
-   * z-fight, each hanging to a different length and leaning by a hair. The
-   * ragged hem is what makes it read as cloth rather than as a board - a flat
-   * rectangle of the same material reads as a cupboard door.
-   */
-  const panels = 5;
-  const panel = (width + 0.14) / panels;
-  for (let i = 0; i < panels; i++) {
-    const drop = height + 0.2 + ctx.rng() * 0.36;
-    add(
-      canvas,
-      [panel + 0.05, drop, 0.015],
-      [(i - (panels - 1) / 2) * panel, height + 0.14 - drop, -0.11 - i * 0.012],
-      [0, 0, (ctx.rng() - 0.5) * 0.06],
-    );
-  }
-  // A rope across it, holding it all on, with the knot ends left hanging.
-  add(rope, [width + 0.3, 0.05, 0.05], [0, height * 0.62, -0.2], [0, 0, 0.02]);
-  add(rope, [0.04, 0.34, 0.04], [width / 2 + 0.1, height * 0.3, -0.2], [0, 0, 0.1]);
-
-  const built = batch.build();
-  object.add(built.object);
-
-  return {
-    object,
-    colliders: [],
-    parts: {},
-    dispose: built.dispose,
   };
 }

@@ -189,6 +189,8 @@ async function boot(): Promise<void> {
     onPick: (id, mapId) => lobby.applyPick(id, mapId),
     onDifficulty: (difficultyId) => lobby.applyDifficulty(difficultyId),
     onLobbyMove: (id, x, z, yaw) => lobby.moveRemote(id, x, z, yaw),
+    onDartThrown: (id, owner, from, velocity, wind) => lobby.dartThrown(id, owner, from, velocity, wind),
+    onDartScore: (id, score) => lobby.setDartScore(id, score),
     onCosmetic: (id, cosmetic) => {
       lobby.setRemoteCosmetic(id, cosmetic);
       game.setRemoteCosmetic(id, cosmetic);
@@ -285,6 +287,10 @@ async function boot(): Promise<void> {
         promptHold: false,
       }),
     onViewChange: (view) => set({ lobby: view, players: view.players }),
+    // The cabin has no item roster, so it hands the HUD locale keys directly
+    // rather than item ids for `items.json` to name.
+    onHandsChange: (hands) => set({ hands }),
+    onUseChange: (use) => set({ use }),
     onWardrobe: (open) => {
       // Opening or closing both land on "showing what you actually wear": the
       // lobby has already put the equipped outfit back on the mannequin.
@@ -312,6 +318,7 @@ async function boot(): Promise<void> {
       hint: null,
       health: 'healthy',
       use: null,
+      hands: { left: null, right: null },
       coins: 0,
       bankedCoins: save.profile.coins,
       scoreboard: [],
@@ -361,6 +368,9 @@ async function boot(): Promise<void> {
       hint: null,
       health: 'healthy',
       use: null,
+      // Whatever was in your hands in the cabin was a dart, and darts do not
+      // come on the expedition.
+      hands: { left: null, right: null },
       coins: 0,
     });
 
@@ -421,6 +431,7 @@ async function boot(): Promise<void> {
       hint: null,
       health: 'healthy',
       use: null,
+      hands: { left: null, right: null },
       coins: 0,
     });
   }

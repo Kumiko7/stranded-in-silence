@@ -730,8 +730,15 @@ function checkLobby(sharedArt, buildLobby, createLobbyMaterials, maps, game) {
 
   const REQUIRED = {
     'poster.blank': ['tick', 'mark'],
+    'poster.random': ['tick', 'mark'],
     'lobby.wardrobe': ['doorLeft', 'doorRight'],
     'lobby.lever': ['handle'],
+    'lobby.dartStand': ['interactAnchor'],
+    'lobby.scoreboard': ['rows'],
+    // The board and the dart have no parts: logic drives both from the anchor
+    // pose and `config/darts.json`, which is the whole point of that file.
+    'lobby.dartboard': [],
+    'lobby.dart': [],
   };
   // Every poster a map names has to satisfy the poster contract too.
   for (const [mapId, entry] of Object.entries(maps.maps)) {
@@ -784,6 +791,7 @@ function checkLobby(sharedArt, buildLobby, createLobbyMaterials, maps, game) {
     ...cabin.anchors.posters.map((pose, index) => ({ name: `poster slot ${index + 1}`, pose })),
     { name: 'the wardrobe', pose: cabin.anchors.wardrobe },
     { name: 'the difficulty lever', pose: cabin.anchors.lever },
+    { name: 'the dart stand', pose: cabin.anchors.dartStand },
   ];
   for (const { name, pose } of targets) {
     if (!flood.reachedNear(pose.position[0], pose.position[2], ARM)) {
@@ -792,10 +800,22 @@ function checkLobby(sharedArt, buildLobby, createLobbyMaterials, maps, game) {
   }
 
   // The mannequin has to be visible from the wardrobe camera, which at minimum
-  // means neither of them is buried in geometry.
+  // means the camera is somewhere a player could stand. The mannequin itself is
+  // NOT checked for reachability any more - it stands inside the mirror now, on
+  // the far side of a wall, which is exactly where a reflection belongs.
   const camera = cabin.anchors.wardrobeCamera;
   if (!flood.reachedNear(camera.position[0], camera.position[2], 0.6)) {
     warn(where, 'the wardrobe camera is parked somewhere a player could not stand');
+  }
+
+  /**
+   * The dart annex is scenery behind a fence, so the one thing that can go
+   * wrong with it is the fence not being there: if the flood fill can reach the
+   * board, the perimeter has a hole in it and players can walk into the annex.
+   */
+  const board = cabin.anchors.dartboard;
+  if (flood.reachedNear(board.position[0], board.position[2], 0.5)) {
+    fail(where, 'the dart annex is walkable - the fence is not stopping anyone');
   }
 
   for (const { art } of placed) if (art.dispose) art.dispose();

@@ -86,7 +86,15 @@ a config change.
 | Objective hint | Transient line, e.g. "This door needs a key" |
 
 The lobby draws a reduced set — crosshair, interact prompt and the expedition panel.
-No roster and no hand slots: there is nothing to carry in the cabin and nobody to lose.
+No roster: there is nobody to lose in the cabin.
+
+The **hand slots and the use prompt are the run's**, and they appear the moment you
+take a dart off the stand by the fence (plan step 46). That is deliberate: the
+minigame is played with exactly the controls the game is played with, so it doubles as
+somewhere to learn them. Empty hands draw nothing at all — most visits to the cabin
+never touch a dart, and a permanent pair of "Empty" boxes is furniture. The cabin has
+no item roster, so `Lobby` hands the HUD **locale keys** rather than item ids for
+`items.json` to name.
 
 ## Rules
 

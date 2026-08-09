@@ -48,6 +48,8 @@
 
   "lobby": {
     "$doc": "Overrides merged over the block above while the lobby scene is up. The lobby is the one bright place in the game: daylight off snow, a fire, and only enough fog to give the mountains depth.",
+    "$maxActiveLights": "One number above what the cabin actually builds (sun, snow bounce, warm fill, chandelier, poster wash, fire, the lamp inside the mirror, the one over the dartboard), so the nearest-N ranking never has to choose and the sun can never be the light that loses. A map has thirty-odd rooms to ration lights between; the lobby is one hand-built space with nothing else in the scene.",
+    "maxActiveLights": 8,
     "exposure": 1.05,
     "ambientIntensity": 1.7,
     "ambientColor": "#a9c0da",
