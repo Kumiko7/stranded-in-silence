@@ -52,7 +52,7 @@
 
       "attack": {
         "range": 1.5,
-        "cooldownSeconds": 10.0,
+        "cooldownSeconds": 6.0,
         "windupSeconds": 0.25,
         "healthyResult": "injured",
         "injuredResult": "downed",
