@@ -16,7 +16,10 @@
  *   2. **Doors are respected.** A side the generator left closed must actually be
  *      walled; a side it opened must actually be walkable.
  *   3. **Anchors are usable.** Nothing buried in furniture, nothing in a doorway,
- *      counts within the ranges in docs/art/ROOM_FORMAT.md §3.
+ *      counts within the ranges in docs/art/ROOM_FORMAT.md §3. The doorway half
+ *      of that has to model what the GENERATOR places, not what `build()`
+ *      returns: a chest arrives at its anchor after the room is built, so it is
+ *      absent from the colliders every other check here walks around.
  *   4. **Determinism.** The same seed builds byte-identical geometry, and no art
  *      source calls `Math.random()`.
  *   5. **Budgets.** Draw calls, triangles, lights, materials. Reported as
@@ -414,6 +417,103 @@ const CLEARANCE = {
  */
 const APPROACH_DEPTH = 0.95;
 
+/**
+ * How far into the room a doorway has to stay clear, from ROOM_FORMAT.md §3
+ * rule 2.
+ */
+const DOOR_CLEARANCE = 1.2;
+
+/** Art returns colliders in its own local space; placing it rotates them too. */
+function rotateCollider(collider, rotationY) {
+  if (!rotationY) return collider;
+  const cos = Math.cos(rotationY);
+  const sin = Math.sin(rotationY);
+  const [cx, cz] = collider.center;
+  const center = [cx * cos + cz * sin, -cx * sin + cz * cos];
+  return collider.kind === 'box'
+    ? { ...collider, center, rotationY: (collider.rotationY ?? 0) + rotationY }
+    : { ...collider, center };
+}
+
+/**
+ * What the GENERATOR will drop into this room, in room-local world space.
+ *
+ * This is the blind spot every other collider check in this file shares: a
+ * chest is not built by `build()`, it is placed at an anchor afterwards by
+ * `worldBuilder.place()`, so the room the flood fill walks around does not
+ * contain one. A chest anchor in a doorway therefore passed everything - and
+ * shipped a door you cannot walk through.
+ *
+ * Built through the pack's overrides and rotated exactly as `place()` does, so
+ * this is the real collider at the real facing, not an approximation of one.
+ */
+function containersAt(blueprint, art) {
+  const placed = [];
+  for (const kind of ['chest', 'locker']) {
+    const built = art[kind];
+    if (!built) continue;
+    for (const anchor of blueprint.anchors?.[kind] ?? []) {
+      const [x, , z] = anchor.position;
+      placed.push({
+        kind,
+        x,
+        z,
+        colliders: (built.colliders ?? []).map((collider) => {
+          const turned = rotateCollider(collider, anchor.rotationY ?? 0);
+          return { ...turned, center: [turned.center[0] + x, turned.center[1] + z] };
+        }),
+      });
+    }
+  }
+  return placed;
+}
+
+/**
+ * Can a player still walk through every doorway once the generator has filled
+ * this room's container anchors?
+ *
+ * Every entry in `doorWalls` is checked, not just the ones open in some door
+ * combination, because the anchors do not move: a chest that stands in the north
+ * doorway stands there on every map that opens the north door, and no seed makes
+ * it not. That also makes this a per-blueprint check rather than a per-build one,
+ * so a bad anchor is reported once rather than sixty times.
+ *
+ * The test is the walk itself - a player-radius circle down the middle of the
+ * opening, from the wall to `DOOR_CLEARANCE` inside. A container that merely
+ * clips the edge of the span leaves a gap you can still get through, and this
+ * deliberately does not fail it; one that stops the circle is a sealed door.
+ */
+function checkDoorwaysClear(blueprint, containers) {
+  const where = blueprint.id;
+  const half = DIMS.cellSize / 2;
+
+  for (const wall of blueprint.doorWalls) {
+    const [gx, gy] = wall.cell;
+    const [ix, iz] = INWARD[wall.side];
+    const wallX = gx * DIMS.cellSize - ix * half;
+    const wallZ = gy * DIMS.cellSize - iz * half;
+
+    for (const container of containers) {
+      let depthHit = null;
+      for (let depth = PLAYER_RADIUS + 0.08; depth <= DOOR_CLEARANCE + 1e-6; depth += 0.1) {
+        if (blocked(container.colliders, wallX + ix * depth, wallZ + iz * depth, PLAYER_RADIUS)) {
+          depthHit = depth;
+          break;
+        }
+      }
+      if (depthHit === null) continue;
+
+      fail(
+        where,
+        `a ${container.kind} the generator may place at [${container.x}, ${container.z}] stands in the ` +
+          `${wall.side} doorway of cell [${gx},${gy}]: it stops a player ${depthHit.toFixed(2)} m in, and ` +
+          `ROOM_FORMAT.md §3 rule 2 asks for ${DOOR_CLEARANCE} m clear. Anchors are filled at random, so this ` +
+          `is a door nobody can use on any map that opens that side.`,
+      );
+    }
+  }
+}
+
 function checkBuild(packId, blueprint, doors, seed, library, THREE) {
   const where = `${blueprint.id} [${doors.map((d) => d.side).join('|') || 'none'}] seed ${seed}`;
   const doorStates = {};
@@ -751,6 +851,26 @@ async function main() {
     };
     const library = { materials: spy, kit: pack.createKit(), handedOut };
 
+    /**
+     * The containers this pack's rooms will actually get, resolved the way
+     * `worldBuilder.place()` resolves them. Built off the raw library rather
+     * than the spy, so shared art cannot quietly widen the "every material came
+     * from ctx.materials" check that the rooms themselves are held to.
+     */
+    const plainMaterials = { get: (name) => materials.get(name), dispose: () => {} };
+    const containerArt = {};
+    for (const [kind, artId] of [
+      ['chest', 'chest.standard'],
+      ['locker', 'locker.standard'],
+    ]) {
+      const builder = pack.overrides?.[artId] ?? shared.sharedArt[artId];
+      if (!builder) {
+        fail(packId, `no art registered for "${artId}"`);
+        continue;
+      }
+      containerArt[kind] = builder({ materials: plainMaterials, rng: makeRng(1), dims: DIMS });
+    }
+
     const seenIds = new Set();
     const oneByOne = pack.rooms.filter((room) => room.footprint.length === 1).length;
     const withPlayerSpawn = pack.rooms.filter((room) => (room.anchors.playerSpawn ?? []).length > 0).length;
@@ -777,6 +897,7 @@ async function main() {
 
     for (const blueprint of pack.rooms) {
       checkMetadata(packId, blueprint, seenIds);
+      checkDoorwaysClear(blueprint, containersAt(blueprint, containerArt));
 
       let worst = null;
       const combos = doorCombos(blueprint);
@@ -815,6 +936,7 @@ async function main() {
       }
     }
 
+    for (const built of Object.values(containerArt)) if (built.dispose) built.dispose();
     spy.dispose();
   }
 

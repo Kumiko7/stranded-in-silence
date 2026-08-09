@@ -32,7 +32,10 @@ export const windpipe: RoomBlueprint = {
   maxPerMap: 1,
   tags: ['wet', 'corridor', 'open'],
   anchors: {
-    chest: [{ position: [-3.05, 0, 8.0], rotationY: -Math.PI / 2 }],
+    // Off the cell's midpoint on purpose: every outer wall of this corridor is in
+    // `doorWalls`, and a doorway is centred on its cell (z = 0, 8 and 16 down the
+    // west side), so anything backed against a wall at z = 8 is standing in one.
+    chest: [{ position: [-3.05, 0, 6.0], rotationY: -Math.PI / 2 }],
     locker: [{ position: [3.25, 0, 10.4], rotationY: Math.PI / 2 }],
     itemSpawn: [
       { position: [2.9, 0.94, -2.6] },

@@ -158,7 +158,13 @@ An anchor is `{ position: [x, y, z], rotationY?: number }` in room-local space.
    for a locker — and `npm run validate:art` checks both the clearance and, by
    implication, the facing.
 1. Anchors must be reachable — no anchor inside a collider, none behind furniture.
-2. Anchors must not block a doorway. Keep `1.2 m` clear in front of every entry in `doorWalls`.
+2. Anchors must not block a doorway. Keep `1.2 m` clear in front of every entry in
+   `doorWalls`. **A doorway is centred on its own cell**, so in a multi-cell room the
+   openings march along the wall one per cell — a `1x3` corridor has them at
+   `z = 0, 8, 16` down each side. Backing a chest against a wall at a cell's midpoint
+   puts it squarely in the door; offset it along the wall instead. `npm run
+   validate:art` builds the real chest and locker art at every anchor you declare and
+   walks a player through each opening, so it fails on this rather than a playtest.
 3. `itemSpawn` anchors want to read as *intentional* spots: a table edge, a shelf, a
    desk, a plinth. Not a random patch of floor (though one floor spot is fine).
 4. If the generator asks for more of a kind than you declared, it simply places fewer.
