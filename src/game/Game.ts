@@ -302,8 +302,15 @@ export class Game {
   /* --- out of the run ------------------------------------------------------ */
   /** Whose eyes this player is borrowing, once they are out of the run. */
   #spectating: string | null = null;
-  /** Last view handed to the UI, so an unchanged one is not pushed every tick. */
-  #spectateSignature = '';
+  /**
+   * Last view handed to the UI, so an unchanged one is not pushed every tick.
+   * `null` means NOTHING has been pushed yet, and is deliberately distinct from
+   * the empty string that means "pushed, and there was nobody to watch": the
+   * last player out of a run full of dead teammates goes straight from playing
+   * to having no targets, and starting this at `''` swallowed exactly that
+   * transition and left them standing at the exit door with no way on.
+   */
+  #spectateSignature: string | null = null;
   /** Seconds the give-up key has been held while downed. */
   #giveUpHold = 0;
   #giveUpPushed = 0;
@@ -489,7 +496,7 @@ export class Game {
     this.#escaped = false;
     this.#over = false;
     this.#spectating = null;
-    this.#spectateSignature = '';
+    this.#spectateSignature = null;
     this.#giveUpHold = 0;
     this.#giveUpPushed = 0;
     this.#hooks.onGiveUpProgress(0);

@@ -11,6 +11,7 @@
  */
 import type { VoiceMode } from '@/config/types';
 import { KeyLine } from '../components/KeyCap';
+import { Slider } from '../components/Controls';
 import type { RosterEntry } from '@/game/Game';
 import { t } from '@/i18n/index';
 import { modeLabelKey } from '@/voice/modes';
@@ -22,10 +23,27 @@ interface Props {
   onMode(mode: VoiceMode): void;
   onSelfMute(): void;
   onMutePeer(id: string): void;
+  onSelfVolume(volume: number): void;
+  onPeerVolume(id: string, volume: number): void;
 }
 
-export function VoicePanel({ voice, roster, onMode, onSelfMute, onMutePeer }: Props) {
+const percent = (value: number): string => `${Math.round(value * 100)}%`;
+
+export function VoicePanel({
+  voice,
+  roster,
+  onMode,
+  onSelfMute,
+  onMutePeer,
+  onSelfVolume,
+  onPeerVolume,
+}: Props) {
   const teammates = roster.filter((entry) => !entry.self);
+
+  // Nothing here means anything on your own: no microphone is even opened in a
+  // solo run, there is nobody to be heard by and nobody to turn down. A block of
+  // dead controls explaining that is worse than no block at all.
+  if (teammates.length === 0) return null;
 
   return (
     <section class="voice-panel">
@@ -45,44 +63,68 @@ export function VoicePanel({ voice, roster, onMode, onSelfMute, onMutePeer }: Pr
       </div>
 
       <p class="voice-panel__note">
-        {/* Alone in the run, the microphone is not even open - say so, rather
-            than describing a mode that is doing nothing. */}
-        {teammates.length === 0
-          ? t('pause.voiceAlone')
-          : voice.errorKey
-            ? t(voice.errorKey)
-            : voice.mode === 'pushToTalk'
-              ? <KeyLine textKey="pause.voicePushHint" code={voice.pushToTalkKey} />
-              : voice.mode === 'off'
-                ? t('pause.voiceOffHint')
-                : t('pause.voiceOpenHint')}
+        {voice.errorKey
+          ? t(voice.errorKey)
+          : voice.mode === 'pushToTalk'
+            ? <KeyLine textKey="pause.voicePushHint" code={voice.pushToTalkKey} />
+            : voice.mode === 'off'
+              ? t('pause.voiceOffHint')
+              : t('pause.voiceOpenHint')}
       </p>
 
-      <button
-        class={voice.selfMuted ? 'btn btn--small btn--active' : 'btn btn--small'}
-        disabled={voice.mode === 'off' || teammates.length === 0}
-        onClick={onSelfMute}
-      >
-        {t(voice.selfMuted ? 'pause.voiceUnmuteSelf' : 'pause.voiceMuteSelf')}
-      </button>
+      {/* Your own microphone: how loud you go out, and the switch that stops you
+          going out at all. Muting is not volume zero - it survives you dragging
+          the slider back up, and the pill says which one is holding you quiet. */}
+      <div class="voice-panel__self">
+        <Slider
+          label={t('pause.voiceSelfVolume')}
+          value={voice.selfVolume}
+          min={0}
+          max={1}
+          step={0.05}
+          display={percent(voice.selfVolume)}
+          onChange={onSelfVolume}
+        />
+        <button
+          class={voice.selfMuted ? 'btn btn--small btn--active' : 'btn btn--small'}
+          disabled={voice.mode === 'off'}
+          onClick={onSelfMute}
+        >
+          {t(voice.selfMuted ? 'pause.voiceUnmuteSelf' : 'pause.voiceMuteSelf')}
+        </button>
+      </div>
 
       <ul class="voice-panel__list">
         {teammates.map((entry) => {
           const muted = voice.muted.includes(entry.id);
           const speaking = voice.speaking.includes(entry.id);
+          const volume = voice.volumes[entry.id] ?? 1;
 
           return (
-            <li key={entry.id} class="voice-panel__row">
-              <MicIcon
-                className={`voice-panel__mic${speaking ? ' voice-panel__mic--live' : ''}${
-                  muted ? ' voice-panel__mic--muted' : ''
-                }`}
-                muted={muted}
+            <li key={entry.id} class="voice-panel__peer">
+              <div class="voice-panel__row">
+                <MicIcon
+                  className={`voice-panel__mic${speaking ? ' voice-panel__mic--live' : ''}${
+                    muted ? ' voice-panel__mic--muted' : ''
+                  }`}
+                  muted={muted}
+                />
+                <span class="voice-panel__name">{t('hud.player.name', { n: entry.index })}</span>
+                <button class="btn btn--small" onClick={() => onMutePeer(entry.id)}>
+                  {t(muted ? 'pause.voiceUnmute' : 'pause.voiceMute')}
+                </button>
+              </div>
+              {/* Multiplies the distance law rather than replacing it, so
+                  somebody turned down is still quieter across a room. */}
+              <Slider
+                label={t('pause.voiceVolume')}
+                value={volume}
+                min={0}
+                max={1}
+                step={0.05}
+                display={percent(volume)}
+                onChange={(value) => onPeerVolume(entry.id, value)}
               />
-              <span class="voice-panel__name">{t('hud.player.name', { n: entry.index })}</span>
-              <button class="btn btn--small" onClick={() => onMutePeer(entry.id)}>
-                {t(muted ? 'pause.voiceUnmute' : 'pause.voiceMute')}
-              </button>
             </li>
           );
         })}

@@ -203,6 +203,23 @@ Default `hearingRange` is **22 m**, far beyond what the enemy can hear voice at
 (`enemy.json → hearing.voiceRoomLimit`, default same-or-adjacent room). Talking is
 mostly safe. Sprinting is not.
 
+### Volume, and why it is not a bus
+
+Two sliders that are **not** in `audio.json` and not in the save profile:
+
+| Slider | Where it acts |
+| --- | --- |
+| My microphone | A `level` gain in `capture.ts`, between the meter and the gate. **After** the meter on purpose: turning yourself down makes you quieter to the team, it does not stop your own voice-activity gate opening or make the level meter lie |
+| A teammate | `PeerVoice.volume`, **multiplied into** the proximity attenuation rather than replacing it — somebody turned down is still quieter across a room and still inaudible past `hearingRange` |
+
+Both are **session state, like the mutes and the mode**. A per-peer volume cannot
+sensibly persist: a peer id is a lobby code that means somebody different next week,
+so a remembered one is worse than no memory at all. Muting is kept separate from
+volume zero for the same reason a switch is not a slider at its minimum — a mute
+survives dragging the slider back up, and the panel says which one is holding you
+quiet. The `voice` **bus** (in Options) is still the master for everything incoming;
+these sit under it.
+
 ### Modes
 
 `net.json → voice.modes`: `off | voiceActivity | pushToTalk`, switched from the pause
@@ -274,7 +291,7 @@ and a pulse for a body you are not in is a lie.
 | --- | --- |
 | Voice pill, bottom left (`src/ui/hud/voiceIndicator.ts`) | Mode, whether the mic is open right now, and a five-segment input level. Plain DOM — the level moves every frame |
 | Roster row | A microphone next to anyone talking, crossed out for anyone you have muted |
-| Pause menu (`src/ui/screens/VoicePanel.tsx`) | The mode control, self-mute, and a mute per teammate. Mutes are local and the muted player is never told |
+| Pause menu (`src/ui/screens/VoicePanel.tsx`) | The mode control, then a volume slider and a mute for **your own microphone** and for **each teammate**. Mutes are local and the muted player is never told. Hidden entirely in a solo run |
 
 Music ducks by `audio.json → music.duckOnVoiceDb` while a teammate is **audible** —
 not merely while someone is talking somewhere across the map.

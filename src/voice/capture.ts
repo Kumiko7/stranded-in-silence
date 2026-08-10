@@ -3,7 +3,12 @@
  *
  * The graph is deliberately fixed for the whole session:
  *
- *   getUserMedia -> source -> [meter] -> gate (GainNode) -> MediaStreamDestination
+ *   getUserMedia -> source -> [meter] -> level -> gate (GainNode) -> MediaStreamDestination
+ *
+ * `level` is how loud this player chooses to be to everyone else. It sits AFTER
+ * the meter on purpose: turning yourself down should make you quieter to the
+ * team, not stop your own voice-activity gate from opening or make the level
+ * meter lie about how loud you actually are.
  *
  * The peer connections are negotiated once against that destination's track and
  * never renegotiated. Muting, push-to-talk and voice activity are all just the
@@ -26,6 +31,7 @@ export class MicCapture {
   readonly #config: VoiceConfig;
   readonly #destination: MediaStreamAudioDestinationNode;
   readonly #gate: GainNode;
+  readonly #level: GainNode;
 
   #media: MediaStream | null = null;
   #source: MediaStreamAudioSourceNode | null = null;
@@ -40,6 +46,21 @@ export class MicCapture {
     this.#gate = context.createGain();
     this.#gate.gain.value = 0;
     this.#gate.connect(this.#destination);
+    this.#level = context.createGain();
+    this.#level.gain.value = 1;
+    this.#level.connect(this.#gate);
+  }
+
+  /**
+   * How loud this player is to everybody else, 0..1. Named apart from `level`
+   * below, which is the opposite direction entirely - what the meter is reading.
+   */
+  setSendLevel(level: number): void {
+    this.#level.gain.setTargetAtTime(
+      Math.max(0, Math.min(1, level)),
+      this.#context.currentTime,
+      this.#config.gainSmoothingSeconds,
+    );
   }
 
   /** The track sent to every peer. Silent, never absent. */
@@ -69,7 +90,7 @@ export class MicCapture {
       .then((media) => {
         this.#media = media;
         this.#source = this.#context.createMediaStreamSource(media);
-        this.#source.connect(this.#gate);
+        this.#source.connect(this.#level);
         this.#meter = new LevelMeter(this.#context, this.#source);
         this.#error = null;
       })
@@ -121,6 +142,7 @@ export class MicCapture {
 
   dispose(): void {
     this.close();
+    this.#level.disconnect();
     this.#gate.disconnect();
   }
 }

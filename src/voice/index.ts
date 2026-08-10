@@ -58,10 +58,17 @@ export interface VoiceStatus {
   speaking: string[];
   /** Ids the local player has muted. */
   muted: string[];
+  /** How loud this player is sending, 0..1. */
+  selfVolume: number;
+  /** Peer id -> how loud this listener has chosen to have them, 0..1. */
+  volumes: Record<string, number>;
 }
 
 /** Shown when the microphone is refused or missing. Both read the same to a player. */
 const ERROR_KEY = 'error.microphone';
+
+const clamp01 = (value: number): number =>
+  Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
 
 export class VoiceChat {
   readonly #config: VoiceConfig;
@@ -71,6 +78,16 @@ export class VoiceChat {
   readonly #peers = new Map<string, PeerVoice>();
   /** Muting a teammate survives them reconnecting, so it is kept outside `#peers`. */
   readonly #muted = new Set<string>();
+  /**
+   * Per-teammate volume, and for the same reason kept out of `#peers`: a peer
+   * whose call drops and comes back should come back at the volume you set.
+   *
+   * Session state, like the mutes and the mode - deliberately NOT in the save
+   * profile. A peer id is a lobby code that means somebody different next week,
+   * so a stored one is worse than no memory at all.
+   */
+  readonly #volumes = new Map<string, number>();
+  #selfVolume = 1;
   readonly #activity: Gate;
   readonly #noise: Gate;
 
@@ -156,6 +173,20 @@ export class VoiceChat {
     return this.#muted.has(id);
   }
 
+  /** How loud this player sends. A gain on the outgoing track, nothing more. */
+  setSelfVolume(volume: number): void {
+    this.#selfVolume = clamp01(volume);
+    this.#capture.setSendLevel(this.#selfVolume);
+  }
+
+  /** How loud one teammate is heard, on top of the distance law. */
+  setPeerVolume(id: string, volume: number): void {
+    const value = clamp01(volume);
+    this.#volumes.set(id, value);
+    const peer = this.#peers.get(id);
+    if (peer) peer.volume = value;
+  }
+
   /* --- lifecycle ----------------------------------------------------------- */
 
   /**
@@ -189,6 +220,7 @@ export class VoiceChat {
       this.#audio.spatial,
     );
     peer.muted = this.#muted.has(id);
+    peer.volume = this.#volumes.get(id) ?? 1;
     this.#peers.set(id, peer);
   }
 
@@ -254,6 +286,8 @@ export class VoiceChat {
       errorKey: this.#capture.error ? ERROR_KEY : null,
       speaking,
       muted: [...this.#muted],
+      selfVolume: this.#selfVolume,
+      volumes: Object.fromEntries(this.#volumes),
     };
   }
 

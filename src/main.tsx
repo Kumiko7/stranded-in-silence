@@ -186,6 +186,8 @@ async function boot(): Promise<void> {
       modes: config.net.voice.modes,
       speaking: [],
       muted: [],
+      selfVolume: 1,
+      volumes: {},
       selfMuted: false,
       errorKey: null,
       pushToTalkKey: input.bindingFor('pushToTalk'),
@@ -524,10 +526,14 @@ async function boot(): Promise<void> {
   /* --- chat --------------------------------------------------------------- */
 
   /**
-   * Lines are dropped from state on a timer rather than faded by CSS, so a HUD
-   * with nothing to say has no chat element in it at all. `chatSeq` is local and
-   * never crosses the wire - it exists only to key the list and to find the line
-   * again when its timer comes round.
+   * Lines go quiet on a timer rather than being faded by CSS, so a HUD with
+   * nothing recent to say has no chat element in it at all. They are NOT thrown
+   * away when that timer fires - `fresh` goes false and the line stays in the
+   * backlog, so opening the box again asks "what did I miss" instead of
+   * starting from a blank panel. `chatConfig.maxMessages` is what bounds it.
+   *
+   * `chatSeq` is local and never crosses the wire; it exists only to key the
+   * list and to find the line again when its timer comes round.
    */
   const chatConfig = config.ui.hud.chat;
   let chatSeq = 0;
@@ -538,11 +544,17 @@ async function boot(): Promise<void> {
     const text = raw.replace(/[ -]/gu, ' ').trim().slice(0, chatConfig.maxLength);
     if (!text) return;
 
-    const line: ChatLine = { id: ++chatSeq, from: game.playerNumber(fromId), self: fromId === net.selfId, text };
+    const line: ChatLine = {
+      id: ++chatSeq,
+      from: game.playerNumber(fromId),
+      self: fromId === net.selfId,
+      text,
+      fresh: true,
+    };
     set({ chat: [...state.chat, line].slice(-chatConfig.maxMessages) });
 
     setTimeout(() => {
-      set({ chat: state.chat.filter((entry) => entry.id !== line.id) });
+      set({ chat: state.chat.map((entry) => (entry.id === line.id ? { ...entry, fresh: false } : entry)) });
     }, chatConfig.messageSeconds * 1000);
   }
 
@@ -566,6 +578,22 @@ async function boot(): Promise<void> {
     if (CAN_CHAT.includes(state.screen)) input.requestPointerLock();
   }
 
+  /* --- escape ------------------------------------------------------------- */
+
+  /** The escape menus, and the screen each one goes back to. */
+  const RESUMES: Partial<Record<Screen, Screen>> = {
+    paused: 'run',
+    spectatePaused: 'spectate',
+    lobbyPaused: 'lobby',
+  };
+
+  function resume(): void {
+    const screen = RESUMES[state.screen];
+    if (!screen) return;
+    set({ screen });
+    input.requestPointerLock();
+  }
+
   /* --- screens ------------------------------------------------------------ */
 
   const callbacks: UiCallbacks = {
@@ -586,12 +614,7 @@ async function boot(): Promise<void> {
           set({ netStatus: 'error', error: t('join.notFound') });
         });
     },
-    onResume: () => {
-      const screen =
-        state.screen === 'lobbyPaused' ? 'lobby' : state.screen === 'spectatePaused' ? 'spectate' : 'run';
-      set({ screen });
-      input.requestPointerLock();
-    },
+    onResume: resume,
     onLeave: leaveRun,
     onChatSend: (text) => {
       const line = text.trim();
@@ -643,6 +666,17 @@ async function boot(): Promise<void> {
     },
     onVoiceMutePeer: (id) => {
       voice.toggleMute(id);
+      pushVoice();
+    },
+    // Session state, like the mode and the mutes, and deliberately not in the
+    // save profile: a peer id is a lobby code that means somebody else next
+    // week, so a remembered one is worse than no memory at all.
+    onVoiceSelfVolume: (volume) => {
+      voice.setSelfVolume(volume);
+      pushVoice();
+    },
+    onVoicePeerVolume: (id, volume) => {
+      voice.setPeerVolume(id, volume);
       pushVoice();
     },
     onOpenOptions: () => {
@@ -733,7 +767,17 @@ async function boot(): Promise<void> {
 
   function pushVoice(): void {
     const status = voice.status();
-    const signature = [status.mode, status.selfMuted, status.errorKey, ...status.speaking, '|', ...status.muted].join();
+    const signature = [
+      status.mode,
+      status.selfMuted,
+      status.errorKey,
+      status.selfVolume,
+      ...status.speaking,
+      '|',
+      ...status.muted,
+      '|',
+      ...Object.entries(status.volumes).flat(),
+    ].join();
     if (signature === voiceSignature) return;
 
     voiceSignature = signature;
@@ -743,6 +787,8 @@ async function boot(): Promise<void> {
         mode: status.mode,
         speaking: status.speaking,
         muted: status.muted,
+        selfVolume: status.selfVolume,
+        volumes: status.volumes,
         selfMuted: status.selfMuted,
         errorKey: status.errorKey,
       },
@@ -766,13 +812,40 @@ async function boot(): Promise<void> {
     else if (state.screen === 'lobby') set({ screen: 'lobbyPaused' });
   };
 
-  // Every screen must be exitable by keyboard (docs/systems/UI.md). Options is
-  // the only one layered over another, so it is the only one that needs its own
-  // Escape - the rest ride the pointer-lock cue above.
+  /**
+   * Escape, as one ordered stack: it closes the innermost thing that is open and
+   * nothing else. A panel that closed and immediately handed you the escape menu
+   * would make Escape mean two things at once, and there would be no way to back
+   * out of anything without also opening something.
+   *
+   * Only what is on screen *without* pointer lock is here. Escape in a running
+   * run is not delivered as a key at all - the browser spends it exiting pointer
+   * lock, and `onPointerLockChange` is what turns that into the escape menu. So
+   * the first press opens it and the second one, which does reach this, closes
+   * it again.
+   */
   addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape' || !state.optionsOpen) return;
-    event.preventDefault();
-    set({ optionsOpen: false });
+    if (event.key !== 'Escape') return;
+
+    if (state.optionsOpen) {
+      event.preventDefault();
+      set({ optionsOpen: false });
+      return;
+    }
+    if (state.chatOpen) {
+      event.preventDefault();
+      closeChat();
+      return;
+    }
+    if (state.screen === 'wardrobe') {
+      event.preventDefault();
+      lobby.closeWardrobe();
+      return;
+    }
+    if (RESUMES[state.screen]) {
+      event.preventDefault();
+      resume();
+    }
   });
 
   document.addEventListener('pointerlockerror', () => {

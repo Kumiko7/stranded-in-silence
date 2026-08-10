@@ -63,7 +63,7 @@ so a line of text never crosses a 32-inch monitor.
 | `Wardrobe` | Customisation and the hat shop. Options claim the **left** half of the screen; the right half is left clear for the player's real model, which the camera parks in front of while the panel is open. There is no preview render — it is the actual `player.masked` standing in the cabin. That is also why **you try a hat on before you buy it**: touching an unowned hat puts it on the mannequin two metres in front of you and leaves a price under the list, while an owned one is equipped on the spot. Closing takes the unbought one back off |
 | `Options` | Tabs: Gameplay / Graphics / Audio. **Layered over whatever screen opened it** rather than replacing it, so backing out always lands where you started — reachable from the main menu, the pause menu and the lobby's escape menu. Every control writes through immediately; there is no Apply button, because a setting you cannot hear or see change while you drag it is one you have to guess at. Escape closes it |
 | `Controls` | Rebinding, as a tab of Options. Click an action, press a key or a mouse button. Three rules: **conflicts are shown, not silently resolved** (both keys keep working and you are told); **only the primary key moves** (WASD keeps its arrow-key alternates); and **some actions do not move at all** — Escape is how you reach the menu that would undo a bad rebind, so `input.json` marks it unrebindable and it is drawn locked rather than hidden |
-| `Pause` | Resume / Options / Voice / Abandon run. **Voice mode is one control, per the design brief** — a segmented `off / open mic / push to talk` (`src/ui/screens/VoicePanel.tsx`), with self-mute and a per-teammate mute under it. Mutes are local; nothing is sent and the muted player is never told |
+| `Pause` | Resume / Options / Voice / Abandon run. **Voice mode is one control, per the design brief** — a segmented `off / open mic / push to talk` (`src/ui/screens/VoicePanel.tsx`), with a volume slider and a mute for **your own microphone** and for **each teammate** under it. Mutes are local; nothing is sent and the muted player is never told, and a mute is not volume zero — it survives dragging the slider back up. The whole block is **absent in a solo run**: no microphone is even opened, so a set of dead controls explaining that is worse than nothing |
 | `Loading` | Between the cabin and the map, and deliberately quiet — voice carries on over it and the last thing anyone needs mid-sentence is a wall of chrome. It stays up **after this browser has finished building the world**, because the run starts for everybody at once ([`NETWORKING.md`](NETWORKING.md) → "Starting together"): one pip per player fills as each reports in, so a few seconds of waiting reads as the team assembling rather than as the game hanging. Solo, and for the last one in, it is on screen for a frame |
 | `Scoreboard` | One **card per player**: their body on top, then the categories from `game.json → scoring.categories`. A player who dropped out keeps their card, marked `disconnected` — a run they were part of is still a run they were part of. Best value in each gets the green ring, and only when there is more than one player — a solo player winning every category is not a result. The figure is a **picture of the real `player.masked`**, hat and all, rendered off screen by `src/render/portraits.ts` and handed over as a data URL — so rule 5 still holds and a hat shows up on the scoreboard without anybody drawing it twice. The SVG silhouette in `Scoreboard.tsx` is the fallback for a browser that will not grant a second GL context |
 | `Spectate` | Minimal chrome, because none of what is on screen belongs to the person watching it: whose eyes you are behind, the two caps that change that and "1 of 2", the run purse, and the roster of who is left. **No crosshair, no prompts, no hand slots.** Escaping or giving up lands here rather than on the scoreboard; the scoreboard comes when there is nobody left to watch |
@@ -86,7 +86,7 @@ a config change.
 | Voice indicator | The pill under the roster: mode, whether the mic is open right now, and a five-segment input level. The one element written as **plain DOM** (`src/ui/hud/voiceIndicator.ts`) — the level moves every frame, so it must not go through the vdom |
 | Objective hint | Transient line, e.g. "This door needs a key" |
 | Downed panel | "Someone might come", and under it the give-up cap with its own hold ring. Both are true at once, so the second is a quieter line rather than a replacement |
-| Chat | Above the roster. A log whose lines are **dropped from state on a timer** rather than faded by CSS, so a HUD with nothing to say has no chat element in the DOM at all; the whole backlog is up while the box is open. The box is the one HUD element that re-enables pointer events, and opening it releases pointer lock on purpose — typing with the mouse captured and the movement keys live is how you walk into a wall mid-sentence. It is **not** a pause |
+| Chat | Above the roster. Lines go quiet on a timer but are **not thrown away** — `fresh` goes false and they stay in the backlog, so a HUD with nothing recent has no chat element in the DOM at all while opening the box still answers "what did I miss" rather than showing a blank panel. `hud.chat.maxMessages` is what bounds it. The box is the one HUD element that re-enables pointer events, and opening it releases pointer lock on purpose — typing with the mouse captured and the movement keys live is how you walk into a wall mid-sentence. It is **not** a pause |
 
 The lobby draws a reduced set — crosshair, interact prompt, chat and the expedition
 panel. No roster: there is nobody to lose in the cabin. Chat is there because it
@@ -97,6 +97,21 @@ a plan gets agreed.
 has one flag for this (`setTextCapture`) and every action reads as unpressed while it
 is set, so there is no per-action opt-out to forget. Held keys are dropped in both
 directions, because the key that opened the box must not still be down when it closes.
+
+## Escape is one ordered stack
+
+Escape closes **the innermost thing that is open, and nothing else** — options, then
+the chat box, then the wardrobe, then the escape menu itself. It lives in exactly one
+place (`src/main.tsx`); handling it in a screen as well is how a panel ends up closing
+straight into the escape menu, which makes one key mean two things at once and leaves
+no way to back out of anything without also opening something.
+
+The subtlety is that **Escape inside a running run is never delivered as a key at
+all**: the browser spends it exiting pointer lock, and `onPointerLockChange` is what
+turns that into the escape menu. So the first press opens the menu and the second one
+— which does reach the handler, because there is no lock left to exit — closes it and
+puts you back in the game. Anything that releases pointer lock on purpose (the
+wardrobe, the chat box) is not a pause, and the lock-change handler checks for it.
 
 The **hand slots and the use prompt are the run's**, and they appear the moment you
 take a dart off the stand by the fence (plan step 46). That is deliberate: the

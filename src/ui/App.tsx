@@ -122,14 +122,20 @@ export interface UiState {
 /**
  * One line in the chat log. `from` is the sender's roster number rather than
  * their peer id, because that is what every other surface already calls them,
- * and `id` is a local sequence number so a line can be taken back off screen
- * again when it has been up long enough.
+ * and `id` is a local sequence number so a line can be found again when its
+ * time on screen runs out.
+ *
+ * `fresh` is what that timer clears, and it is a flag rather than a deletion on
+ * purpose: a line that has faded is still something that was said. Opening the
+ * box brings the whole backlog back rather than a blank panel.
  */
 export interface ChatLine {
   id: number;
   from: number;
   self: boolean;
   text: string;
+  /** Recent enough to show over the game. Faded lines return with the box. */
+  fresh: boolean;
 }
 
 /**
@@ -144,6 +150,10 @@ export interface VoiceUiState {
   speaking: string[];
   /** Peer ids this player has muted. */
   muted: string[];
+  /** How loud this player sends, 0..1. */
+  selfVolume: number;
+  /** Peer id -> how loud this listener has them, 0..1. Absent means full. */
+  volumes: Record<string, number>;
   selfMuted: boolean;
   /** Locale key of a capture failure, or null. */
   errorKey: string | null;
@@ -172,6 +182,8 @@ export interface UiCallbacks {
   onVoiceMode(mode: VoiceMode): void;
   onVoiceSelfMute(): void;
   onVoiceMutePeer(id: string): void;
+  onVoiceSelfVolume(volume: number): void;
+  onVoicePeerVolume(id: string, volume: number): void;
   onOpenOptions(): void;
   onCloseOptions(): void;
   /** Applied and persisted immediately - there is no Apply button. */
@@ -278,6 +290,8 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
             onMode={callbacks.onVoiceMode}
             onSelfMute={callbacks.onVoiceSelfMute}
             onMutePeer={callbacks.onVoiceMutePeer}
+            onSelfVolume={callbacks.onVoiceSelfVolume}
+            onPeerVolume={callbacks.onVoicePeerVolume}
           />
 
           <button class="btn" onClick={callbacks.onOpenOptions}>
@@ -309,6 +323,8 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
             onMode={callbacks.onVoiceMode}
             onSelfMute={callbacks.onVoiceSelfMute}
             onMutePeer={callbacks.onVoiceMutePeer}
+            onSelfVolume={callbacks.onVoiceSelfVolume}
+            onPeerVolume={callbacks.onVoicePeerVolume}
           />
 
           <button class="btn" onClick={callbacks.onOpenOptions}>
@@ -344,6 +360,8 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
             onMode={callbacks.onVoiceMode}
             onSelfMute={callbacks.onVoiceSelfMute}
             onMutePeer={callbacks.onVoiceMutePeer}
+            onSelfVolume={callbacks.onVoiceSelfVolume}
+            onPeerVolume={callbacks.onVoicePeerVolume}
           />
 
           <button class="btn" onClick={callbacks.onOpenOptions}>
@@ -592,13 +610,27 @@ function Hud({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
  * mid-sentence.
  */
 function Chat({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
-  if (!state.showChat || (!state.chatOpen && state.chat.length === 0)) return null;
+  // Open, you get the whole backlog; closed, only what is still recent. Nothing
+  // is thrown away in between, so pressing Enter is always a way of asking
+  // "what did I miss" rather than starting from an empty panel.
+  const lines = state.chatOpen ? state.chat : state.chat.filter((line) => line.fresh);
+  if (!state.showChat || (!state.chatOpen && lines.length === 0)) return null;
 
   return (
     <div class={state.chatOpen ? 'chat chat--open' : 'chat'}>
       <div class="chat__log">
-        {state.chat.map((line) => (
-          <div key={line.id} class={line.self ? 'chat__line chat__line--self' : 'chat__line'}>
+        {lines.map((line) => (
+          <div
+            key={line.id}
+            class={[
+              'chat__line',
+              line.self ? 'chat__line--self' : '',
+              // Dimmed rather than hidden: history, not conversation.
+              line.fresh ? '' : 'chat__line--old',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
             <span class="chat__from">{t('hud.player.name', { n: line.from })}</span>
             <span class="chat__text">{line.text}</span>
           </div>
