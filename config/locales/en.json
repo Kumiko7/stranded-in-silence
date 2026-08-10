@@ -193,6 +193,7 @@
   "hud.use.barricade": "Barricade this door",
   "hud.use.holdHint": "Hold {key}",
   "hud.coins": "Coins",
+  "hud.chat.placeholder": "Say something",
 
   "hud.status.healthy": "Healthy",
   "hud.status.injured": "Injured",
@@ -279,6 +280,7 @@
   "input.spectateNext": "Next player",
   "input.spectatePrev": "Previous player",
   "input.giveUp": "Give up",
+  "input.chat": "Chat",
 
   "pause.title": "Paused",
   "pause.resume": "Resume",
@@ -313,6 +315,11 @@
 
   "spectate.title": "Spectating {player}",
   "spectate.noTargets": "No one left to watch.",
+  "spectate.cycle": "{position} of {count}",
+  "spectate.paused": "Out of the run",
+  "spectate.banked": "You take {coins} coins home. Stay, and you take whatever else gets out.",
+  "spectate.keepWatching": "Keep watching",
+  "spectate.leave": "Leave with the purse",
 
   "error.webgl": "This browser cannot run WebGL 2. Try a recent Chrome, Edge or Firefox.",
   "error.microphone": "Microphone unavailable. Voice chat is disabled.",

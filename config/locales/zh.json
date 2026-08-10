@@ -194,6 +194,7 @@
   "hud.use.barricade": "堵住这扇门",
   "hud.use.holdHint": "长按 {key}",
   "hud.coins": "金币",
+  "hud.chat.placeholder": "说点什么",
 
   "hud.status.healthy": "健康",
   "hud.status.injured": "受伤",
@@ -280,6 +281,7 @@
   "input.spectateNext": "下一名玩家",
   "input.spectatePrev": "上一名玩家",
   "input.giveUp": "放弃",
+  "input.chat": "聊天",
 
   "pause.title": "已暂停",
   "pause.resume": "继续",
@@ -314,6 +316,11 @@
 
   "spectate.title": "正在观战 {player}",
   "spectate.noTargets": "没有人可以观战了。",
+  "spectate.cycle": "第 {position} / {count} 人",
+  "spectate.paused": "已离开探险",
+  "spectate.banked": "你将带走 {coins} 枚金币。留下来，之后逃出的收获也归你。",
+  "spectate.keepWatching": "继续观战",
+  "spectate.leave": "带着钱袋离开",
 
   "error.webgl": "此浏览器不支持 WebGL 2。请使用较新的 Chrome、Edge 或 Firefox。",
   "error.microphone": "无法使用麦克风，语音聊天已关闭。",

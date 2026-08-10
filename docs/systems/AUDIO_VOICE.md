@@ -255,6 +255,19 @@ Spectators (escaped or dead) are on a separate voice channel
 they hear everyone, flat — they have no body left to hear from. Downed players
 are still live.
 
+**Text chat obeys the same rule** (`Game.canHearChatFrom`), and it has to: the
+separation exists so that somebody who is out cannot call a room clear for the
+people still in it, and anyone who can type would otherwise defeat it in one line.
+Outside a run everybody reads everybody, because in the cabin there is nothing to
+give away.
+
+**A spectator's ears go where their eyes go.** The camera sits at the player they
+are watching, and the listener follows the camera like it always has — so a
+spectator hears that player's room, their footsteps and the hunter at their
+distance, without a single line in `src/audio/` knowing that spectating exists. The
+heartbeat and the alert stings stay off, though: out of the run is out of danger,
+and a pulse for a body you are not in is a lie.
+
 ### What you can see
 
 | Surface | Shows |

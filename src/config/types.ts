@@ -70,6 +70,8 @@ export interface PlayerConfig {
     hats: { id: string; nameKey: string; artId: string; cost: number }[];
   };
   health: {
+    /** How long a downed player holds the give-up key before they die. */
+    giveUpHoldSeconds: number;
     reviveHoldSeconds: number;
     reviveRange: number;
     revivedToState: HealthState;
@@ -464,6 +466,8 @@ export interface UiConfig {
     voiceIndicator: { enabled: boolean; showLevelMeter: boolean };
     /** The run purse. Hidden until you have actually picked something up. */
     coins: { enabled: boolean; showWhenEmpty: boolean };
+    /** Text chat: how much backlog is kept and how long a line stays on screen. */
+    chat: { enabled: boolean; maxMessages: number; messageSeconds: number; maxLength: number };
   };
 }
 

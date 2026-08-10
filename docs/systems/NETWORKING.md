@@ -36,6 +36,7 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 > | `dartScore {id, score}` | any → all | A running total, sent whole. Self-reported: nobody arbitrates a scoreboard, and a message lost on the way costs nothing because the next one carries the truth. |
 > | `scene {id, scene}` | any → all | `lobby` or `run`. Re-announced whenever a peer joins. |
 > | `cosmetic {id, colourId}` | any → all | The wardrobe choice, re-announced the same way. |
+> | `chat {id, text}` | any → all | One line of text. Broadcast to the whole session; **who may read it is the receiver's business** — a live player drops a line from a spectator, by the same rule that keeps them off the voice channel (`Game.canHearChatFrom`). Filtering on arrival rather than at the source is what keeps that rule in one place. |
 >
 > **`scene` is what keeps voice alive across a load.** Each side hands `voice/` only
 > the peers standing in the *same* world, and `voice/` treats a peer with no position
@@ -224,7 +225,8 @@ show it at once where a press
 
 | Message | Channel | Direction | Rate |
 | --- | --- | --- | --- |
-| `move {x, z, yaw, height, hiding, health, left, right}` | state | any → all | `snapshotRateHz` |
+| `move {x, z, yaw, pitch, height, hiding, health, left, right}` | state | any → all | `snapshotRateHz` |
+| `chat {id, text}` | events | any → all | on send |
 | `enemy {x, z, yaw, alert}` | state | host → all | `snapshotRateHz` |
 | `ping {id}` | state | any → all | `connection.heartbeatSeconds` |
 | `runStart {mapId, seed, difficultyId}` | events | host → all | once |
@@ -243,6 +245,18 @@ show it at once where a press
 **`move` carries the hands** for one reason: when a peer drops out, the host has to
 put whatever they were carrying back on the floor. A key that leaves the map inside
 a closed tab is a run nobody can finish.
+
+**`move` carries `pitch` for exactly one consumer.** No body is ever drawn with it —
+a remote is oriented by `yaw` alone. It is there so a **spectator** can sit behind
+another player's eyes rather than at their shoulder height looking at the horizon
+(plan step 39), which is the difference between a point of view and a camera mount.
+
+**A player who leaves the run stops sending `move` at all**, after one final
+transform sent out of turn. That last one matters: it is what tells every peer the
+body is empty-handed before it stops moving, so a later disconnect cannot spawn a
+second copy of whatever it was last seen holding. An escaped peer's body is then not
+drawn, not hunted and not something a thrown item can hit, on every peer alike — the
+last point is what keeps four independent simulations of one arc agreeing.
 
 All shapes live in `src/shared/messages.ts` so client and host cannot drift.
 

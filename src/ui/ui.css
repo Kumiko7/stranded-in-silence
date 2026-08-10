@@ -268,6 +268,16 @@ body {
   margin: 0 0 0.8rem;
 }
 
+/* A line of prose above the buttons: what leaving is actually going to cost. */
+.overlay__note {
+  max-width: 26rem;
+  margin: -0.4rem 0 0.4rem;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--c-text-dim);
+}
+
 /* The loading card between the cabin and a map: quiet, because voice carries on
    over it and the last thing anyone needs is a wall of chrome mid-sentence. */
 .overlay--quiet {
@@ -1814,11 +1824,133 @@ body {
   top: 42%;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
   font-family: var(--font-display);
-  font-size: 1.1rem;
   letter-spacing: 0.18em;
   color: var(--c-bad);
   text-shadow: 0 2px 12px #000;
+}
+
+.hud__downed-line {
+  font-size: 1.1rem;
+}
+
+/* Quieter than the line above it. Someone might still come; this is only what
+   you can do if they do not. */
+.hud__downed-give-up {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-body);
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  color: var(--c-text-dim);
+}
+
+/* --- spectating ----------------------------------------------------------- */
+/* Minimal by design: none of what is on screen belongs to the person watching
+   it, so the chrome says whose it is and then gets out of the way. */
+
+.spectate {
+  position: absolute;
+  top: 1.6rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+}
+
+.spectate__who {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text);
+  text-shadow: 0 2px 12px #000;
+}
+
+.spectate__cycle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.spectate__cycle-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: var(--c-text-dim);
+  text-shadow: 0 2px 8px #000;
+}
+
+/* --- chat ----------------------------------------------------------------- */
+/* Above the roster and the voice pill, which own the bottom-left corner. The
+   log is only in the DOM while there is something in it. */
+
+.chat {
+  position: absolute;
+  bottom: 12rem;
+  left: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: min(26rem, 45vw);
+}
+
+.chat__log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+}
+
+.chat__line {
+  max-width: 100%;
+  padding: 0.18rem 0.5rem;
+  background: #0a0c12a0;
+  border-left: 2px solid var(--c-border);
+  border-radius: var(--radius);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--c-text);
+  text-shadow: 0 2px 8px #000;
+  overflow-wrap: anywhere;
+}
+
+.chat__line--self {
+  border-left-color: var(--c-accent);
+}
+
+.chat__from {
+  margin-right: 0.45rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+/* The one HUD element that takes a click and a keystroke, so it is the one that
+   turns pointer events back on. */
+.chat__input {
+  pointer-events: auto;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: #0a0c12e0;
+  border: 1px solid var(--c-accent);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--c-text);
+  outline: none;
+}
+
+.chat__input::placeholder {
+  color: var(--c-text-dim);
 }
 
 /* --- player roster -------------------------------------------------------- */
@@ -1854,6 +1986,13 @@ body {
 .roster__row--gone {
   opacity: 0.4;
   filter: grayscale(1);
+}
+
+/* Out through the door. Dimmed like the rest, but in the good colour - for a
+   spectator, "who is left" and "who made it" are the same question. */
+.roster__row--out {
+  opacity: 0.55;
+  border-left-color: var(--c-good);
 }
 
 .roster__heart {

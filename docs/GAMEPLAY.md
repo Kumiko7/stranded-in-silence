@@ -55,10 +55,14 @@ the load between them — see [`ARCHITECTURE.md §5`](ARCHITECTURE.md).
     so crouching is still worth doing when you are hurt.
   - Downed: immobile on the floor. Cannot be killed further. Can still talk — which is
     the point: a downed player uses voice to be found.
-  - A downed player may choose to give up and become **dead** → spectator.
+  - A downed player may choose to give up and become **dead** → spectator, by holding
+    `giveUp` for `player.json → health.giveUpHoldSeconds`. Everything in their hands
+    falls where they lay, for the same reason a dropped peer's does: a key that leaves
+    the map inside somebody who has stopped playing is a run nobody can finish.
   - Revive: another player holds E (`player.json → health.reviveHoldSeconds`). Revived
     players come back **injured**, not healthy.
-- Nobody bleeds out. Being downed is not a timer, it is a problem for the team.
+- Nobody bleeds out. Being downed is not a timer, it is a problem for the team — and
+  giving up is the only clock on the floor, with the player's own hand on it.
 
 ## 3. The hunter
 
@@ -135,9 +139,15 @@ sideboard it visibly sailed over is worse than a flask that clears it.
 **Coins are a team purse**, not loot to divide. A pile is spent the instant anyone
 touches it and never takes a slot, so nobody has to decide whether money is worth a
 hand or argue about who got there first. The purse is only real once you are out:
-whoever escapes banks it as it stands when they leave, and a team that is wiped
-banks nothing. The diamond is the one thing that has to be *carried* out, and it
-pays into the purse at the exit door.
+whoever escapes banks it as it stands **when they walk away from the run**, and a
+team that is wiped banks nothing. The diamond is the one thing that has to be
+*carried* out, and it pays into the purse at the exit door.
+
+Getting through the door is what earns the right to the purse; it is not when you
+count it. An escaped player drops into the spectator's chair and the purse keeps
+filling behind them as the rest of the team cashes in, so **leaving early takes what
+was in it then, and staying to the end takes all of it**. Everybody who got out takes
+a full copy — there is nothing to split, because there is only ever one purse.
 
 ## 5. Voice chat
 
@@ -157,6 +167,23 @@ Escaped and dead players spectate and can hear each other and whoever they are
 watching; live players cannot hear them. Downed players are still live players — and
 a downed player calling out is the intended way to be found, at the price of giving
 the hunter somewhere to keep searching.
+
+**Text chat** is the same conversation by other means: Enter opens a box, Enter sends
+it, Escape throws it away. It spans the whole session — the cabin as well as a run —
+and it obeys the same channel rule as voice, so a player still down there never reads
+a line from one who is out. Typing gives the mouse back and does **not** pause: the
+run carries on around you, which is the cost of stopping to type.
+
+## 5b. Spectating
+
+Escaping or giving up takes you out of the run, not out of the game. You sit behind
+the eyes of somebody still in the map — their position, their look, their sound —
+and `spectateNext` / `spectatePrev` cycle through everyone left. Downed players count
+as somebody to watch; escaped, dead and disconnected ones do not. When there is
+nobody left to watch, the run is over for you and the scoreboard goes up.
+
+Waiting is not free time — it is the decision. The escape menu says what leaving
+would bank right now, and every teammate who gets out behind you raises it.
 
 ## 6. Win and lose
 
@@ -191,5 +218,4 @@ These are accounted for in config and architecture so they slot in without rewor
 - Collectables and lore notes
 - Difficulty modes — `config/difficulty.json`, already fully data-driven
 - Metaprogression: XP and a shop to spend the purse on — `game.json → meta`
-- Post-escape spectating — `game.json → spectate`
 - Vertical maps (rooms stacked) — `world.json → grid.levels`, deliberately deferred

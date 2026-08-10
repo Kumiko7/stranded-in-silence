@@ -24,6 +24,13 @@ export interface TransformSample {
   x: number;
   z: number;
   yaw: number;
+  /**
+   * Where they are looking vertically. Nothing but a spectator's camera reads
+   * it - a body is drawn from `yaw` alone - which is why it is clamped well
+   * inside a half turn and can be blended straight rather than the long way
+   * round like `yaw`.
+   */
+  pitch: number;
   /** Eye height for a player. The hunter has one height and passes 0. */
   height: number;
 }
@@ -42,7 +49,7 @@ export class TransformBuffer {
   #samples: TransformSample[] = [];
   #delay: number;
   #maxExtrapolation: number;
-  #out: Transform = { x: 0, z: 0, yaw: 0, height: 0 };
+  #out: Transform = { x: 0, z: 0, yaw: 0, pitch: 0, height: 0 };
 
   constructor(config: InterpolationConfig) {
     this.#delay = config.interpolationDelayMs / 1000;
@@ -108,6 +115,7 @@ export class TransformBuffer {
     this.#out.z = a.z + (b.z - a.z) * t;
     this.#out.height = a.height + (b.height - a.height) * t;
     this.#out.yaw = a.yaw + shortestAngle(a.yaw, b.yaw) * t;
+    this.#out.pitch = a.pitch + (b.pitch - a.pitch) * t;
     return this.#out;
   }
 
@@ -115,6 +123,7 @@ export class TransformBuffer {
     this.#out.x = sample.x;
     this.#out.z = sample.z;
     this.#out.yaw = sample.yaw;
+    this.#out.pitch = sample.pitch;
     this.#out.height = sample.height;
     return this.#out;
   }

@@ -37,6 +37,14 @@
     "teammateList": { "enabled": true, "position": "bottom-left", "showVoiceIndicator": true },
     "voiceIndicator": { "enabled": true, "position": "bottom-left", "showLevelMeter": true },
     "objectiveHint": { "enabled": true, "durationSeconds": 5 },
+    "chat": {
+      "$doc": "Text chat. Lines fade after `messageSeconds` so the log is not a permanent panel in a game about looking at the dark; the whole backlog comes back while the box is open.",
+      "enabled": true,
+      "position": "bottom-left",
+      "maxMessages": 6,
+      "messageSeconds": 12,
+      "maxLength": 120
+    },
     "subtitles": { "enabled": false }
   },
 
