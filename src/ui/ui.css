@@ -476,7 +476,7 @@ body {
   width: min(24rem, 42vw);
   margin-left: clamp(1.5rem, 6vw, 5rem);
   /* Capped, because the hat list grows with the shop and the panel must not. */
-  max-height: 88vh;
+  max-height: 88%;
   display: flex;
   flex-direction: column;
   gap: 1.1rem;

@@ -14,7 +14,7 @@
       "descKey": "map.test.desc",
       "artPack": "test",
       "posterArtId": "poster.test",
-      "enabled": true,
+      "enabled": false,
       "enemies": [],
       "overrides": {
         "graphics": {
