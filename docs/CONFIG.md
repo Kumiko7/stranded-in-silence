@@ -49,6 +49,7 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | How loud a thrown item is | `player.json` | `noise.throwImpact`, `.alarm`, `.blast`, `.wreck` |
 | Whether the run purse shows on the HUD | `ui.json` | `hud.coins.enabled`, `.showWhenEmpty` |
 | How long a downed player holds before they die | `player.json` | `health.giveUpHoldSeconds` — long enough that it cannot be an accident, short enough that it is not a punishment for having decided |
+| How forgiving picking an item up is | `player.json` | `interaction.rayRadius` — items only. Doors and chests are big enough for an exact ray; a key on floorboards is not |
 | How much chat is kept, and for how long | `ui.json` | `hud.chat.enabled`, `.maxMessages`, `.messageSeconds`, `.maxLength` |
 | Which maps exist | `maps.json` | `maps.*` — `mansion`, `viscera`, and the `test` scaffold |
 | A map's lobby poster | `maps.json` | `maps.<id>.posterArtId` — an art id from `art/shared/index.ts`; unset or unregistered hangs a blank |
