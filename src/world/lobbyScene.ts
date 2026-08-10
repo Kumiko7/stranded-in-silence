@@ -145,10 +145,8 @@ export function buildLobbyScene(config: Config, mapIds: readonly string[]): Lobb
   // The `?` takes the frame straight after the last real map, so it sits with
   // the maps rather than out on its own at the end of a row of blanks.
   const randomSlot = config.game.lobby.randomPoster ? mapIds.length : -1;
-  
-  const posterAnchors = [...cabin.anchors.posters].reverse();
 
-  posterAnchors.forEach((pose, slot) => {
+  cabin.anchors.posters.forEach((pose, slot) => {
     const random = slot === randomSlot;
     const mapId = random ? null : mapIds[slot] ?? null;
     const wanted = random ? 'poster.random' : mapId ? config.maps.maps[mapId]?.posterArtId ?? BLANK_POSTER : BLANK_POSTER;

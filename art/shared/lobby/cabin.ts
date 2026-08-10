@@ -135,7 +135,7 @@ function posterAnchors(slots: number): Pose[] {
   const rows = Math.max(1, Math.ceil(slots / columns));
 
   const pitchX = POSTER_WIDTH + POSTER_GAP_X;
-  const firstX = -((columns - 1) * pitchX) / 2;
+  const firstX = ((columns - 1) * pitchX) / 2;
   const pitchY = POSTER_HEIGHT + POSTER_GAP_Y;
   const topRow = POSTER_BOTTOM + (rows - 1) * pitchY;
 
@@ -146,7 +146,7 @@ function posterAnchors(slots: number): Pose[] {
     anchors.push({
       // Posters are built facing -Z, and -Z from this wall is into the room, so
       // they hang unrotated.
-      position: [firstX + column * pitchX, topRow - row * pitchY, POSTER_FACE],
+      position: [firstX - column * pitchX, topRow - row * pitchY, POSTER_FACE],
       rotationY: 0,
     });
   }
