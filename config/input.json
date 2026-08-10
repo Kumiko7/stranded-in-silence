@@ -18,11 +18,15 @@
     "pushToTalk": { "labelKey": "input.pushToTalk", "keys": ["KeyV"], "category": "voice", "mode": "hold" },
     "toggleVoiceMute": { "labelKey": "input.toggleVoiceMute", "keys": ["KeyM"], "category": "voice" },
 
+    "chat": { "labelKey": "input.chat", "keys": ["Enter"], "category": "system" },
+
     "pauseMenu": { "labelKey": "input.pauseMenu", "keys": ["Escape"], "category": "system", "rebindable": false },
     "scoreboard": { "labelKey": "input.scoreboard", "keys": ["Tab"], "category": "system", "mode": "hold" },
-    "spectateNext": { "labelKey": "input.spectateNext", "keys": ["Mouse0"], "category": "system" },
-    "spectatePrev": { "labelKey": "input.spectatePrev", "keys": ["Mouse2"], "category": "system" },
-    "giveUp": { "labelKey": "input.giveUp", "keys": ["KeyG"], "category": "system", "mode": "hold" }
+
+    "$spectate": "Deliberately the movement keys. A spectator is not moving, so nothing is competing for them, and 'the keys I already walk with' is one less thing to be told. `giveUp` sits on Space for the same reason: there is no jump in this game, so the biggest key on the board is free.",
+    "spectateNext": { "labelKey": "input.spectateNext", "keys": ["KeyD", "ArrowRight"], "category": "system" },
+    "spectatePrev": { "labelKey": "input.spectatePrev", "keys": ["KeyA", "ArrowLeft"], "category": "system" },
+    "giveUp": { "labelKey": "input.giveUp", "keys": ["Space"], "category": "system", "mode": "hold" }
   },
 
   "$keyLabels": "What gets printed on the key cap the HUD draws. These are the only keyboard words a player ever sees, which is why they live here rather than in code (docs/LOCALISATION.md) - a layout that calls a key something else is a config edit. Anything not listed falls back to the raw code with its Key/Digit prefix stripped, so letters and digits need no entry. `Mouse<n>` codes are never listed: they are drawn as a mouse with the pressed button lit, not as a word.",

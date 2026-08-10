@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from 'preact/hooks';
 import type { AudioConfig, GameConfig, HealthState, VoiceMode } from '@/config/types';
-import type { RosterEntry, ScoreRow, UseView } from '@/game/Game';
+import type { RosterEntry, ScoreRow, SpectateView, UseView } from '@/game/Game';
 import type { ActionInfo } from '@/input/index';
 import type { LobbyView } from '@/game/Lobby';
 import type { Options as OptionValues, OptionRanges } from '@/save/index';
@@ -27,6 +27,13 @@ export type Screen =
   | 'loading'
   | 'run'
   | 'paused'
+  /**
+   * Out of the run, watching somebody who is not. Escaping or giving up lands
+   * here rather than on the scoreboard: the purse is still filling and the
+   * people still down there are still worth watching.
+   */
+  | 'spectate'
+  | 'spectatePaused'
   /** The run is over for this player, win or lose. The scoreboard says which. */
   | 'scoreboard';
 
@@ -72,10 +79,23 @@ export interface UiState {
   /** Transient objective line, e.g. "This door needs a key." */
   hint: string | null;
   health: HealthState;
+  /** 0..1 while a downed player is holding the give-up key. */
+  giveUpProgress: number;
+  giveUpKey: string;
+  /** Whose eyes this player is borrowing, or null when they are not spectating. */
+  spectate: SpectateView | null;
+  spectateNextKey: string;
+  spectatePrevKey: string;
   /** Everyone in the run: health, and the last noise each of them made. */
   roster: RosterEntry[];
   showRoster: boolean;
   voice: VoiceUiState;
+  /** Text chat. `open` is the input box; the lines fade out on their own. */
+  chat: ChatLine[];
+  chatOpen: boolean;
+  chatKey: string;
+  showChat: boolean;
+  chatMaxLength: number;
   /** One card per player once the run is over. Empty until then. */
   scoreboard: ScoreRow[];
   /** `game.json -> scoring.categories`: which rows a card shows, in order. */
@@ -97,6 +117,19 @@ export interface UiState {
    * new and none of them are props.
    */
   localeToken: number;
+}
+
+/**
+ * One line in the chat log. `from` is the sender's roster number rather than
+ * their peer id, because that is what every other surface already calls them,
+ * and `id` is a local sequence number so a line can be taken back off screen
+ * again when it has been up long enough.
+ */
+export interface ChatLine {
+  id: number;
+  from: number;
+  self: boolean;
+  text: string;
 }
 
 /**
@@ -133,6 +166,9 @@ export interface UiCallbacks {
   onHat(id: string): void;
   /** Spends the coins, then wears it. Refused silently if the purse is short. */
   onBuyHat(id: string): void;
+  /** Sends a line, or closes the box unchanged when the text is empty. */
+  onChatSend(text: string): void;
+  onChatClose(): void;
   onVoiceMode(mode: VoiceMode): void;
   onVoiceSelfMute(): void;
   onVoiceMutePeer(id: string): void;
@@ -205,7 +241,7 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
   if (state.screen === 'lobby' || state.screen === 'wardrobe') {
     return (
       <>
-        <LobbyHud state={state} />
+        <LobbyHud state={state} callbacks={callbacks} />
         {state.screen === 'wardrobe' && (
           <Wardrobe
             colours={state.colours}
@@ -287,11 +323,87 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
     );
   }
 
+  if (state.screen === 'spectatePaused') {
+    return (
+      <div class="overlay">
+        <div class="overlay__panel overlay__panel--wide">
+          <h2 class="overlay__title">{t('spectate.paused')}</h2>
+
+          {/* The whole reason to sit here rather than walk away. It goes up as
+              teammates cash in behind you, and it is what the leave button
+              hands over. */}
+          <p class="overlay__note">{t('spectate.banked', { coins: state.coins })}</p>
+
+          <button class="btn btn--primary" onClick={callbacks.onResume}>
+            {t('spectate.keepWatching')}
+          </button>
+
+          <VoicePanel
+            voice={state.voice}
+            roster={state.roster}
+            onMode={callbacks.onVoiceMode}
+            onSelfMute={callbacks.onVoiceSelfMute}
+            onMutePeer={callbacks.onVoiceMutePeer}
+          />
+
+          <button class="btn" onClick={callbacks.onOpenOptions}>
+            {t('pause.options')}
+          </button>
+
+          <button class="btn" data-sfx="back" onClick={callbacks.onLeave}>
+            {t('spectate.leave')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (state.screen === 'scoreboard') {
     return <Scoreboard rows={state.scoreboard} categories={state.categories} onContinue={callbacks.onLeave} />;
   }
 
-  return <Hud state={state} />;
+  if (state.screen === 'spectate') return <SpectateHud state={state} callbacks={callbacks} />;
+
+  return <Hud state={state} callbacks={callbacks} />;
+}
+
+/**
+ * The spectator's chrome, and deliberately almost nothing: whose eyes you are
+ * behind, the two keys that change that, the purse you are waiting on and the
+ * roster of who is left. No crosshair and no prompts - none of it is yours.
+ */
+function SpectateHud({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
+  return (
+    <div class="hud">
+      <div class="spectate">
+        <div class="spectate__who">
+          {state.spectate
+            ? t('spectate.title', { player: t('hud.player.name', { n: state.spectate.index }) })
+            : t('spectate.noTargets')}
+        </div>
+        {state.spectate && state.spectate.count > 1 && (
+          <div class="spectate__cycle">
+            <KeyCap code={state.spectatePrevKey} size="small" />
+            <KeyCap code={state.spectateNextKey} size="small" />
+            <span class="spectate__cycle-label">
+              {t('spectate.cycle', { position: state.spectate.position, count: state.spectate.count })}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {state.showCoins && (
+        <div class="hud__coins">
+          <span class="hud__coins-value">{state.coins}</span>
+          <span class="hud__coins-label">{t('hud.coins')}</span>
+        </div>
+      )}
+
+      {state.showRoster && <Roster entries={state.roster} voice={state.voice} />}
+
+      <Chat state={state} callbacks={callbacks} />
+    </div>
+  );
 }
 
 /**
@@ -338,7 +450,7 @@ function Loading({ state }: { state: UiState }) {
  * Empty hands show nothing at all, because most visits to the cabin never touch
  * a dart and a permanent pair of "Empty" boxes would just be furniture.
  */
-function LobbyHud({ state }: { state: UiState }) {
+function LobbyHud({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
   const carrying = state.hands.left !== null || state.hands.right !== null;
 
   return (
@@ -366,6 +478,8 @@ function LobbyHud({ state }: { state: UiState }) {
           <HandSlot nameKey={state.hands.right} code={state.useRightKey} />
         </div>
       )}
+
+      <Chat state={state} callbacks={callbacks} />
 
       {state.lobby && <LobbyPanel view={state.lobby} maxPlayers={state.maxPlayers} />}
     </div>
@@ -396,7 +510,7 @@ function CodeRow({ code, ready }: { code: string; ready: boolean }) {
   );
 }
 
-function Hud({ state }: { state: UiState }) {
+function Hud({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
   return (
     <div class="hud">
       <div class="hud__crosshair" />
@@ -432,7 +546,22 @@ function Hud({ state }: { state: UiState }) {
         {state.hint && <div class="hud__hint">{t(state.hint)}</div>}
       </div>
 
-      {state.health === 'downed' && <div class="hud__downed">{t('run.downedHint')}</div>}
+      {/* Nobody bleeds out, so this is the only clock on the floor and it is
+          the player's own hand on it. The hint sits under the "someone might
+          come" line rather than replacing it: both are true. */}
+      {state.health === 'downed' && (
+        <div class="hud__downed">
+          <span class="hud__downed-line">{t('run.downedHint')}</span>
+          <span class="hud__downed-give-up">
+            <KeyLine textKey="run.giveUpHint" code={state.giveUpKey} />
+          </span>
+          {state.giveUpProgress > 0 && (
+            <div class="hud__progress">
+              <div class="hud__progress-fill" style={{ width: `${state.giveUpProgress * 100}%` }} />
+            </div>
+          )}
+        </div>
+      )}
 
       {state.showCoins && (state.coins > 0 || state.showEmptyCoins) && (
         <div class="hud__coins">
@@ -443,11 +572,72 @@ function Hud({ state }: { state: UiState }) {
 
       {state.showRoster && <Roster entries={state.roster} voice={state.voice} />}
 
+      <Chat state={state} callbacks={callbacks} />
+
       <div class="hud__hands">
         <HandSlot nameKey={state.hands.left} code={state.useLeftKey} />
         <HandSlot nameKey={state.hands.right} code={state.useRightKey} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Text chat: a log that fades and a box that only exists while it is open.
+ *
+ * The lines are dropped from state on a timer rather than animated out, so a
+ * quiet HUD costs nothing at all - most of a run has no chat element in the DOM.
+ * Opening it releases pointer lock deliberately (`main.tsx`): typing with the
+ * mouse captured and the movement keys live is how you walk into a wall
+ * mid-sentence.
+ */
+function Chat({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
+  if (!state.showChat || (!state.chatOpen && state.chat.length === 0)) return null;
+
+  return (
+    <div class={state.chatOpen ? 'chat chat--open' : 'chat'}>
+      <div class="chat__log">
+        {state.chat.map((line) => (
+          <div key={line.id} class={line.self ? 'chat__line chat__line--self' : 'chat__line'}>
+            <span class="chat__from">{t('hud.player.name', { n: line.from })}</span>
+            <span class="chat__text">{line.text}</span>
+          </div>
+        ))}
+      </div>
+
+      {state.chatOpen && <ChatInput maxLength={state.chatMaxLength} callbacks={callbacks} />}
+    </div>
+  );
+}
+
+/**
+ * Its own component so that mounting it is what focuses it, and unmounting is
+ * what throws the half-typed line away. A draft that survived being cancelled
+ * would reappear the next time somebody pressed Enter.
+ */
+function ChatInput({ maxLength, callbacks }: { maxLength: number; callbacks: UiCallbacks }) {
+  const [text, setText] = useState('');
+
+  return (
+    <input
+      class="chat__input"
+      type="text"
+      maxLength={maxLength}
+      autocomplete="off"
+      placeholder={t('hud.chat.placeholder')}
+      value={text}
+      ref={(node) => node?.focus()}
+      onInput={(event) => setText((event.currentTarget as HTMLInputElement).value)}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== 'Escape') return;
+        // Stopped here so Escape does not also reach the options handler, and
+        // so neither key is read as the action it is bound to.
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.key === 'Escape') callbacks.onChatClose();
+        else callbacks.onChatSend(text);
+      }}
+    />
   );
 }
 
@@ -497,6 +687,9 @@ function Roster({ entries, voice }: { entries: RosterEntry[]; voice: VoiceUiStat
           // Greyed rather than removed: a team that becomes smaller should look
           // like it, and the line is where their name was a moment ago.
           entry.disconnected ? 'roster__row--gone' : '',
+          // Out, but out the right way. Dimmed like the rest and marked in the
+          // good colour, because a spectator's whole question is who is left.
+          entry.escaped ? 'roster__row--out' : '',
         ]
           .filter(Boolean)
           .join(' ');

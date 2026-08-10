@@ -194,6 +194,7 @@
   "hud.use.barricade": "Escorar esta porta",
   "hud.use.holdHint": "Segure {key}",
   "hud.coins": "Moedas",
+  "hud.chat.placeholder": "Diga algo",
 
   "hud.status.healthy": "Ileso",
   "hud.status.injured": "Ferido",
@@ -280,6 +281,7 @@
   "input.spectateNext": "Próximo jogador",
   "input.spectatePrev": "Jogador anterior",
   "input.giveUp": "Desistir",
+  "input.chat": "Bate-papo",
 
   "pause.title": "Pausado",
   "pause.resume": "Continuar",
@@ -314,6 +316,11 @@
 
   "spectate.title": "Assistindo {player}",
   "spectate.noTargets": "Não sobrou ninguém para assistir.",
+  "spectate.cycle": "{position} de {count}",
+  "spectate.paused": "Fora da expedição",
+  "spectate.banked": "Você leva {coins} moedas. Fique, e leva também o que os outros tirarem de lá.",
+  "spectate.keepWatching": "Continuar assistindo",
+  "spectate.leave": "Sair com a bolsa",
 
   "error.webgl": "Este navegador não roda WebGL 2. Tente um Chrome, Edge ou Firefox recente.",
   "error.microphone": "Microfone indisponível. O bate-papo por voz está desligado.",

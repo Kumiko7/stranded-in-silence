@@ -194,6 +194,7 @@
   "hud.use.barricade": "この扉をふさぐ",
   "hud.use.holdHint": "{key} 長押し",
   "hud.coins": "コイン",
+  "hud.chat.placeholder": "何か伝える",
 
   "hud.status.healthy": "健康",
   "hud.status.injured": "負傷",
@@ -280,6 +281,7 @@
   "input.spectateNext": "次のプレイヤー",
   "input.spectatePrev": "前のプレイヤー",
   "input.giveUp": "あきらめる",
+  "input.chat": "チャット",
 
   "pause.title": "一時停止",
   "pause.resume": "再開",
@@ -314,6 +316,11 @@
 
   "spectate.title": "{player} を観戦中",
   "spectate.noTargets": "見る相手がもういません。",
+  "spectate.cycle": "{count} 人中 {position} 人目",
+  "spectate.paused": "脱出済み",
+  "spectate.banked": "コイン {coins} 枚を持ち帰る。残れば、あとから出てきた分も持ち帰れる。",
+  "spectate.keepWatching": "観戦を続ける",
+  "spectate.leave": "持ち帰って戻る",
 
   "error.webgl": "このブラウザは WebGL 2 に対応していません。最新の Chrome、Edge、Firefox をお試しください。",
   "error.microphone": "マイクを使用できません。ボイスチャットは無効です。",

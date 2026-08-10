@@ -14,7 +14,7 @@ import { configForMap, type Config } from '@/config/index';
 import { rangeInt, stream, type Rng } from '@/core/rng';
 import type { EnemyArchetype, HealthState, ItemDef } from '@/config/types';
 import { createPlayerState, applyLook, eyeHeight, stepPlayer, type PlayerState } from '@/entities/player';
-import { applyHeal, applyHit, applyRevive, isDown, tickHealth } from '@/entities/health';
+import { applyGiveUp, applyHeal, applyHit, applyRevive, isDown, tickHealth } from '@/entities/health';
 import {
   createInventory,
   dropFrom,
@@ -113,7 +113,23 @@ export interface RosterEntry {
   self: boolean;
   /** They dropped out. The line stays, greyed: a team of three should look like one. */
   disconnected: boolean;
+  /** They are out through the door. Also greyed, but for the good reason. */
+  escaped: boolean;
   pulse: { loudness: number; heard: boolean; token: number } | null;
+}
+
+/**
+ * Whose eyes a spectator is currently borrowing.
+ *
+ * `index` is that player's roster number rather than their peer id, because it
+ * is what the rest of the interface already calls them; `position` and `count`
+ * are the "2 of 3" a spectator needs to know there is somebody else to look at.
+ */
+export interface SpectateView {
+  targetId: string;
+  index: number;
+  position: number;
+  count: number;
 }
 
 /**
@@ -147,8 +163,20 @@ export interface RunHooks {
   onUseChange(use: UseView | null): void;
   /** The shared run purse changed. It only becomes real money if you get out. */
   onCoinsChange(coins: number): void;
-  /** `coins` is the purse this player is walking out with. */
-  onEscaped(coins: number): void;
+  /**
+   * Through the exit door. It does NOT end the run for this player any more -
+   * they drop into the spectator's chair and the purse keeps growing behind
+   * them. What they actually bank is decided when they walk away from it.
+   */
+  onEscaped(): void;
+  /**
+   * This player is out of the run - escaped, or gave up - and is watching
+   * somebody who is not. `null` means there is nobody left to watch, which is
+   * the same thing as the run being over for them.
+   */
+  onSpectate(view: SpectateView | null): void;
+  /** 0..1 while a downed player holds the give-up key. */
+  onGiveUpProgress(progress: number): void;
   /**
    * The scoreboard, once the run is over for this player. Fired again whenever
    * a teammate's tally arrives afterwards, so a column cannot sit at zero
@@ -173,6 +201,7 @@ interface RemotePlayer {
     x: number;
     z: number;
     yaw: number;
+    pitch: number;
     height: number;
     hiding: boolean;
     health: HealthState;
@@ -269,6 +298,15 @@ export class Game {
   #hiding: { locker: Locker; active: boolean } | null = null;
   #escaped = false;
   #moveTimer = 0;
+
+  /* --- out of the run ------------------------------------------------------ */
+  /** Whose eyes this player is borrowing, once they are out of the run. */
+  #spectating: string | null = null;
+  /** Last view handed to the UI, so an unchanged one is not pushed every tick. */
+  #spectateSignature = '';
+  /** Seconds the give-up key has been held while downed. */
+  #giveUpHold = 0;
+  #giveUpPushed = 0;
   #dropCount = 0;
   #dims: RoomDims | null = null;
   /**
@@ -376,6 +414,47 @@ export class Game {
     return this.#enemy;
   }
 
+  /** This player got through the exit door. It is what decides whether they bank. */
+  get escaped(): boolean {
+    return this.#escaped;
+  }
+
+  /** The shared run purse as it stands. Read when this player leaves the run. */
+  get coins(): number {
+    return this.#coins;
+  }
+
+  /**
+   * Out of the run, still in the world: escaped, or gave up on the floor. What
+   * makes the difference to every other system is that this player has no body
+   * to be hunted, heard or interacted with any more.
+   */
+  get spectating(): boolean {
+    const state = this.#player?.health.state;
+    return this.#escaped || state === 'dead';
+  }
+
+  /**
+   * The number the whole interface calls a peer by. Public because the chat log
+   * needs it in the cabin as well as in a run, and this is the one place that
+   * numbering is decided (`#indexOf`).
+   */
+  playerNumber(id: string): number {
+    return this.#indexOf(id, id === this.#net.selfId);
+  }
+
+  /**
+   * Chat obeys the voice rule: a player still down there never hears from one
+   * who is out. Otherwise the channel separation `voice/` exists for would be
+   * defeated by anybody who can type - a dead player calling a room clear is
+   * exactly what it is there to stop. Outside a run everybody talks to
+   * everybody, because in the cabin there is nothing to give away.
+   */
+  canHearChatFrom(id: string): boolean {
+    if (!this.#world || this.spectating) return true;
+    return !this.#run.isSpectator(id);
+  }
+
   /** `slot` selects this player's spawn point within the shared start room. */
   start(mapId: string, seed: number, slot = 0): void {
     this.end();
@@ -409,6 +488,11 @@ export class Game {
     this.#inventory = createInventory();
     this.#escaped = false;
     this.#over = false;
+    this.#spectating = null;
+    this.#spectateSignature = '';
+    this.#giveUpHold = 0;
+    this.#giveUpPushed = 0;
+    this.#hooks.onGiveUpProgress(0);
     this.#pending.clear();
     this.#resetHold();
     this.#clearItemState();
@@ -441,7 +525,7 @@ export class Game {
     this.#enemy = createEnemy(ex, ez);
     this.#enemyView = { x: ex, z: ez, yaw: 0, alert: 'calm' };
     this.#enemyBuffer = new TransformBuffer(config.net.simulation);
-    this.#enemyBuffer.reset({ x: ex, z: ez, yaw: 0, height: 0 }, now());
+    this.#enemyBuffer.reset({ x: ex, z: ez, yaw: 0, pitch: 0, height: 0 }, now());
     this.#enemyAlert = '';
     this.#audioAlert = '';
     this.#spawnEnemyArt();
@@ -479,6 +563,7 @@ export class Game {
     this.#target = null;
     this.#look = null;
     this.#hiding = null;
+    this.#spectating = null;
     this.#enemy = null;
     this.#enemyBuffer = null;
     this.#graph = null;
@@ -573,7 +658,17 @@ export class Game {
       body,
       object: body.object,
       root: body.root,
-      target: { x: 0, z: 0, yaw: 0, height: 1.8, hiding: false, health: 'healthy', left: null, right: null },
+      target: {
+        x: 0,
+        z: 0,
+        yaw: 0,
+        pitch: 0,
+        height: this.#config.player.body.standHeight,
+        hiding: false,
+        health: 'healthy',
+        left: null,
+        right: null,
+      },
       buffer: new TransformBuffer(this.#config.net.simulation),
     };
     body.wear(this.#net.cosmeticOf(id) ?? defaultCosmetic(this.#config.player));
@@ -650,7 +745,10 @@ export class Game {
 
     const healthChanged = remote.target.health !== transform.health;
     remote.target = transform;
-    remote.buffer.push({ x: transform.x, z: transform.z, yaw: transform.yaw, height: transform.height }, now());
+    remote.buffer.push(
+      { x: transform.x, z: transform.z, yaw: transform.yaw, pitch: transform.pitch, height: transform.height },
+      now(),
+    );
     this.#run.setHealth(id, transform.health);
     if (healthChanged) this.#pushRoster();
   }
@@ -926,6 +1024,7 @@ export class Game {
       health: player.id === self ? (this.#player?.health.state ?? 'healthy') : player.health,
       self: player.id === self,
       disconnected: player.disconnected,
+      escaped: player.escaped,
       pulse: this.#pulses.get(player.id) ?? null,
     }));
     roster.sort((a, b) => a.index - b.index);
@@ -936,7 +1035,7 @@ export class Game {
   /** Host -> client enemy transform. Clients never simulate the enemy. */
   setEnemyTransform(transform: EnemyTransform): void {
     this.#enemyView = transform;
-    this.#enemyBuffer?.push({ x: transform.x, z: transform.z, yaw: transform.yaw, height: 0 }, now());
+    this.#enemyBuffer?.push({ x: transform.x, z: transform.z, yaw: transform.yaw, pitch: 0, height: 0 }, now());
   }
 
   /** The enemy caught the local player. */
@@ -987,8 +1086,14 @@ export class Game {
     this.#announceHealth(applyRevive(player.health, this.#config.player));
   }
 
+  /**
+   * A peer is out through the door. Their body stops being drawn, hunted and
+   * thrown at from here - they are not in the building any more - and anybody
+   * spectating them is moved on by `#updateSpectator` on the next tick.
+   */
   markEscaped(id: string): void {
     this.#run.setEscaped(id);
+    this.#pushRoster();
     this.#pushScoreboard();
   }
 
@@ -1107,7 +1212,10 @@ export class Game {
     // A flare in the face takes the controls away, not the camera: you are stood
     // there, blind, listening to something decide what to do about you.
     this.#stunFor = Math.max(0, this.#stunFor - dt);
-    const active = controlsEnabled && live && this.#stunFor <= 0;
+    // Out of the run there is nothing to aim, carry, open or be stunned by. The
+    // only input left is which pair of eyes to sit behind.
+    const spectating = this.spectating;
+    const active = controlsEnabled && live && this.#stunFor <= 0 && !spectating;
 
     if (active) {
       const look = this.#input.consumeLook();
@@ -1132,12 +1240,18 @@ export class Game {
     }
 
     tickHealth(player.health, dt);
-    this.#updateCamera(player);
+    // Whose eyes the world is drawn, culled, lit and listened to from. Every
+    // one of those has to agree, or a spectator gets a room culled around the
+    // body they are standing in rather than the one they are watching.
+    if (spectating) this.#updateSpectator(controlsEnabled && live);
+    const eye = this.#eye(player);
+    this.#updateCamera(eye);
+    this.#updateGiveUp(dt, player, controlsEnabled && live);
     // One ray a tick, read by both E and the hand buttons.
     this.#look = active ? this.#lookTag(world) : null;
     this.#updateInteraction(dt, active);
     this.#updateItems(dt, player, active);
-    this.#updateFootsteps(dt, player);
+    if (!spectating) this.#updateFootsteps(dt, player);
     this.#updateVoice(dt, player);
 
     const { doors, containers } = this.#config.world;
@@ -1157,14 +1271,169 @@ export class Game {
     // that is about to be rendered with, not the one from the previous tick.
     world.updateVisibility(
       this.#renderer.camera,
-      player.x,
-      player.z,
+      eye.x,
+      eye.z,
       this.#config.graphics.renderDistanceRooms * this.#config.world.grid.cellSize,
     );
-    this.#renderer.updateLights(dt, player.x, player.z);
+    this.#renderer.updateLights(dt, eye.x, eye.z);
     this.#interpolateRemotes(dt);
-    this.#sendTransform(dt, player);
+    // A spectator has no body left to broadcast. The last transform they sent
+    // went out when they left the run, with their hands already empty.
+    if (!spectating) this.#sendTransform(dt, player);
     this.#sendStats(dt);
+  }
+
+  /* --- spectating ----------------------------------------------------------- */
+
+  /**
+   * Everyone still down there, in roster order so that "next" means the same
+   * thing to every spectator watching the same run. Escaped, dead and dropped
+   * players are not on it; DOWNED players are, because somebody lying on a
+   * floor is exactly the person a spectator wants to be watching.
+   */
+  #spectateTargets(): string[] {
+    return [...this.#remotes.keys()]
+      .filter((id) => this.#run.isInMap(id))
+      .sort((a, b) => this.#indexOf(a, false) - this.#indexOf(b, false));
+  }
+
+  /**
+   * Takes this player out of the run and puts them behind somebody else's eyes.
+   * Called once, from the exit door or from giving up on the floor.
+   */
+  #enterSpectate(player: PlayerState): void {
+    // One last transform, so every peer's copy of this body agrees it is empty
+    // handed before it stops moving - otherwise a later disconnect would spawn
+    // a second copy of whatever it was last seen holding.
+    this.#sendTransform(0, player, true);
+    this.#resetHold();
+    // Only what this player was doing, NOT `#clearItemState()` - the tar, the
+    // clocks and everyone else's thrown items belong to a run that is still
+    // going on without them.
+    this.#cancelAim();
+    this.#itemHold = null;
+    this.#stunFor = 0;
+    this.#pushUse(null);
+    this.#updateUseLoop(null);
+    this.#updateHoldLoop(null);
+    this.#hiding = null;
+    this.#giveUpHold = 0;
+    this.#pushGiveUp(0);
+    this.#spectating = null;
+    this.#updateSpectator(false);
+  }
+
+  /**
+   * Keeps the spectator pointed at somebody who is still in the map, and reads
+   * the two keys that change who that is. Handing the UI `null` is how the run
+   * ends for a spectator: there is nobody left to watch, so it is over.
+   */
+  #updateSpectator(controlsEnabled: boolean): void {
+    const targets = this.#spectateTargets();
+
+    if (!targets.length) {
+      this.#spectating = null;
+      this.#pushSpectate(null);
+      return;
+    }
+
+    let position = this.#spectating ? targets.indexOf(this.#spectating) : -1;
+    // Whoever we were watching got out, gave up or dropped: fall to the first
+    // person still down there rather than to a black screen.
+    if (position < 0) position = 0;
+
+    if (controlsEnabled) {
+      if (this.#input.justPressed('spectateNext')) position += 1;
+      if (this.#input.justPressed('spectatePrev')) position -= 1;
+      position = (position + targets.length) % targets.length;
+    }
+
+    const targetId = targets[position]!;
+    if (targetId !== this.#spectating) this.#audio.play('ui.click');
+    this.#spectating = targetId;
+    this.#pushSpectate({
+      targetId,
+      index: this.#indexOf(targetId, false),
+      position: position + 1,
+      count: targets.length,
+    });
+  }
+
+  #pushSpectate(view: SpectateView | null): void {
+    const signature = view ? `${view.targetId}|${view.position}|${view.count}` : '';
+    if (signature === this.#spectateSignature) return;
+    this.#spectateSignature = signature;
+    this.#hooks.onSpectate(view);
+  }
+
+  /**
+   * Where the camera, the ears, the lights and the culling all sit this tick:
+   * your own eyes, or the eyes of whoever you are watching. A spectator with no
+   * target keeps the last place they were, which is only ever on screen for the
+   * frame before the scoreboard replaces it.
+   */
+  #eye(player: PlayerState): { x: number; y: number; z: number; yaw: number; pitch: number } {
+    const remote = this.#spectating ? this.#remotes.get(this.#spectating) : null;
+    if (!remote || remote.buffer.empty) {
+      return {
+        x: player.x,
+        y: eyeHeight(player, this.#config.player),
+        z: player.z,
+        yaw: player.yaw,
+        pitch: player.pitch,
+      };
+    }
+
+    // Drawn from the same buffer their body is, so the view does not run ahead
+    // of the map it is looking at.
+    const view = remote.buffer.sample(now());
+    const body = this.#config.player.body;
+    const height = isDown(remote.target.health) ? body.downedEyeHeight : view.height + body.eyeHeightOffset;
+    return { x: view.x, y: height, z: view.z, yaw: view.yaw, pitch: view.pitch };
+  }
+
+  /* --- giving up ------------------------------------------------------------ */
+
+  /**
+   * The one way off the floor that is not a teammate. Nobody bleeds out here,
+   * so a downed player with nobody coming would otherwise be stuck watching a
+   * corridor until the run ended around them.
+   */
+  #updateGiveUp(dt: number, player: PlayerState, enabled: boolean): void {
+    const holding =
+      enabled && !this.spectating && player.health.state === 'downed' && this.#input.isDown('giveUp');
+
+    if (!holding) {
+      this.#giveUpHold = 0;
+      this.#pushGiveUp(0);
+      return;
+    }
+
+    const seconds = this.#config.player.health.giveUpHoldSeconds;
+    this.#giveUpHold += dt;
+    this.#pushGiveUp(Math.min(1, this.#giveUpHold / Math.max(0.01, seconds)));
+    if (this.#giveUpHold < seconds) return;
+
+    const state = applyGiveUp(player.health);
+    if (!state) return;
+
+    // Everything in their hands hits the floor where they lay, for exactly the
+    // reason a dropped peer's does: a key that leaves the map inside somebody
+    // who has stopped playing is a run nobody can finish.
+    for (const hand of HANDS) {
+      const itemId = dropFrom(this.#inventory, hand);
+      if (itemId) this.#dropIntoWorld(itemId, player);
+    }
+    this.#pushHands();
+
+    this.#announceHealth(state);
+    this.#enterSpectate(player);
+  }
+
+  #pushGiveUp(progress: number): void {
+    if (progress === this.#giveUpPushed) return;
+    this.#giveUpPushed = progress;
+    this.#hooks.onGiveUpProgress(progress);
   }
 
   /* --- noise --------------------------------------------------------------- */
@@ -1199,7 +1468,7 @@ export class Game {
    * the team well below the level the enemy gets anything from.
    */
   #updateVoice(dt: number, player: PlayerState): void {
-    const spectator = this.#escaped || player.health.state === 'dead';
+    const spectator = this.spectating;
 
     this.#voice.update(dt, {
       pushToTalk: this.#input.isDown('pushToTalk'),
@@ -1270,19 +1539,26 @@ export class Game {
   }
 
   #perceptionTargets(player: PlayerState): PerceptionTarget[] {
-    const targets: PerceptionTarget[] = [
-      {
+    const targets: PerceptionTarget[] = [];
+
+    // Nobody who is out of the run is a target. An escaped player is not in the
+    // building and a dead one is not a threat, an interest or a body it could
+    // walk to - and leaving them in gave the hunter something to stand and
+    // stare at for the rest of the run.
+    if (!this.spectating) {
+      targets.push({
         id: this.#net.selfId,
         x: player.x,
         z: player.z,
         crouching: player.crouching,
         hidden: this.#hiding?.active === true,
-        downed: isDown(player.health.state) || this.#escaped,
+        downed: isDown(player.health.state),
         inDarkness: this.#inDarkness(player.x, player.z),
-      },
-    ];
+      });
+    }
 
     for (const [id, remote] of this.#remotes) {
+      if (!this.#run.isInMap(id)) continue;
       targets.push({
         id,
         x: remote.target.x,
@@ -1395,11 +1671,14 @@ export class Game {
 
   #updateFeedback(dt: number, player: PlayerState): void {
     const distance = Math.hypot(this.#enemyView.x - player.x, this.#enemyView.z - player.z);
+    // A spectator has no body to be hurt in, so no vignette belongs on their
+    // screen - and `dead` would otherwise read as the downed one for good.
+    const spectating = this.spectating;
     this.#renderer.feedback.update(dt, {
       alert: this.#enemyView.alert as AlertLevel,
       enemyDistance: distance,
-      injured: player.health.state === 'injured',
-      downed: isDown(player.health.state),
+      injured: !spectating && player.health.state === 'injured',
+      downed: !spectating && isDown(player.health.state),
     });
     this.#updateAudio(distance);
   }
@@ -1420,7 +1699,7 @@ export class Game {
     const { cues } = this.#config.audio;
     // Out of the run is out of danger: the hunter stops being your problem the
     // moment you are through the door, and the mix should say so at once.
-    const over = this.#escaped || this.#over;
+    const over = this.spectating || this.#over;
     const closeness = over ? 0 : heartbeatCloseness(this.#config.player, enemyDistance);
     const alert = over ? 'calm' : this.#enemyView.alert;
 
@@ -1448,11 +1727,10 @@ export class Game {
     music.setIntensity(Math.max(music.intensityForAlert(alert), closeness * music.proximityWeight));
   }
 
-  #updateCamera(player: PlayerState): void {
+  /** `eye` is the local player's, or - for a spectator - the one they borrowed. */
+  #updateCamera(eye: { x: number; y: number; z: number; yaw: number; pitch: number }): void {
     const camera = this.#renderer.camera;
-    let x = player.x;
-    let y = eyeHeight(player, this.#config.player);
-    let z = player.z;
+    let { x, y, z } = eye;
 
     // Sliding into and out of a locker is the same lerp, driven by its animation.
     const hiding = this.#hiding;
@@ -1464,7 +1742,7 @@ export class Game {
     }
 
     camera.position.set(x, y, z);
-    camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+    camera.rotation.set(eye.pitch, eye.yaw, 0, 'YXZ');
     // The interaction ray is cast during the sim step, but matrices are
     // otherwise only refreshed by render() afterwards - so without this the ray
     // would be built from last frame's camera transform.
@@ -1635,8 +1913,12 @@ export class Game {
           // The tally goes out before the screen does, so the teammates still
           // down there have this player's final column already.
           this.#sendStats(0, true);
-          this.#hooks.onEscaped(this.#coins);
+          this.#hooks.onEscaped();
+          this.#pushRoster();
           this.#pushScoreboard();
+          // Out of the run, not out of the game: the purse keeps filling behind
+          // them for as long as they stay and watch.
+          this.#enterSpectate(player);
         }
         break;
       case 'chest': {
@@ -2259,7 +2541,7 @@ export class Game {
     // Everyone in range is caught, thrower included. There is no friendly fire
     // rule here because there is no way to make one that is not a lie.
     const player = this.#player;
-    if (player && !this.#escaped && Math.hypot(player.x - at.x, player.z - at.z) <= radius) {
+    if (player && !this.spectating && Math.hypot(player.x - at.x, player.z - at.z) <= radius) {
       this.#stunFor = Math.max(this.#stunFor, itemParam(def, 'playerStunSeconds', 2.2));
       this.#renderer.feedback.blind(itemParam(def, 'blindSeconds', 3));
       this.#cancelAim();
@@ -2355,10 +2637,14 @@ export class Game {
     if (!walls || !player) return null;
 
     const { radius, standHeight } = this.#config.player.body;
-    const bodies: ProjectileBody[] = [
-      { id: this.#net.selfId, x: player.x, z: player.z, radius, height: standHeight },
-    ];
+    // Bodies that are out of the run are out of the list on every peer alike,
+    // which is what keeps four independent simulations of one arc agreeing.
+    const bodies: ProjectileBody[] = [];
+    if (!this.spectating) {
+      bodies.push({ id: this.#net.selfId, x: player.x, z: player.z, radius, height: standHeight });
+    }
     for (const [id, remote] of this.#remotes) {
+      if (!this.#run.isInMap(id)) continue;
       bodies.push({ id, x: remote.target.x, z: remote.target.z, radius, height: standHeight });
     }
     const enemy = this.#archetype().body;
@@ -2588,10 +2874,12 @@ export class Game {
     const at = now();
     const blend = Math.min(1, dt * 12);
 
-    for (const remote of this.#remotes.values()) {
+    for (const [id, remote] of this.#remotes) {
       // Nothing has been heard from them yet: a body at the origin is worse
-      // than no body at all.
-      if (remote.buffer.empty) {
+      // than no body at all. An escaped one is worse still - they walked out of
+      // the building, and a copy of them left standing at the exit door reads
+      // as a teammate who is still with you.
+      if (remote.buffer.empty || this.#run.get(id)?.escaped) {
         remote.object.visible = false;
         continue;
       }
@@ -2610,11 +2898,12 @@ export class Game {
     }
   }
 
-  #sendTransform(dt: number, player: PlayerState): void {
+  /** `force` sends one out of turn - the last word from a body about to stop. */
+  #sendTransform(dt: number, player: PlayerState, force = false): void {
     if (this.#net.role === 'offline') return;
 
     this.#moveTimer -= dt;
-    if (this.#moveTimer > 0) return;
+    if (this.#moveTimer > 0 && !force) return;
     this.#moveTimer = 1 / this.#config.net.simulation.snapshotRateHz;
 
     this.#net.broadcast({
@@ -2623,6 +2912,9 @@ export class Game {
       x: player.x,
       z: player.z,
       yaw: player.yaw,
+      // Nothing draws a body with this. It is here so a spectator can sit
+      // behind these eyes rather than at their shoulder height looking level.
+      pitch: player.pitch,
       height: player.height,
       // The host's enemy needs to know who is hidden and who is already down.
       hiding: this.#hiding?.active === true,

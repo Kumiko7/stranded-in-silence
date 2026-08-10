@@ -33,6 +33,14 @@ export class Input {
   #sensitivity: number;
   #invertY: boolean;
 
+  /**
+   * Something on screen is taking typed characters - the chat box. Every action
+   * reads as unpressed while it is set, so a `W` meant for a sentence does not
+   * also walk you into a corridor. The keys are still tracked, so releasing the
+   * capture does not leave a phantom key held down.
+   */
+  #textCapture = false;
+
   lookDeltaX = 0;
   lookDeltaY = 0;
   pointerLocked = false;
@@ -107,7 +115,24 @@ export class Input {
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
+  /**
+   * Hands the keyboard to a text field, or takes it back. Held keys and pending
+   * presses are dropped in both directions: the key that opened the box must not
+   * still be down when it closes, and nothing typed into it is an action.
+   */
+  setTextCapture(capturing: boolean): void {
+    if (this.#textCapture === capturing) return;
+    this.#textCapture = capturing;
+    this.#down.clear();
+    this.#pressed.clear();
+  }
+
+  get capturingText(): boolean {
+    return this.#textCapture;
+  }
+
   isDown(action: string): boolean {
+    if (this.#textCapture) return false;
     const keys = this.#bindings.get(action);
     return keys ? keys.some((key) => this.#down.has(key)) : false;
   }
@@ -117,6 +142,7 @@ export class Input {
    * substeps in one frame, and a single key press must only fire once.
    */
   justPressed(action: string): boolean {
+    if (this.#textCapture) return false;
     const keys = this.#bindings.get(action);
     if (!keys) return false;
     const hit = keys.some((key) => this.#pressed.has(key));

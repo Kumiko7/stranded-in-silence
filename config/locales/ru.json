@@ -194,6 +194,7 @@
   "hud.use.barricade": "Забаррикадировать дверь",
   "hud.use.holdHint": "Удерживайте {key}",
   "hud.coins": "Монеты",
+  "hud.chat.placeholder": "Скажите что-нибудь",
 
   "hud.status.healthy": "Цел",
   "hud.status.injured": "Ранен",
@@ -280,6 +281,7 @@
   "input.spectateNext": "Следующий игрок",
   "input.spectatePrev": "Предыдущий игрок",
   "input.giveUp": "Сдаться",
+  "input.chat": "Чат",
 
   "pause.title": "Пауза",
   "pause.resume": "Продолжить",
@@ -314,6 +316,11 @@
 
   "spectate.title": "Наблюдение: {player}",
   "spectate.noTargets": "Смотреть больше не за кем.",
+  "spectate.cycle": "{position} из {count}",
+  "spectate.paused": "Вне вылазки",
+  "spectate.banked": "Вы унесёте {coins} монет. Останьтесь — и заберёте всё, что вынесут остальные.",
+  "spectate.keepWatching": "Продолжить наблюдение",
+  "spectate.leave": "Уйти с кошельком",
 
   "error.webgl": "Этот браузер не поддерживает WebGL 2. Попробуйте свежий Chrome, Edge или Firefox.",
   "error.microphone": "Микрофон недоступен. Голосовой чат отключён.",

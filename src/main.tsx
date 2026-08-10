@@ -23,7 +23,7 @@ import { Game } from './game/Game';
 import { Lobby } from './game/Lobby';
 import { disposePortraits } from './render/portraits';
 import { mountVoiceIndicator } from './ui/hud/voiceIndicator';
-import { App, type Screen, type UiCallbacks, type UiPush, type UiState } from './ui/App';
+import { App, type ChatLine, type Screen, type UiCallbacks, type UiPush, type UiState } from './ui/App';
 
 const bootRoot = document.getElementById('boot-root');
 const bootStatus = document.getElementById('boot-status');
@@ -35,7 +35,23 @@ function fail(reason: string, error?: unknown): void {
 }
 
 /** Screens where the player is in the session and voice should be running. */
-const IN_SESSION: readonly Screen[] = ['lobby', 'lobbyPaused', 'wardrobe', 'loading', 'run', 'paused', 'scoreboard'];
+const IN_SESSION: readonly Screen[] = [
+  'lobby',
+  'lobbyPaused',
+  'wardrobe',
+  'loading',
+  'run',
+  'paused',
+  'spectate',
+  'spectatePaused',
+  'scoreboard',
+];
+
+/**
+ * Screens where a line of text can be typed. Chat spans the session rather than
+ * the run for the same reason voice does: the cabin is where a plan gets agreed.
+ */
+const CAN_CHAT: readonly Screen[] = ['lobby', 'run', 'spectate'];
 
 async function boot(): Promise<void> {
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement | null;
@@ -145,8 +161,18 @@ async function boot(): Promise<void> {
     showEmptyCoins: config.ui.hud.coins.showWhenEmpty,
     hint: null,
     health: 'healthy',
+    giveUpProgress: 0,
+    giveUpKey: input.bindingFor('giveUp'),
+    spectate: null,
+    spectateNextKey: input.bindingFor('spectateNext'),
+    spectatePrevKey: input.bindingFor('spectatePrev'),
     roster: [],
     showRoster: config.ui.hud.teammateList.enabled,
+    chat: [],
+    chatOpen: false,
+    chatKey: input.bindingFor('chat'),
+    showChat: config.ui.hud.chat.enabled,
+    chatMaxLength: config.ui.hud.chat.maxLength,
     scoreboard: [],
     categories: config.game.scoring.categories,
     optionsOpen: false,
@@ -194,6 +220,12 @@ async function boot(): Promise<void> {
     onCosmetic: (id, cosmetic) => {
       lobby.setRemoteCosmetic(id, cosmetic);
       game.setRemoteCosmetic(id, cosmetic);
+    },
+    // Broadcast to everyone, read by whoever is allowed to: a player still down
+    // there never sees a line from one who is out, by the same rule that keeps
+    // spectators off their voice channel.
+    onChat: (id, text) => {
+      if (game.canHearChatFrom(id)) pushChat(id, text);
     },
     // Both scenes keep their own bodies; only the live one has anything to add.
     onPeerJoin: (id) => (lobby.active ? lobby.addRemote(id) : game.addRemote(id)),
@@ -256,15 +288,31 @@ async function boot(): Promise<void> {
       }),
     onUseChange: (use) => set({ use }),
     onCoinsChange: (coins) => set({ coins }),
-    onEscaped: (coins) => {
+    onEscaped: () => {
       // The tick on a poster is earned by getting out YOURSELF. A team that
-      // escapes without you does not mark your card - and neither does it bank
-      // your share of the purse.
+      // escapes without you does not mark your card.
+      //
+      // The purse is NOT banked here any more. Getting out is what earns the
+      // right to it; walking away from the run is when you count it, and it
+      // keeps filling while you sit and watch (`bankRun`).
       if (currentRun) save.markCompleted(currentRun.mapId);
-      save.addCoins(coins);
-      input.releasePointerLock();
-      set({ screen: 'scoreboard', bankedCoins: save.profile.coins, use: null });
+      set({ use: null, hands: { left: null, right: null }, giveUpProgress: 0 });
     },
+    // Whoever is left to watch, or nobody - and nobody left to watch is the
+    // same thing as the run being over for this player.
+    onSpectate: (view) => {
+      if (view) {
+        // Only on the way in. This fires again on every change of who is being
+        // watched, and asking for pointer lock we already hold is pure noise.
+        const entering = state.screen !== 'spectate' && state.screen !== 'spectatePaused';
+        set({ spectate: view, screen: state.screen === 'spectatePaused' ? 'spectatePaused' : 'spectate' });
+        if (entering && !state.chatOpen) input.requestPointerLock();
+        return;
+      }
+      input.releasePointerLock();
+      set({ spectate: null, screen: 'scoreboard', chatOpen: false });
+    },
+    onGiveUpProgress: (giveUpProgress) => set({ giveUpProgress }),
     onPlayerCountChange: (count) => set({ players: count }),
     onHealthChange: (health) => set({ health }),
     onRosterChange: (roster) => set({ roster }),
@@ -273,7 +321,7 @@ async function boot(): Promise<void> {
     onScoreboard: (rows) => set({ scoreboard: rows }),
     onWiped: () => {
       input.releasePointerLock();
-      set({ screen: 'scoreboard' });
+      set({ screen: 'scoreboard', chatOpen: false });
     },
   });
 
@@ -308,6 +356,7 @@ async function boot(): Promise<void> {
     game.end();
     renderer.applyGraphics(lobbyGraphics());
     net.setScene('lobby');
+    closeChat();
     lobby.start(slot, enabledMapIds());
     set({
       screen: 'lobby',
@@ -317,6 +366,9 @@ async function boot(): Promise<void> {
       holdProgress: 0,
       hint: null,
       health: 'healthy',
+      giveUpProgress: 0,
+      spectate: null,
+      chat: [],
       use: null,
       hands: { left: null, right: null },
       coins: 0,
@@ -355,13 +407,18 @@ async function boot(): Promise<void> {
 
   function beginRun(run: RunStart, slot: number): void {
     currentRun = run;
+    banked = false;
     lobby.end();
     net.setScene('run');
+    closeChat();
     game.start(run.mapId, run.seed, slot);
     set({
       lobby: null,
       optionsOpen: false,
       scoreboard: [],
+      spectate: null,
+      giveUpProgress: 0,
+      chat: [],
       promptVerbKey: null,
       promptItemKey: null,
       holdProgress: 0,
@@ -407,26 +464,54 @@ async function boot(): Promise<void> {
     set({ error: t('lobby.hostLeft') });
   }
 
+  /**
+   * What this player takes home, counted at the moment they actually walk away
+   * from the run rather than at the moment they stepped through the door.
+   *
+   * That is the whole of the spectator's bargain: the purse is shared, it keeps
+   * filling while teammates are still down there banking theirs, and everybody
+   * who got out takes a copy of it as it stands when they stop watching. Leave
+   * the moment you are through the door and you get what was in it then; stay
+   * to the end and you get all of it. Only somebody who got out counts it -
+   * gold on a body on a cellar floor was never anybody's.
+   */
+  let banked = false;
+
+  function bankRun(): void {
+    if (banked || !game.escaped) return;
+    banked = true;
+    save.addCoins(state.coins);
+    set({ bankedCoins: save.profile.coins });
+  }
+
   /** Out of a run and back to the cabin, which is where the next one is chosen. */
   function leaveRun(): void {
+    bankRun();
     if (net.role === 'host') net.endRun();
     enterLobby(net.slot);
   }
 
   /** Out of the session entirely. The code stays claimed; the peers do not. */
   function leaveSession(): void {
+    // Before the run is torn down: escaping and then losing the host should not
+    // cost somebody the purse they had already earned the right to.
+    bankRun();
     game.end();
     lobby.end();
     currentRun = null;
     net.leave();
     renderer.applyGraphics(config.graphics);
     input.releasePointerLock();
+    closeChat();
     set({
       screen: 'menu',
       lobby: null,
       players: 1,
       optionsOpen: false,
       scoreboard: [],
+      spectate: null,
+      giveUpProgress: 0,
+      chat: [],
       promptVerbKey: null,
       hint: null,
       health: 'healthy',
@@ -434,6 +519,51 @@ async function boot(): Promise<void> {
       hands: { left: null, right: null },
       coins: 0,
     });
+  }
+
+  /* --- chat --------------------------------------------------------------- */
+
+  /**
+   * Lines are dropped from state on a timer rather than faded by CSS, so a HUD
+   * with nothing to say has no chat element in it at all. `chatSeq` is local and
+   * never crosses the wire - it exists only to key the list and to find the line
+   * again when its timer comes round.
+   */
+  const chatConfig = config.ui.hud.chat;
+  let chatSeq = 0;
+
+  function pushChat(fromId: string, raw: string): void {
+    // Trusted no further than any other message: capped, stripped of control
+    // characters, and rendered as text by Preact rather than as markup.
+    const text = raw.replace(/[ -]/gu, ' ').trim().slice(0, chatConfig.maxLength);
+    if (!text) return;
+
+    const line: ChatLine = { id: ++chatSeq, from: game.playerNumber(fromId), self: fromId === net.selfId, text };
+    set({ chat: [...state.chat, line].slice(-chatConfig.maxMessages) });
+
+    setTimeout(() => {
+      set({ chat: state.chat.filter((entry) => entry.id !== line.id) });
+    }, chatConfig.messageSeconds * 1000);
+  }
+
+  /**
+   * Opening the box hands the keyboard to it and gives the mouse back, which is
+   * deliberate: typing with pointer lock held and the movement keys live is how
+   * you walk into a corridor mid-sentence. It is not a pause - the run carries
+   * on around you, and that is the cost of stopping to type.
+   */
+  function openChat(): void {
+    if (!chatConfig.enabled || state.chatOpen || !CAN_CHAT.includes(state.screen)) return;
+    input.setTextCapture(true);
+    input.releasePointerLock();
+    set({ chatOpen: true });
+  }
+
+  function closeChat(): void {
+    if (!state.chatOpen) return;
+    input.setTextCapture(false);
+    set({ chatOpen: false });
+    if (CAN_CHAT.includes(state.screen)) input.requestPointerLock();
   }
 
   /* --- screens ------------------------------------------------------------ */
@@ -457,11 +587,23 @@ async function boot(): Promise<void> {
         });
     },
     onResume: () => {
-      const screen = state.screen === 'lobbyPaused' ? 'lobby' : 'run';
+      const screen =
+        state.screen === 'lobbyPaused' ? 'lobby' : state.screen === 'spectatePaused' ? 'spectate' : 'run';
       set({ screen });
       input.requestPointerLock();
     },
     onLeave: leaveRun,
+    onChatSend: (text) => {
+      const line = text.trim();
+      if (line) {
+        net.broadcast({ t: 'chat', id: net.selfId, text: line.slice(0, chatConfig.maxLength) });
+        // Shown to the sender directly: the host relays to everyone else, and
+        // nothing comes back round to the peer that sent it.
+        pushChat(net.selfId, line);
+      }
+      closeChat();
+    },
+    onChatClose: closeChat,
     onLeaveLobby: leaveSession,
     onCloseWardrobe: () => lobby.closeWardrobe(),
     onColour: (id) => {
@@ -565,6 +707,10 @@ async function boot(): Promise<void> {
       interactKey: input.bindingFor('interact'),
       useLeftKey: input.bindingFor('useLeft'),
       useRightKey: input.bindingFor('useRight'),
+      giveUpKey: input.bindingFor('giveUp'),
+      spectateNextKey: input.bindingFor('spectateNext'),
+      spectatePrevKey: input.bindingFor('spectatePrev'),
+      chatKey: input.bindingFor('chat'),
       voice: { ...state.voice, pushToTalkKey: input.bindingFor('pushToTalk') },
     };
   }
@@ -612,7 +758,11 @@ async function boot(): Promise<void> {
   // it on purpose, so that one is not a pause.
   input.onPointerLockChange = (locked) => {
     if (locked) return;
+    // The chat box drops pointer lock on purpose, exactly as the wardrobe does.
+    // Typing is not pausing - the run carries on around you while you do it.
+    if (state.chatOpen) return;
     if (state.screen === 'run') set({ screen: 'paused' });
+    else if (state.screen === 'spectate') set({ screen: 'spectatePaused' });
     else if (state.screen === 'lobby') set({ screen: 'lobbyPaused' });
   };
 
@@ -626,9 +776,12 @@ async function boot(): Promise<void> {
   });
 
   document.addEventListener('pointerlockerror', () => {
+    if (state.chatOpen) return;
     if (state.screen === 'run') {
       console.warn('[input] Pointer lock denied (missing user gesture). Falling back to pause menu.');
       set({ screen: 'paused' });
+    } else if (state.screen === 'spectate') {
+      set({ screen: 'spectatePaused' });
     } else if (state.screen === 'lobby') {
       set({ screen: 'lobbyPaused' });
     }
@@ -671,11 +824,21 @@ async function boot(): Promise<void> {
       // screen, because a peer can drop while you are staring at a menu.
       net.tick(dt);
 
+      // Read before anything is suppressed, because opening the box is what
+      // suppresses it. Closing it again is the box's own business.
+      if (input.justPressed('chat')) openChat();
+
       // A world that is built but still behind the loading card presents but
       // does not run: the hunter must not have a head start on whoever loaded
       // last, and the conversation over the top of it must not stop either.
-      if (game.active) game.update(dt, state.screen === 'run', goGiven);
-      else if (lobby.active) lobby.update(dt, state.screen === 'lobby' || state.screen === 'wardrobe');
+      //
+      // `spectate` counts as controls-enabled: the only input left is the two
+      // keys that change whose eyes you are behind.
+      if (game.active) {
+        game.update(dt, state.screen === 'run' || state.screen === 'spectate', goGiven);
+      } else if (lobby.active) {
+        lobby.update(dt, state.screen === 'lobby' || state.screen === 'wardrobe');
+      }
 
       // The microphone follows the SESSION, not the run: it opens when you enter
       // the cabin and stays open through the load into a map, so a conversation

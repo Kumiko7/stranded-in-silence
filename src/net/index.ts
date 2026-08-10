@@ -33,6 +33,12 @@ export interface PlayerTransform {
   x: number;
   z: number;
   yaw: number;
+  /**
+   * Where they are looking vertically. No body is drawn with it - it rides
+   * along so that a SPECTATOR can sit behind this player's eyes, which is the
+   * one place in the game that needs to know (plan step 39).
+   */
+  pitch: number;
   height: number;
   /** Hidden players cannot be seen by the enemy - but a searched locker finds them. */
   hiding: boolean;
@@ -147,12 +153,21 @@ export type NetMessage =
   /** Any -> all, on change and on anyone joining. Voice reads it across scenes. */
   | { t: 'scene'; id: string; scene: Scene }
   | { t: 'cosmetic'; id: string; colourId: string; hatId: string }
+  /**
+   * One line of text, broadcast to the whole session. Who is allowed to READ it
+   * is the receiver's business, not this layer's: a live player drops a line
+   * from a spectator, by the same rule that keeps them off the voice channel
+   * (`Game.canHearChatFrom`). Sending it to everyone and filtering on arrival
+   * is what keeps that one rule in one place.
+   */
+  | { t: 'chat'; id: string; text: string }
   | {
       t: 'move';
       id: string;
       x: number;
       z: number;
       yaw: number;
+      pitch: number;
       height: number;
       hiding: boolean;
       health: HealthState;
@@ -244,6 +259,8 @@ export interface NetEvents {
   /** A peer's dart total. Replaces whatever was held for them. */
   onDartScore(id: string, score: number): void;
   onCosmetic(id: string, cosmetic: Cosmetic): void;
+  /** A line of text from a peer. Whether it is shown is decided above this. */
+  onChat(id: string, text: string): void;
   onPeerJoin(id: string): void;
   onPeerLeave(id: string): void;
   onPeerMove(id: string, transform: PlayerTransform): void;
@@ -786,6 +803,9 @@ export class Net {
         this.#events.onCosmetic(message.id, cosmetic);
         break;
       }
+      case 'chat':
+        this.#events.onChat(message.id, message.text);
+        break;
       case 'move':
         this.#events.onPeerMove(message.id, message);
         break;

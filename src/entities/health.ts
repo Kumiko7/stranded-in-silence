@@ -52,6 +52,18 @@ export function applyHeal(health: Health, toState: HealthState): HealthState | n
   return health.state;
 }
 
+/**
+ * Giving up. The only route from `downed` to `dead`, and it is the player's own
+ * hand on it - nothing in this game kills you on a clock. Returns the new state,
+ * or null when there was nothing to give up on.
+ */
+export function applyGiveUp(health: Health): HealthState | null {
+  if (health.state !== 'downed') return null;
+  health.state = 'dead';
+  health.reviveProgress = 0;
+  return health.state;
+}
+
 /** Revived players come back injured, not healthy - `health.revivedToState`. */
 export function applyRevive(health: Health, config: PlayerConfig): HealthState {
   health.state = config.health.revivedToState;

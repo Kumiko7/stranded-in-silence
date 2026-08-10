@@ -34,6 +34,8 @@
     "startState": "healthy",
     "injuredBleedOut": false,
     "downedBleedOut": false,
+    "$giveUp": "Nobody bleeds out, so the only way off the floor other than a teammate is to choose it. Long enough that it cannot be an accident, short enough that it is not a punishment for having decided.",
+    "giveUpHoldSeconds": 3.0,
     "reviveHoldSeconds": 6.0,
     "reviveInterruptedResetsProgress": false,
     "reviveRange": 1.6,

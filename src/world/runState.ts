@@ -75,6 +75,17 @@ export class RunState {
     return !!player && (player.escaped || player.health === 'dead');
   }
 
+  /**
+   * Still down there somewhere: they have not got out, not given up and not
+   * dropped. A downed player counts - they are lying on a floor a spectator can
+   * watch, and somebody may yet come back for them.
+   */
+  isInMap(id: string): boolean {
+    const player = this.#players.get(id);
+    if (!player || player.disconnected) return false;
+    return !player.escaped && player.health !== 'dead';
+  }
+
   /** A player still able to act: not escaped, not on the floor, still here. */
   isActive(id: string): boolean {
     const player = this.#players.get(id);

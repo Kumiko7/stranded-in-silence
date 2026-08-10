@@ -66,7 +66,8 @@ so a line of text never crosses a 32-inch monitor.
 | `Pause` | Resume / Options / Voice / Abandon run. **Voice mode is one control, per the design brief** — a segmented `off / open mic / push to talk` (`src/ui/screens/VoicePanel.tsx`), with self-mute and a per-teammate mute under it. Mutes are local; nothing is sent and the muted player is never told |
 | `Loading` | Between the cabin and the map, and deliberately quiet — voice carries on over it and the last thing anyone needs mid-sentence is a wall of chrome. It stays up **after this browser has finished building the world**, because the run starts for everybody at once ([`NETWORKING.md`](NETWORKING.md) → "Starting together"): one pip per player fills as each reports in, so a few seconds of waiting reads as the team assembling rather than as the game hanging. Solo, and for the last one in, it is on screen for a frame |
 | `Scoreboard` | One **card per player**: their body on top, then the categories from `game.json → scoring.categories`. A player who dropped out keeps their card, marked `disconnected` — a run they were part of is still a run they were part of. Best value in each gets the green ring, and only when there is more than one player — a solo player winning every category is not a result. The figure is a **picture of the real `player.masked`**, hat and all, rendered off screen by `src/render/portraits.ts` and handed over as a data URL — so rule 5 still holds and a hat shows up on the scoreboard without anybody drawing it twice. The SVG silhouette in `Scoreboard.tsx` is the fallback for a browser that will not grant a second GL context |
-| `Spectate` | Minimal chrome: whose view, next/prev |
+| `Spectate` | Minimal chrome, because none of what is on screen belongs to the person watching it: whose eyes you are behind, the two caps that change that and "1 of 2", the run purse, and the roster of who is left. **No crosshair, no prompts, no hand slots.** Escaping or giving up lands here rather than on the scoreboard; the scoreboard comes when there is nobody left to watch |
+| Spectate escape menu | Keep watching / voice / options / leave. The one thing it adds to the pause menu is a line saying **what leaving would bank right now** — that number is the whole reason to stay, so it has to be on the screen where you decide |
 
 ## HUD elements
 
@@ -84,9 +85,18 @@ a config change.
 | Teammate list | The **roster**, bottom left: every player as a heart (healthy / injured / downed, downed gets a flatline) with their name. Noise rings bloom off the heart whenever that player makes a sound — wider with the loudness, and **red** once the hunter is close enough to have heard it. A `loudness: 0` emitter draws nothing, because it genuinely is nothing. A **microphone** appears next to anyone talking and stays crossed out for anyone you have muted (`hud.teammateList.showVoiceIndicator`). Somebody who drops out keeps their line, greyed — a team of four becoming a team of three is something you should be able to *see* happen, not work out from a body that stopped moving |
 | Voice indicator | The pill under the roster: mode, whether the mic is open right now, and a five-segment input level. The one element written as **plain DOM** (`src/ui/hud/voiceIndicator.ts`) — the level moves every frame, so it must not go through the vdom |
 | Objective hint | Transient line, e.g. "This door needs a key" |
+| Downed panel | "Someone might come", and under it the give-up cap with its own hold ring. Both are true at once, so the second is a quieter line rather than a replacement |
+| Chat | Above the roster. A log whose lines are **dropped from state on a timer** rather than faded by CSS, so a HUD with nothing to say has no chat element in the DOM at all; the whole backlog is up while the box is open. The box is the one HUD element that re-enables pointer events, and opening it releases pointer lock on purpose — typing with the mouse captured and the movement keys live is how you walk into a wall mid-sentence. It is **not** a pause |
 
-The lobby draws a reduced set — crosshair, interact prompt and the expedition panel.
-No roster: there is nobody to lose in the cabin.
+The lobby draws a reduced set — crosshair, interact prompt, chat and the expedition
+panel. No roster: there is nobody to lose in the cabin. Chat is there because it
+follows the **session** rather than the run, exactly as voice does: the cabin is where
+a plan gets agreed.
+
+**A screen that takes typed characters must take the keyboard with it.** `Input`
+has one flag for this (`setTextCapture`) and every action reads as unpressed while it
+is set, so there is no per-action opt-out to forget. Held keys are dropped in both
+directions, because the key that opened the box must not still be down when it closes.
 
 The **hand slots and the use prompt are the run's**, and they appear the moment you
 take a dart off the stand by the fence (plan step 46). That is deliberate: the

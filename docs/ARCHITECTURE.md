@@ -112,7 +112,7 @@ Boot → MainMenu → Lobby → Loading → InRun → Scoreboard → Lobby
 | `Lobby` | + net (connected), voice, world (`lobbyScene`), entities (player) |
 | `Loading` | world generation, art pack load, seed sync. **The whole team leaves it together**: each peer reports `ready` and the host holds everyone until the last one is in, or until `net.json → connection.loadTimeoutSeconds` — see [`systems/NETWORKING.md`](systems/NETWORKING.md) → "Starting together" |
 | `InRun` | everything |
-| `Spectating` | as `InRun` minus local player control |
+| `Spectating` | as `InRun` minus local player control. The camera, the ears, the lights and the culling all move to the player being watched — they have to agree, or a room gets culled around the body you are standing in rather than the one you are looking at. Reached by escaping or by giving up while downed, and left for `Scoreboard` when there is nobody in the map left to watch |
 | `Scoreboard` | ui, audio, net (stats exchange), render (the off-screen portrait studio). **Every peer counts its own stats** and broadcasts the whole block; nobody arbitrates, because a player's own client is the only thing that sees every one of their footsteps and a scoreboard is not worth a protocol |
 
 **Voice follows the session, not the run.** It is turned on when a player enters the
@@ -247,7 +247,9 @@ mic picking up small sounds cannot give you away. Full detail in
 | Add a difficulty | `config/difficulty.json` only |
 | Add a save field | `src/save/index.ts`; an *options* field is `src/save/options.ts` plus a control in `src/ui/screens/Options.tsx` and a line in `applyOptions()` in `src/main.tsx` |
 | Add a scoreboard stat | `src/world/runStats.ts` (`STAT_IDS`), a `#count()` call in `src/game/Game.ts`, a category in `game.json → scoring`, a `scoreboard.category.*` locale key |
-| Change what a run pays out | `config/items.json → items.coinPile / items.diamond`; banking is `Game.#cashInTreasure()` → `Save.addCoins()` |
+| Change what a run pays out | `config/items.json → items.coinPile / items.diamond`; the exit-door half is `Game.#cashInTreasure()`, and the purse is banked by `bankRun()` in `src/main.tsx` when a player who escaped actually leaves the run |
+| Change spectating | `src/game/Game.ts` (`#updateSpectator`, `#eye`) + the `spectate` screen in `src/ui/App.tsx` |
+| Change text chat | `src/ui/App.tsx` (`Chat`) + `pushChat`/`openChat` in `src/main.tsx` + `config/ui.json → hud.chat`. Who may read a line is `Game.canHearChatFrom` and nowhere else |
 
 ---
 
