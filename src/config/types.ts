@@ -58,6 +58,12 @@ export interface PlayerConfig {
   };
   interaction: {
     rayLength: number;
+    /**
+     * How far off the crosshair a loose item may sit and still be offered. The
+     * ray is exact for doors, chests and lockers - they are big - but an item is
+     * a few centimetres of geometry on a floor.
+     */
+    rayRadius: number;
     holdCancelOnLookAway: boolean;
     lookAwayGraceSeconds: number;
   };

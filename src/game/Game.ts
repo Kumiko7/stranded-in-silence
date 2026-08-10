@@ -246,6 +246,12 @@ const ARC_ID = 'aim:arc';
 /** The crosshair, in the normalised coordinates a raycaster wants. Never changes. */
 const CENTRE_SCREEN = new THREE.Vector2(0, 0);
 
+/* Scratch for the forgiving item test (`#softItemTag`), which runs every tick
+   over the handful of items within arm's reach. Reused rather than allocated. */
+const ITEM_BOX = new THREE.Box3();
+const ITEM_SPHERE = new THREE.Sphere();
+const OFFSET = new THREE.Vector3();
+
 /**
  * How often a peer re-sends its scoreboard tally while a run is going. Nothing
  * reads it until the run ends, so this is deliberately lazy - it exists only so
@@ -290,6 +296,15 @@ export class Game {
   #raycaster = new THREE.Raycaster();
   /** Reused by `#lookTag`, which runs both of its passes every tick. */
   #lookCandidates: THREE.Object3D[] = [];
+  /**
+   * How big each item's model is, worked out once. `Box3.setFromObject` walks
+   * every vertex, and the forgiving pick-up test would otherwise pay for that
+   * on every item within reach on every tick. Stored as an offset from the
+   * object's own position rather than as a world sphere, so it stays right if
+   * anything ever animates one; keyed weakly, so a taken item's entry goes with
+   * the mesh.
+   */
+  #itemBounds = new WeakMap<THREE.Object3D, { dx: number; dy: number; dz: number; radius: number }>();
   /** What the look-ray hit this tick. Both E and the hand buttons read it. */
   #look: { key: string; value: string } | null = null;
   #target: InteractTarget | null = null;
@@ -2737,16 +2752,95 @@ export class Game {
     for (const remote of this.#remotes.values()) this.#lookCandidates.push(remote.object);
 
     const hit = raycaster.intersectObjects(this.#lookCandidates, true)[0];
-    if (!hit) return null;
 
     // Something is in reach; the only question left is whether a wall is in the
     // way. Only rooms being drawn can be, and only nearer than the hit itself.
+    const precise = hit && !this.#occluded(world, hit.distance) ? findTag(hit.object) : null;
+    if (precise) return precise;
+
+    // Nothing exact under the crosshair. An item is allowed a second, blunter
+    // chance at it - see `#softItemTag`.
+    raycaster.far = this.#config.player.interaction.rayLength;
+    return this.#softItemTag(world);
+  }
+
+  /** Whether a drawn room stands between the eye and something `distance` away. */
+  #occluded(world: BuiltWorld, distance: number): boolean {
+    const raycaster = this.#raycaster;
     this.#lookCandidates.length = 0;
     for (const occluder of world.occluders) if (occluder.visible) this.#lookCandidates.push(occluder);
-    raycaster.far = hit.distance - 1e-3;
-    const blocked = raycaster.intersectObjects(this.#lookCandidates, true).length > 0;
+    raycaster.far = distance - 1e-3;
+    return raycaster.intersectObjects(this.#lookCandidates, true).length > 0;
+  }
 
-    return blocked ? null : findTag(hit.object);
+  /**
+   * The forgiving half of the look-ray, and what `interaction.rayRadius` is for.
+   *
+   * A door or a chest is most of a wall and an exact ray finds it every time. A
+   * key is four centimetres of geometry lying on floorboards, and having to put
+   * the crosshair on the model itself turns picking it up into a game of its
+   * own. So items - and ONLY items - also answer to a cylinder around the ray:
+   * the model's own bounding radius plus `rayRadius`, so a big thing is easier
+   * to hit than a small one and a small one is still easy enough.
+   *
+   * It runs only when the exact ray offered nothing, so it can never take a
+   * press away from the door behind the key.
+   */
+  #softItemTag(world: BuiltWorld): { key: string; value: string } | null {
+    const { rayLength, rayRadius } = this.#config.player.interaction;
+    const { origin, direction } = this.#raycaster.ray;
+
+    let best: { id: string; along: number } | null = null;
+
+    for (const [id, item] of world.items) {
+      // Cheap reject on the anchor first: at 2.6 m of reach this leaves the one
+      // or two items actually near you, and only those pay for a bounding box.
+      OFFSET.set(item.x - origin.x, item.y - origin.y, item.z - origin.z);
+      if (OFFSET.lengthSq() > (rayLength + 1) ** 2) continue;
+
+      const bounds = this.#itemSize(item.object);
+      if (!bounds) continue;
+
+      OFFSET.set(
+        item.object.position.x + bounds.dx - origin.x,
+        item.object.position.y + bounds.dy - origin.y,
+        item.object.position.z + bounds.dz - origin.z,
+      );
+      const along = OFFSET.dot(direction);
+      if (along < 0 || along > rayLength) continue;
+      if (best && along >= best.along) continue;
+
+      // Perpendicular distance from the ray, by Pythagoras on the projection.
+      const reach = bounds.radius + rayRadius;
+      if (OFFSET.lengthSq() - along * along > reach * reach) continue;
+
+      best = { id, along };
+    }
+
+    if (!best) return null;
+    // Same wall test the exact ray gets. Down the crosshair rather than at the
+    // item, which at this range and this radius is the same question.
+    if (this.#occluded(world, best.along)) return null;
+    return { key: 'worldItemId', value: best.id };
+  }
+
+  /** An item model's extent, measured once and remembered. */
+  #itemSize(object: THREE.Object3D): { dx: number; dy: number; dz: number; radius: number } | null {
+    const cached = this.#itemBounds.get(object);
+    if (cached) return cached;
+
+    const box = ITEM_BOX.setFromObject(object);
+    if (box.isEmpty()) return null;
+    box.getBoundingSphere(ITEM_SPHERE);
+
+    const bounds = {
+      dx: ITEM_SPHERE.center.x - object.position.x,
+      dy: ITEM_SPHERE.center.y - object.position.y,
+      dz: ITEM_SPHERE.center.z - object.position.z,
+      radius: ITEM_SPHERE.radius,
+    };
+    this.#itemBounds.set(object, bounds);
+    return bounds;
   }
 
   #findTarget(world: BuiltWorld): InteractTarget | null {

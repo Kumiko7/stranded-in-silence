@@ -168,6 +168,7 @@ the simulation is written host-authoritative from the start.*
 **Details:** forward sphere-cast, `Interactable` interface (`canInteract`, `verbKey`, `mode: press|hold`, `holdSeconds`, `onComplete`), hold progress with the look-away grace from `player.json → interaction`, prompt HUD.
 **Done when:** looking at a test object shows a localised prompt and holding E fills a ring and fires.
 **Note:** the interaction ray is cast during the sim step, so the camera matrix is updated explicitly before casting — otherwise it would use the previous frame's transform.
+**Note:** the "sphere-cast" this step asked for is **items only**, and it is a *fallback* rather than the primary test (`Game.#softItemTag`). A door or a chest is most of a wall and an exact ray finds it every time; a key is four centimetres of geometry on floorboards, and having to put the crosshair on the model turned picking it up into a game of its own — at 1.5 m the exact ray gave a **0.74°** window of yaw. It now also answers to a cylinder of the model's own bounding radius plus `interaction.rayRadius` (the value that had never been read), which makes that window **24°**. Running it only when the exact ray offered nothing is what stops it taking a press away from the door behind the key. Each model's extent is measured once and cached weakly, because `Box3.setFromObject` walks every vertex and this runs every tick.
 
 ### ◐ 13. Doors
 **Goal:** the game's core tactical object.
