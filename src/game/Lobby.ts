@@ -661,10 +661,9 @@ export class Lobby {
     // only put the model off screen.
     const walking = controlsEnabled && !this.#wardrobeOpen;
 
-    // Escape has to be handled here: the wardrobe releases pointer lock when it
-    // opens, so the lock-change that normally opens the escape menu has already
-    // happened and will not fire again.
-    if (this.#wardrobeOpen && this.#input.justPressed('pauseMenu')) this.closeWardrobe();
+    // Escape is NOT read here. It is one ordered stack in `src/main.tsx`, which
+    // closes the innermost open thing and nothing else - handling it in two
+    // places is how a panel ends up closing straight into the escape menu.
 
     if (walking) {
       const look = this.#input.consumeLook();

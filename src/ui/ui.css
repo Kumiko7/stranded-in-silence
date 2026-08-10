@@ -747,11 +747,42 @@ body {
   gap: 0.3rem;
 }
 
+/* Your own microphone, above the list of everybody else's: the level you send
+   at, and the switch that stops you sending at all. */
+.voice-panel__self {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.voice-panel__self .field {
+  flex: 1;
+  min-width: 0;
+}
+
+/* One teammate: who they are and a mute on the top line, how loud you have
+   them underneath. */
+.voice-panel__peer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding-bottom: 0.2rem;
+  border-top: 1px solid #ffffff12;
+}
+
+.voice-panel__peer .field {
+  padding-left: 1.7rem;
+}
+
 .voice-panel__row {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   padding: 0.25rem 0.2rem 0.25rem 0.4rem;
+}
+
+.voice-panel__list > .voice-panel__row {
   border-top: 1px solid #ffffff12;
 }
 
@@ -1923,6 +1954,11 @@ body {
 
 .chat__line--self {
   border-left-color: var(--c-accent);
+}
+
+/* Backlog, only ever on screen while the box is open. */
+.chat__line--old {
+  opacity: 0.5;
 }
 
 .chat__from {

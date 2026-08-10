@@ -35,6 +35,12 @@ export class PeerVoice {
   readonly #sink: HTMLAudioElement;
 
   muted = false;
+  /**
+   * How loud this listener has chosen to have them, 0..1. It multiplies the
+   * proximity attenuation rather than replacing it, so somebody turned down is
+   * still quieter far away and still inaudible past `hearingRange`.
+   */
+  volume = 1;
 
   constructor(context: AudioContext, stream: MediaStream, destination: AudioNode, config: VoiceConfig, spatial: AudioConfig['spatial']) {
     this.#context = context;
@@ -76,7 +82,7 @@ export class PeerVoice {
     this.#gate.update(this.#meter.sample(), dt);
 
     if (at) placePanner(this.#panner, at.x, VOICE_HEIGHT, at.z);
-    const target = this.muted ? 0 : Math.max(0, gain);
+    const target = this.muted ? 0 : Math.max(0, gain) * this.volume;
     this.#gain.gain.setTargetAtTime(target, this.#context.currentTime, this.#config.gainSmoothingSeconds);
   }
 
