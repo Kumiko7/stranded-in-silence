@@ -43,8 +43,8 @@
     "door.locked": { "bus": "sfx", "synth": "door.locked", "files": ["sfx/door_locked.ogg"], "volume": 0.6, "cooldownSeconds": 0.35 },
     "door.unlock": { "bus": "sfx", "synth": "door.unlock", "files": ["sfx/door_unlock.ogg"], "volume": 0.8 },
 
-    "chest.open.loop": { "bus": "sfx", "synth": "chest.rummage", "files": ["sfx/chest_open_loop.ogg"], "volume": 0.7, "loop": true },
-    "chest.opened": { "bus": "sfx", "synth": "chest.opened", "files": ["sfx/chest_opened.ogg"], "volume": 0.9 },
+    "chest.open.loop": { "bus": "sfx", "synth": "chest.rummage", "files": ["sfx/chest_open_loop.ogg"], "volume": 1.0, "loop": true },
+    "chest.opened": { "bus": "sfx", "synth": "chest.opened", "files": ["sfx/chest_opened.ogg"], "volume": 1.4 },
     "locker.enter": { "bus": "sfx", "synth": "locker.enter", "files": ["sfx/locker_enter.ogg"], "volume": 0.6 },
     "locker.exit": { "bus": "sfx", "synth": "locker.exit", "files": ["sfx/locker_exit.ogg"], "volume": 0.6 },
     "item.pickup": { "bus": "sfx", "synth": "item.pickup", "files": ["sfx/item_pickup.ogg"], "volume": 0.6 },
