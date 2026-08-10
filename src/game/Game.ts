@@ -2790,7 +2790,7 @@ export class Game {
     const { rayLength, rayRadius } = this.#config.player.interaction;
     const { origin, direction } = this.#raycaster.ray;
 
-    let best: { id: string; along: number } | null = null;
+    let best: { id: string; along: number; radius: number } | null = null;
 
     for (const [id, item] of world.items) {
       // Cheap reject on the anchor first: at 2.6 m of reach this leaves the one
@@ -2814,13 +2814,19 @@ export class Game {
       const reach = bounds.radius + rayRadius;
       if (OFFSET.lengthSq() - along * along > reach * reach) continue;
 
-      best = { id, along };
+      best = { id, along, radius: bounds.radius };
     }
 
     if (!best) return null;
-    // Same wall test the exact ray gets. Down the crosshair rather than at the
-    // item, which at this range and this radius is the same question.
-    if (this.#occluded(world, best.along)) return null;
+
+    // Same wall test the exact ray gets, but measured to the NEAR SIDE of the
+    // item rather than to its centre. Aim through a gap in the model - between
+    // the prongs of a key - and the ray carries on to the floor the key is lying
+    // on, a few centimetres short of its middle. Testing to the centre made that
+    // floor an occluder, so the one place you would naturally point at a key was
+    // the one place it could not be picked up.
+    const clear = Math.max(0, best.along - best.radius);
+    if (clear > 0 && this.#occluded(world, clear)) return null;
     return { key: 'worldItemId', value: best.id };
   }
 
