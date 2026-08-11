@@ -97,6 +97,37 @@ Nothing catches this - the validator only asks whether the anchor is reachable,
 and a floating item is perfectly reachable. Check the pairing by eye on a contact
 sheet ([`ROOM_REVIEW.md`](ROOM_REVIEW.md)).
 
+### 2.1.2 Facing: the three conventions that do not match
+
+Three different things in this codebase have three different idea of "forwards",
+and mixing them up is the single most common way to ship a room that validates
+and looks broken.
+
+| Thing | Faces | To point it into the room |
+| --- | --- | --- |
+| Shared art and pack props (`chest`, `locker`, a wall lamp) | `-Z` | `rotationY = FACE[side]` — north `PI`, east `PI/2`, south `0`, west `-PI/2` |
+| A `PlaneGeometry` / `CircleGeometry` (its front face is `+Z`) | `+Z` | the prop's `rotationY` **plus `Math.PI`** |
+| A `TorusGeometry` (lies in its own XY plane) | axis along `+Z` | flat on the floor needs `tiltMatrix(..., [PI/2, 0, 0])`; a band round a wall-mounted dome needs the prop's plain `rotationY` |
+
+A single-sided plane facing the wrong way is **invisible from the room and black
+from behind**, and nothing in `validate:art` can see it. A torus posed with
+`poseMatrix` alone stands on edge like a wheel.
+
+The **player's camera** is a fourth convention and the one that bites hardest,
+because a `playerSpawn` facing a wall is the first thing four people will see.
+`Game` aims it along `(-sin y, ·, -cos y)`, so:
+
+| Look toward | `rotationY` |
+| --- | --- |
+| `-Z` (north) | `0` |
+| `+X` (east) | `-PI/2` |
+| `+Z` (south) | `PI` |
+| `-X` (west) | `PI/2` |
+
+Note that this is the **opposite sign** to the prop convention for east and
+west. Check every spawn on the contact sheet — the review tool renders
+`player spawn 1` exactly the way the run does.
+
 ### 2.2 Rotation
 
 Rooms are placed at any 90° rotation that makes their `doorWalls` cover the slot,
@@ -252,6 +283,20 @@ Rules:
   of a `chest` or `locker` anchor, remembering a chest is `1.0 x 0.7 m` and a
   locker `0.9 x 0.7 m` (see [`SHARED_ART.md`](SHARED_ART.md)). `npm run validate:art`
   checks the spacing.
+- **A gap narrower than `0.64 m` is a wall.** The player is a circle of radius
+  `0.32 m` and the flood fill walks that circle, so a gangway between two crates,
+  or between a set piece and the plate, has to be **at least 0.7 m** to be worth
+  anything. Anything the other side of a 0.5 m gap is not "hard to reach", it is
+  unreachable, and every anchor behind it fails.
+- **The floor is a solid slab and you cannot cut a hole in it.** The kit lays one
+  per cell, roughly `y = -0.12 .. 0`, so a pool, a pit or a sump recessed below
+  `y = 0` is simply hidden behind the floor. Build it *at* deck level with a
+  raised rim instead — collision is a 2D floor test, so a hole you can fall into
+  is not a thing this engine has anyway.
+- **On a multi-cell room the door lanes repeat per cell.** A doorway is centred
+  on its own cell, so a `2x1` has fore openings at `x = 0` **and** `x = 8`, not
+  one in the middle of the run. The safe wall on a `2x1` is the part *between*
+  the two cells' centres.
 
 ---
 

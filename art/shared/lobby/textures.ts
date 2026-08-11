@@ -371,6 +371,69 @@ export const posterViscera = (): THREE.Texture =>
   });
 
 /**
+ * Kerberos Deep's poster: the viewing gallery, from inside.
+ *
+ * A lit rectangle of glass in a black wall, a small figure standing at it with
+ * its back to you, and something on the other side that runs out of the frame
+ * in both directions. Same flat two-colour print as the manor and the
+ * Leviathan, so the wall reads as one series.
+ *
+ * The whole composition is the frame-within-a-frame: the print is a window, and
+ * what makes it work is that the thing outside is never fully inside the glass.
+ */
+export const posterAbyss = (): THREE.Texture =>
+  colorTexture('lobby.posterAbyss', 256, (x, y, size) => {
+    const u = x / size;
+    const v = y / size;
+    const paper = paperAt(x, y, size);
+    if (u < 0.08 || u > 0.92 || v < 0.2 || v > 0.94) return paper;
+
+    // The gallery: near-black, with a floor line low in the frame.
+    const wall = mix(rgb(0x1a242d), rgb(0x27353f), n2(x, y, size, 6, 8803, 3) * 0.8);
+    if (v < 0.3) return shade(mix(wall, rgb(0x101820), (0.3 - v) * 3), 0.9);
+
+    // The pane, and the heavy frame round it.
+    const inPane = u > 0.2 && u < 0.8 && v > 0.4 && v < 0.82;
+    const onFrame = u > 0.16 && u < 0.84 && v > 0.36 && v < 0.86 && !inPane;
+    if (onFrame) return mix(rgb(0x40525c), rgb(0x5e727d), n2(x, y, size, 12, 8867, 2));
+    if (!inPane) return wall;
+
+    // Behind the glass: water, going darker toward the bottom of the pane. Kept
+    // well up in value - this is a print on a wall twelve metres from a player,
+    // not a window, and the whole card has to read at a glance.
+    const depth = (0.82 - v) / 0.42;
+    let water = mix(rgb(0x4fb4bc), rgb(0x0e3746), Math.pow(depth, 1.15));
+
+    /**
+     * The animal. A long body across the middle of the pane, cut off by both
+     * edges, with a lure hanging in front of it. Expressed as a distance to a
+     * horizontal spine so the silhouette has a soft belly and a hard back.
+     */
+    const spine = 0.63 + Math.sin((u - 0.2) * 4.1) * 0.03;
+    const thickness = 0.075 + Math.cos((u - 0.5) * 2.4) * 0.045;
+    if (Math.abs(v - spine) < thickness) water = rgb(0x0a1017);
+    // The head, bulging at the left-hand end, and the jaw under it.
+    if (Math.hypot((u - 0.29) * 1.5, v - 0.62) < 0.12) water = rgb(0x0a1017);
+    for (let i = 0; i < 7; i++) {
+      const tu = 0.235 + i * 0.026;
+      if (Math.abs(u - tu) < 0.007 && v > 0.5 && v < 0.545 + (i % 2) * 0.02) water = rgb(0xd8d2bc);
+    }
+    // The lure, out in front of the head: the only bright thing on the print.
+    const lure = Math.hypot((u - 0.4) * 1.1, v - 0.74);
+    if (lure < 0.055) water = mix(rgb(0xffd27a), rgb(0xff9a2e), lure / 0.055);
+
+    // Marine snow, so the water is not a flat wash.
+    const flake = Math.max(0, n2(x, y, size, 40, 8951, 2) - 0.72) * 3.4;
+    water = mix(water, rgb(0x9fb6bd), Math.min(0.6, flake));
+
+    // The figure at the glass, from behind, small and low and central.
+    const fx = Math.abs(u - 0.5);
+    if (v > 0.4 && v < 0.58 && fx < 0.028 + (0.58 - v) * 0.16) return rgb(0x090d11);
+
+    return water;
+  });
+
+/**
  * The random-map poster: a question mark on a sunburst, in the same flat print
  * style as the rest of the wall so it reads as one more expedition rather than
  * as a UI element that wandered into the room.

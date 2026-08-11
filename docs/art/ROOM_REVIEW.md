@@ -159,6 +159,64 @@ visible in the code and all of them are obvious in a sheet.
   on an 8 m floor is three repeats, which from standing height is one flat
   smear. Floors want a tile you could take a step across.
 
+### And the ones the Kerberos Deep pass caught
+
+Third pack, and the failures were almost all about **light that is not a light**
+and **geometry drawn in front of the thing it was decorating**. Every one of
+these validated clean and every one of them was obvious in a sheet.
+
+- **A decal that carries its own darkness.** Caustics were painted as an
+  emissive patch, so the dark half of the texture was drawn over the deck as
+  well as the bright half, and every floor came out as black-and-white cow
+  print. Light landing on a surface is **additive**: a `MeshBasicMaterial` with
+  `blending: THREE.AdditiveBlending` drops the dark half entirely and only the
+  net lands. Anything that represents light *on* something wants this; anything
+  that represents a *surface* does not.
+- **An emissive tuned by eye in isolation.** The same caustics ran at
+  `emissiveIntensity: 1.5` and blew straight through ACES into flat white.
+  Judge an emissive against the room's actual lamps, not on its own - the moment
+  a decoration reads brighter than the practicals, the room stops making sense.
+- **A tank is a cylinder, and a cylinder has a near wall.** Every aquarium in
+  the pack was a flat opaque drum with an invisible shoal inside it, because the
+  water was front-faced. Water in a container has to be **`side: BackSide`** so
+  it draws the far wall only and the contents sit in front of it. Same fix for
+  jars, incubators and pods.
+- **A translucent sphere is a grey blob.** Smoke over the hydrothermal vents was
+  five 1.3 m spheres at 0.32 opacity, which greyed out everything behind them
+  including the thing they were meant to be rising off. Volume in this engine
+  wants to be *thin* - 0.1 or less, and small.
+- **You cannot recess anything.** The moon pool's water was set half a metre
+  below the deck and vanished: the kit lays a solid floor slab per cell and
+  there is no hole in it, so everything below `y = 0` is behind the floor. Water
+  at deck level plus a coaming reads as a well; a hole does not exist.
+- **A set piece outside the room it belongs to.** The angler's lure and half its
+  teeth were built at the creature's own scale from a head position that put
+  them 1.8 m inside the room, straight through the glass. When you build behind
+  a pane, write down where the glass is and check every extremity against it.
+- **A prop faces `-Z`; a plane faces `+Z`.** Props are authored facing `-Z` to
+  match shared art, but a `PlaneGeometry`'s front face is `+Z`, so every flat
+  thing hung on a wall-posed prop needs `rotationY + Math.PI` or it faces into
+  the plaster. Single-sided materials go black; the pack lost a cryo-pod window,
+  a gauge dial and four monitors to this before anyone looked.
+- **A `TorusGeometry` stands on edge.** It lies in its own XY plane, so a ring
+  meant to lie flat on the floor needs `tiltMatrix(..., [Math.PI/2, 0, 0])`. A
+  bare `poseMatrix` leaves it standing up like a wheel.
+- **A four-segment torus is a cross.** Same ring, used as a dark rim inside a
+  square pool, read as an X painted on the water.
+- **Thirty-two draw calls for one plant.** Anything animated has to stay out of
+  the room's batch - but "out of the batch" does not mean "one mesh per leaf".
+  Give it a `MeshBatcher` of its **own**, animate the group the batcher returns,
+  and hand the result to the room's `dispose`. Two draws instead of thirty-two.
+- **Ribs the thickness of wire.** The whale skeleton's ribs were 5 cm and read as
+  a black scribble from every doorway. Backlighting a shape only works if the
+  shape has enough width to survive being a silhouette.
+- **A pale material multiplies.** Bacterial mat at near-white with a dozen
+  patches buried the skeleton it was growing on; silt drifts at near-white
+  turned a rock floor into spilt plaster. Pale surfaces are the loudest thing in
+  a dark room - use two, not twelve.
+- **Warp your stripes harder than their spacing.** Sand ripples warped by less
+  than one period read as printed corduroy rather than as a seabed.
+
 ### And the ones the shared-art pass caught
 
 Characters and props are not rooms, but they get reviewed the same way — a

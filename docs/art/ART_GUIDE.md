@@ -95,6 +95,21 @@ survive being seen three times:
   helpers. One viscera build fills those with 2,677 geometries; unregistered, every
   one of them is retained until the tab closes and nothing will report it.
 - Vertex colours are cheap and great for grime, water lines and soot.
+- **Light landing on a surface is additive; a surface is not.** A patch of
+  caustics, a projected glow, a light spill on a floor - painted as an ordinary
+  lit or emissive decal, all of them bring their own dark background with them
+  and lay it over whatever they touch. A `MeshBasicMaterial` with
+  `blending: THREE.AdditiveBlending` drops the dark half and adds only the
+  bright, which is what light does.
+- **Water in a container is `side: THREE.BackSide`.** A tank is a cylinder and a
+  front-faced cylinder of water is an opaque wall between the eye and everything
+  floating in it. Back-faced, only the far wall draws and the contents read.
+- **Translucent volume wants to be thin.** Fog, smoke, haze, a light shaft: 0.05
+  opacity, not 0.3, and never in front of something lit. Two crossed quads
+  double whatever number you picked.
+- Tune an emissive **against the room's own lamps**, never on its own. Anything
+  that ends up brighter than the practicals stops reading as a detail and starts
+  reading as the light source, and the room's lighting design collapses.
 
 ## 5. Geometry
 
@@ -110,6 +125,19 @@ survive being seen three times:
   texture lands on a 0.4 m skirting board or an 8 m ballroom floor.
 - Anything the batcher allocated must be freed: return its `dispose` as
   `BuiltRoom.dispose`.
+- **Animated geometry gets a batcher of its own.** A merged mesh cannot move, so
+  anything the room animates has to stay out of the room's batch - but that does
+  *not* mean one `THREE.Mesh` per leaf. Give it a second `MeshBatcher`, animate
+  the group `build()` hands back, and free that batcher too. A swaying kelp stand
+  cost 32 draw calls as loose meshes and 2 as its own batch.
+- **Nothing outside the batcher frees itself.** `BuiltRoom.dispose` is whatever
+  you return; a geometry you `new`-ed for a loose mesh is retained until the tab
+  closes and no tool will report it. Chain those disposals into the same
+  `dispose` (`Room.own()` in the abyss pack is one way to do it).
+- **`consume: true` is only ever for geometry made at the call site.** Passing it
+  a cached helper (`quad()`, `disc()`, `boxGeometry()`) frees a buffer the next
+  room is still using, and the result is an object that silently stops drawing
+  several rooms later.
 - Never generate geometry in a render loop.
 
 ## 6. Performance budgets

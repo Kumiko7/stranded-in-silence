@@ -96,11 +96,21 @@ rooms — that variance is where the tension lives.
 
 **Split the set into two zones and alternate them.** `viscera` is wet viscera
 against calcified skeleton, half the rooms each, so walking the maze is a
-rhythm of temperature changes rather than twenty variations on one idea; the
-manor does the same thing more quietly with its grand rooms and its service
-rooms. Give the two halves different palettes, different light colours and
-different floor materials, and put one hinge room in the set that is honestly
-both — it is the one that makes the transition read as deliberate.
+rhythm of temperature changes rather than twenty variations on one idea;
+`abyss` is a steel research station against the trench that is getting into it,
+amber against cyan, straight lines against none; the manor does the same thing
+more quietly with its grand rooms and its service rooms. Give the two halves
+different palettes, different light colours and different floor materials, and
+put one hinge room in the set that is honestly both — it is the one that makes
+the transition read as deliberate.
+
+**Find the pack's one repeatable trick and put it in the shell.** Every pack has
+a single detail that does most of the work of making twenty rooms feel like one
+place, and it belongs in `kit/shell.ts` rather than in each room: `viscera`
+rings every opening with a sphincter or a bone arch, `abyss` runs an emissive
+strip along the base of every wall and hangs a viewing pane in any wall the
+generator cannot open. Both cost nothing per room and both are the reason the
+set holds together.
 
 Two practical rules that decide half the layout before you start decorating:
 

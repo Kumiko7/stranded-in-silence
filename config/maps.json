@@ -69,6 +69,29 @@
       },
       "ambienceTrack": "ambience/mansion_loop",
       "musicTrack": "music/mansion_tension"
+    },
+
+    "abyss": {
+      "nameKey": "map.abyss.name",
+      "descKey": "map.abyss.desc",
+      "artPack": "abyss",
+      "posterArtId": "poster.abyss",
+      "enabled": true,
+      "enemies": ["ghost"],
+      "$note": "Ambient is cold blue and a shade higher than the other two maps: half of what you navigate by here is a lit tank or a viewing pane, and those are emissive rather than lit, so the fill is only doing the corners. The fog is near-black with a blue cast, which is what makes a sixteen-metre hall close down at the far end and what makes the water behind the glass read as depth rather than as a painted wall.",
+      "overrides": {
+        "world": {
+          "grid": { "width": 6, "height": 6 },
+          "doors": { "lockedDoorCount": 2 }
+        },
+        "graphics": {
+          "fog": { "color": "#050a10", "density": 0.05 },
+          "ambientColor": "#22384c",
+          "ambientIntensity": 1.0
+        }
+      },
+      "ambienceTrack": "ambience/mansion_loop",
+      "musicTrack": "music/mansion_tension"
     }
   }
 }

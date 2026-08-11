@@ -148,4 +148,5 @@ export const buildPosterBlank = posterBuilder('poster.blank');
 export const buildPosterRandom = posterBuilder('poster.random');
 export const buildPosterMansion = posterBuilder('poster.mansion');
 export const buildPosterViscera = posterBuilder('poster.viscera');
+export const buildPosterAbyss = posterBuilder('poster.abyss');
 export const buildPosterTest = posterBuilder('poster.test');
