@@ -67,7 +67,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     [0.42, 1.08, -0.18, 0.42],
     [0.06, 1.75, 0.2, 0.36],
   ] as const) {
-    const lobe = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), flesh);
+    // Built here rather than batched, so the room has to free it: nothing in
+    // `MeshBatcher` ever sees these four buffers.
+    const geometry = new THREE.SphereGeometry(r, 14, 10);
+    room.own(geometry);
+    const lobe = new THREE.Mesh(geometry, flesh);
     lobe.position.set(dx, dy, dz);
     lobe.scale.set(1, 1.12, 0.92);
     lobe.castShadow = false;

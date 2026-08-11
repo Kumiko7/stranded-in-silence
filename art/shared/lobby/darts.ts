@@ -207,8 +207,10 @@ export function buildScoreboard(ctx: ArtBuildContext): BuiltArt {
     api: { setScores },
     dispose(): void {
       built.dispose();
+      // `digitGeometry` was built here, so it is freed here. `pipGeometry` was
+      // NOT - `boxGeometry()` hands back a cache entry that `clearGeometryCache()`
+      // owns, and freeing it twice frees a buffer the cache still holds.
       digitGeometry.dispose();
-      pipGeometry.dispose();
       for (const material of pipMaterials) material.dispose();
     },
   };
@@ -321,8 +323,11 @@ export function buildDart(ctx: ArtBuildContext): BuiltArt {
 
   // Flights: two blades crossed at the tail.
   for (const roll of [0, Math.PI / 2]) {
+    // NOT `consume` - `boxGeometry()` hands back a CACHE entry, and freeing it
+    // here frees a buffer the cache still holds and `clearGeometryCache()` frees
+    // again at teardown. The shaft above IS built here, so that one is consumed.
     const blade = boxGeometry(0.034, 0.0015, 0.042);
-    batch.add(flight, blade, tiltMatrix([0, 0, 0.066], [Math.PI / 2, 0, roll]), { consume: true });
+    batch.add(flight, blade, tiltMatrix([0, 0, 0.066], [Math.PI / 2, 0, roll]));
   }
 
   const built = batch.build();

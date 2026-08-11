@@ -48,6 +48,7 @@ export class Room {
   readonly colliders: Collider[] = [];
   readonly lights: THREE.Light[] = [];
   readonly #ticks: ((time: number) => void)[] = [];
+  readonly #owned: { dispose(): void }[] = [];
   #shellLights = 0;
 
   constructor(
@@ -148,6 +149,19 @@ export class Room {
   }
 
   /**
+   * Hands the room ownership of a geometry (or anything else disposable) that
+   * did NOT go through the batcher.
+   *
+   * Everything batched is freed by `MeshBatcher.dispose`, but a `loose()` mesh
+   * built for one room instance is not, and nothing in the engine will report
+   * it - it is simply a buffer per room per run, retained until the tab closes.
+   * Any room that animates something has at least one of these.
+   */
+  own(disposable: { dispose(): void }): void {
+    this.#owned.push(disposable);
+  }
+
+  /**
    * Cosmetic per-frame motion: a light breathing, a heart beating. Runs off the
    * room's own `onBeforeRender`, so it stops the moment the room is culled and
    * never touches collision or gameplay.
@@ -171,11 +185,16 @@ export class Room {
       };
     }
 
+    const owned = this.#owned;
     return {
       object,
       colliders: this.colliders,
       lights: this.lights,
-      dispose: built.dispose,
+      dispose(): void {
+        built.dispose();
+        for (const item of owned) item.dispose();
+        owned.length = 0;
+      },
     };
   }
 }

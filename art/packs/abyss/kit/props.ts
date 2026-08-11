@@ -924,7 +924,10 @@ export function debris(room: Room, x: number, z: number, radius: number, count =
         'steelDark',
         cyl(room.range(0.015, 0.03), room.range(0.02, 0.04), room.range(0.16, 0.5), 5),
         tiltMatrix([px, room.range(0.02, 0.05), pz], [Math.PI / 2 + room.range(-0.15, 0.15), room.range(0, Math.PI), 0]),
-        { tile: 0.3, ...FLAT, consume: true },
+        // NOT `consume` - `cyl()` hands back a CACHE entry, and freeing it here
+        // frees a buffer the cache still holds and `clearGeometryCache()` frees
+        // again at teardown. Only geometry built at the call site is consumed.
+        { tile: 0.3, ...FLAT },
       );
     } else {
       room.box(
@@ -1075,9 +1078,21 @@ export function tubeWorms(room: Room, x: number, z: number, count = 9, spread = 
     const h = scale * room.range(0.35, 1.1);
     const lean = room.range(-0.22, 0.22);
     room.geo('wormTube', cyl(0.03 * scale, 0.05 * scale, h, 6), tiltMatrix([px, h / 2, pz], [0, a, lean]), { tile: 0.4, castShadow: false });
-    // Growth bands down the tube, and the plume standing out of the mouth.
+    /**
+     * Growth bands down the tube, as a six-sided COLLAR rather than a torus.
+     *
+     * `ring()` is a 6 x 7 torus - 84 triangles for an 8 mm band, wrapped round a
+     * tube that has six sides itself. Three per worm and a few hundred worms in
+     * a map made `tubeWorms` 15% of the whole pack's geometry, three quarters of
+     * it in these bands. A sleeve is 24 triangles, matches the facets it sits
+     * on, and follows the tube's lean rather than approximating it.
+     */
     for (let b = 1; b < 4; b++) {
-      room.geo('shellWhite', ring(0.035 * scale, 0.008 * scale, 7), tiltMatrix([px + Math.sin(lean) * h * (b / 4), h * (b / 4), pz], [Math.PI / 2, a, 0]), FLAT);
+      const f = b / 4;
+      // The tube tapers 0.05 -> 0.03 up its length, so a band of one fixed
+      // radius is buried at the bottom and floating at the top. Track it.
+      const r = (0.05 - 0.02 * f + 0.006) * scale;
+      room.geo('shellWhite', cyl(r, r, 0.014 * scale, 6), tiltMatrix([px + Math.sin(lean) * h * f, h * f, pz], [0, a, lean]), FLAT);
     }
     room.geo('wormPlume', ball(0.055 * scale, 7), tiltMatrix([px + Math.sin(lean) * h, h + 0.05 * scale, pz], [0, a, lean], [1, 1.7, 1]), NO_SHADOW);
   }
