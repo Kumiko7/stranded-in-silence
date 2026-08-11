@@ -341,7 +341,7 @@ Rules:
 | Metric | Budget |
 | --- | --- |
 | Draw calls | ≤ 40 |
-| Triangles | ≤ 40 000 |
+| Triangles | ≤ 25 000 |
 | Real lights | ≤ `ctx.lightBudget` (2 for 1x1, +1 per extra cell, max 4) |
 | Shadow-casting lights | ≤ 1 |
 | Unique materials created | 0 (use `ctx.materials`) |
@@ -349,6 +349,20 @@ Rules:
 These numbers are **guidance**. `npm run validate:art` reports draw calls,
 triangles and collider counts as warnings, not errors: going over for a set piece
 is a conversation with whoever is profiling, not a reason to make a room worse.
+
+**The triangle budget was 40 000 and never fired**, which is the same as not
+having one — the manor's worst room is 8 400. Kerberos Deep spent the whole
+allowance a room at a time without ever tripping it, ending up at 469k triangles
+standing in a map against the manor's 155k and `abyss.vents` alone at 31 305, and
+what that cost was a run that felt heavy rather than a warning anybody saw. 25 000
+sits just above the largest room that ships today (`abyss.archive`, 23 878), so it
+says nothing about rooms already reviewed and speaks up for the next one to grow.
+Per-map totals are in [`../systems/RENDERING.md`](../systems/RENDERING.md) →
+"What each map costs"; `tools/leakcheck.html?props=1` says which art function is
+spending it, which is a more useful place to start than a room.
+
+It is a flat number rather than per cell, deliberately: the rooms that get near
+it are 1x1s that packed too much in, not the set pieces.
 The light budget *is* enforced. It is not, however, a shader cost: `graphics.json
 → maxActiveLights` is a fixed budget, so the renderer always enables exactly that
 many lamps (nearest first) and every material compiles for the same light count

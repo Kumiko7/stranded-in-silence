@@ -730,7 +730,10 @@ export function boneDebris(room: Room, x: number, z: number, radius: number, cou
         'bonePale',
         cyl(room.range(0.025, 0.05), room.range(0.03, 0.06), room.range(0.3, 0.75), 6),
         tiltMatrix([px, room.range(0.03, 0.08), pz], [Math.PI / 2 + room.range(-0.2, 0.2), room.range(0, Math.PI), 0]),
-        { tile: 0.4, castShadow: false, consume: true },
+        // NOT `consume` - `cyl()` hands back a CACHE entry, and freeing it here
+        // frees a buffer the cache still holds and `clearGeometryCache()` frees
+        // again at teardown. Only geometry built at the call site is consumed.
+        { tile: 0.4, castShadow: false },
       );
     } else {
       room.box(

@@ -432,10 +432,12 @@ function mirrorWall(b: Builder): void {
     // Thin along the normal (X), tall in Y, `thickness` wide in Z, then raked by
     // spinning it about the normal so it runs corner to corner.
     const streak = boxGeometry(0.008, (MIRROR_HEAD - MIRROR_SILL) * extent, thickness);
+    // NOT `consume` - `boxGeometry()` hands back a CACHE entry, and freeing it
+    // here frees a buffer the cache still holds and `clearGeometryCache()` frees
+    // again at teardown. Only geometry built at the call site is consumed.
     b.geo('mirrorSheen', streak, tiltMatrix([face - 0.035, (MIRROR_HEAD + MIRROR_SILL) / 2, MIRROR_Z + offset], [0.34, 0, 0]), {
       castShadow: false,
       receiveShadow: false,
-      consume: true,
     });
   }
 

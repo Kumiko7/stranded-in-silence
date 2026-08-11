@@ -58,7 +58,16 @@ const lightBudgetFor = (footprint) => Math.min(4, 1 + footprint.length);
 /** Grid resolution for the reachability flood fill, in metres. */
 const CELL = 0.12;
 
-const BUDGET = { drawCalls: 40, triangles: 40000, lights: 2, shadowLights: 1, colliders: 25 };
+/**
+ * `triangles` was 40 000, which was headroom nobody was ever going to use and so
+ * never said anything: the manor's worst room is 8 400. Kerberos Deep spent the
+ * whole allowance without tripping it - `abyss.vents` reached 31 305, and the map
+ * carried 469k triangles against the manor's 155k, which is what a run there
+ * actually felt like. 25 000 is set just above the largest room that ships
+ * (`abyss.archive`, 23 878) so it flags the next one to grow rather than the ones
+ * already reviewed. See docs/systems/RENDERING.md - "What each map costs".
+ */
+const BUDGET = { drawCalls: 40, triangles: 25000, lights: 2, shadowLights: 1, colliders: 25 };
 
 /** Packs that are scaffolding, not maps. See the note where this is used. */
 const SCAFFOLD_PACKS = new Set(['test']);

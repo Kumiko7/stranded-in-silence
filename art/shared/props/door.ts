@@ -241,7 +241,13 @@ export function buildExitDoor(ctx: ArtBuildContext): BuiltArt {
   const glow = new THREE.Group();
   object.add(glow);
 
-  const wash = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.5, h + 0.4), glowMaterial);
+  // Sized from the opening rather than fixed, so unlike the hardware above these
+  // cannot live at module scope - they belong to this door and are freed with it.
+  const owned: THREE.BufferGeometry[] = [];
+
+  const washGeometry = new THREE.PlaneGeometry(w + 0.5, h + 0.4);
+  owned.push(washGeometry);
+  const wash = new THREE.Mesh(washGeometry, glowMaterial);
   wash.position.set(0, (h + 0.4) / 2, 0.14);
   glow.add(wash);
 
@@ -251,7 +257,9 @@ export function buildExitDoor(ctx: ArtBuildContext): BuiltArt {
   const signWidth = 0.52;
   object.add(box(trim, [signWidth + 0.06, 0.2, 0.12], [0, h + 0.09, -0.06]));
   for (const side of [-1, 1]) {
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(signWidth, 0.14), glowMaterial);
+    const faceGeometry = new THREE.PlaneGeometry(signWidth, 0.14);
+    owned.push(faceGeometry);
+    const face = new THREE.Mesh(faceGeometry, glowMaterial);
     face.position.set(0, h + 0.16, -0.06 + side * 0.062);
     // A plane faces +Z by default, so only the one on the -Z side turns round.
     if (side < 0) face.rotation.y = Math.PI;
@@ -271,5 +279,9 @@ export function buildExitDoor(ctx: ArtBuildContext): BuiltArt {
     colliders: [],
     parts: { hinge, handle, glow, progressAnchor, frame: object, lockIndicator: new THREE.Object3D() },
     lights: [lamp],
+    dispose(): void {
+      for (const geometry of owned) geometry.dispose();
+      owned.length = 0;
+    },
   };
 }

@@ -139,8 +139,35 @@ them visible in a profile of a single run:
 | Size-keyed geometry caches at module scope — the shared box cache in `art/lib/build.ts` **and one per shape in each pack's `kit/props.ts`**. Art sizes furniture from the seeded RNG, so a new seed reuses almost nothing and mints fresh keys for nearly everything it places | ~1,270 geometries (mansion), ~3,450 (viscera) | A cache belongs to one world: `clearGeometryCache()` at the tail of `Game.end()` and `Lobby.end()`, with pack caches joining it through `ownGeometryCache()` |
 | Sustained audio voices keyed `effect:<id>` — silenced but kept, each an HRTF panner still wired to a bus | one per alarm clock | `releaseSustain()` / `releaseSustains()`, see [`AUDIO_VOICE.md`](AUDIO_VOICE.md) |
 
-**Verified** by driving lobby-run-lobby cycles through the dev handle and reading
-`renderer.info` at the bottom of each. Afterwards, over 20 cycles on unique seeds:
+A second pass over the same loop, once `abyss` shipped, found two more — both of
+them **outside** `renderer.info`, and neither growing the numbers that pass
+watched:
+
+| Leaked | Per cycle | Fix |
+| --- | --- | --- |
+| A **cache entry handed to the batcher with `consume: true`**. `consume` frees the geometry it was given, which is right for a geometry built at the call site and wrong for one that came from `boxGeometry()` / `cyl()` / a pack cache — the buffer is freed while the cache still holds it, and `clearGeometryCache()` then frees it a second time. Five sites: `debris()` in the abyss and viscera kits, the cabin's mirror sheen, the dart flight, and the scoreboard's pip geometry (which `dartBoard.dispose()` freed by hand) | ~130 double frees (abyss), ~135 (viscera) | The geometry stays the cache's. `consume` is only ever for geometry built at the call site |
+| Loose geometry no teardown owned: the exit door's glow wash and two sign faces (`art/shared/props/door.ts`), and the four lobes of the viscera heart | 3 per run + 4 on viscera | The door returns a `dispose`; viscera's `Room` gained the `own()` seam abyss's already had |
+
+The first of those is the more interesting one, because a double free is not a
+leak — it is a **freed buffer still in a cache**, waiting for the next room that
+asks for the same size. It survives today only because everything that reaches it
+is cloned into a merge before the free lands, which is luck, not design.
+
+**Verified** by driving lobby-run-lobby cycles through `tools/leakcheck.html`
+(`?map=abyss&cycles=10`), which builds and tears down the real lobby scene and
+the real world through `Game.end()`'s exact three steps and reads
+`renderer.info` at the bottom of each. Its instrument is three.js's own monotonic
+ids: every geometry, material and texture takes the next integer from a global
+counter, so what a cycle CREATED is a subtraction and `dispose` is patched to
+count the other side. Created-minus-disposed is now **0 geometries and 0
+materials per cycle on all three maps**, and no geometry is freed twice.
+
+`kept tex` stays at `3 × shadow-casting lights + 3`, which is not a leak: a
+`LightShadow` frees its render target rather than the target's `Texture`, so the
+counter never sees it. `renderer.info.memory.textures` is flat, which is the half
+that matters.
+
+Earlier, over 20 cycles on unique seeds:
 textures, geometries and programs flat and identical every cycle, heap growth
 0.025 MB per cycle (noise) against 2.6 MB before. At a pinned camera and a fixed
 seed, draw calls, triangles, CPU render time and GPU time (`EXT_disjoint_timer_
@@ -196,6 +223,36 @@ headings, over several seeds.
 | Biggest single-frame jump in a lamp's brightness, walking 39 m | 1.0 (a switch) | 0.026 |
 | Frames over 16 ms | 20 in 4320, worst 1194 ms | 0 in 4320, worst 11.7 ms |
 | Load | 110 ms world build | + 61 ms warm-up |
+
+### What each map costs
+
+Measured with `tools/leakcheck.html?rooms=1&props=1`, every door open, 48 camera
+poses spread over the grid. Nothing here is a leak — it is what the packs are.
+
+| | mansion | viscera | abyss |
+| --- | --- | --- | --- |
+| Triangles standing in the map | 155k | ~230k | **429k** |
+| Triangles drawn, average pose | 5–7k | 11–16k | **22–38k** |
+| Draw calls, average pose | 60–68 | 59–65 | **83–104** |
+| Worst room | library, 9.1k | ribcage, 18k | **archive, 23.9k** |
+| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** |
+| World build | 95–300 ms | 150–750 ms | **230–1200 ms** |
+
+Every abyss room is inside the per-room budget in
+[`../art/ROOM_FORMAT.md`](../art/ROOM_FORMAT.md) §7 — that budget is 40k
+triangles and was written with room to spare. Abyss spends it; the manor does
+not. Only 8% of abyss's triangles are see-through, so this is geometry cost
+rather than an overdraw problem.
+
+`?props=1` charges every batched triangle to the art function that added it,
+which is where the budget conversation should start rather than with a room. It
+is what found the one reduction made so far: `tubeWorms` was **15% of the whole
+map**, three quarters of it in the growth bands, because `ring()` is a 6 × 7
+torus — 84 triangles for an 8 mm band, on a tube that has six sides itself. A
+six-sided collar is 24, and the pack lost 40k triangles (8.5%) on a detail
+nobody can resolve at the fog density it is seen through. The remaining large
+line items, if more is ever wanted: `mouth` 42.5k, `strip` 37.4k, `specimenJar`
+28.9k, `bioMotes` 22.9k (764 glowing specks at ~30 triangles each).
 
 ## Deliberately not done
 
