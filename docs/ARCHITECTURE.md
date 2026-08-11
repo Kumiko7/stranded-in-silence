@@ -232,7 +232,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Change on-screen text | `config/locales/` — [`LOCALISATION.md`](LOCALISATION.md) |
 | Add a room | `art/packs/<pack>/rooms/`, then `npm run validate:art` — [`art/ROOM_FORMAT.md`](art/ROOM_FORMAT.md) |
 | Review how rooms *look* | `tools/roomshot` — [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) |
-| Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md). Three ship today: `mansion` (Ravenhollow Manor), `viscera` (The Leviathan) and `abyss` (Kerberos Deep), plus the `test` greybox scaffold |
+| Add a whole map | `art/packs/<new>/` + `config/maps.json` — [`art/ART_PACK_CHECKLIST.md`](art/ART_PACK_CHECKLIST.md). Four ship today: `mansion` (Ravenhollow Manor), `viscera` (The Leviathan), `abyss` (Kerberos Deep) and `crypt` (Sepulchre of the Nine), plus the `test` greybox scaffold |
 | Restyle a door / chest / enemy | `art/shared/` — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
 | Add a cosmetic hat | `art/shared/characters/hats.ts` + `hatMaterials.ts`, then `config/player.json → customisation.hats` and a `cosmetic.hat.*` key per language — [`art/SHARED_ART.md`](art/SHARED_ART.md) |
 | Dress a player body anywhere in `src/` | `src/render/playerBody.ts` — the only file that turns a `Cosmetic` into geometry |

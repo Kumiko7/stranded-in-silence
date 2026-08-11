@@ -92,6 +92,29 @@
       },
       "ambienceTrack": "ambience/mansion_loop",
       "musicTrack": "music/mansion_tension"
+    },
+
+    "crypt": {
+      "nameKey": "map.crypt.name",
+      "descKey": "map.crypt.desc",
+      "artPack": "crypt",
+      "posterArtId": "poster.crypt",
+      "enabled": true,
+      "enemies": ["ghost"],
+      "$note": "Ambient is COLD and the practicals are all flame, which is the split the art guide asks for and the thing this map got wrong first: a warm ambient (#2c2a33) on top of a hundred candle niches made every room the same shade of orange, with no temperature anywhere for the warmth to be warm against. Cold blue-grey fill, warm tallow and oil, and the Rot's violet reading as a third thing that is neither. The fog is a warm near-black - grave dust rather than sea water - which is what makes a twenty-four metre column hall close down at the far end and what keeps the one gilded sarcophagus in the map reading as gold rather than as a lamp.",
+      "overrides": {
+        "world": {
+          "grid": { "width": 6, "height": 6 },
+          "doors": { "lockedDoorCount": 2 }
+        },
+        "graphics": {
+          "fog": { "color": "#0b0908", "density": 0.05 },
+          "ambientColor": "#242c40",
+          "ambientIntensity": 1.0
+        }
+      },
+      "ambienceTrack": "ambience/mansion_loop",
+      "musicTrack": "music/mansion_tension"
     }
   }
 }

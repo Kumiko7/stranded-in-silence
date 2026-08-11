@@ -355,14 +355,32 @@ having one — the manor's worst room is 8 400. Kerberos Deep spent the whole
 allowance a room at a time without ever tripping it, ending up at 469k triangles
 standing in a map against the manor's 155k and `abyss.vents` alone at 31 305, and
 what that cost was a run that felt heavy rather than a warning anybody saw. 25 000
-sits just above the largest room that ships today (`abyss.archive`, 23 878), so it
-says nothing about rooms already reviewed and speaks up for the next one to grow.
+sits just above the largest 1x1 that ships today (`abyss.archive`, 23 878, and
+`crypt.ossuary` right behind it at 23 307), so it says nothing about rooms already
+reviewed and speaks up for the next one to grow — which it did: it caught the
+crypt's bone chapel at 96 000 on its first build, all of it in one detail.
 Per-map totals are in [`../systems/RENDERING.md`](../systems/RENDERING.md) →
 "What each map costs"; `tools/leakcheck.html?props=1` says which art function is
 spending it, which is a more useful place to start than a room.
 
 It is a flat number rather than per cell, deliberately: the rooms that get near
-it are 1x1s that packed too much in, not the set pieces.
+it are 1x1s that packed too much in, not the set pieces. Two consequences the
+crypt pass ran into, both worth knowing before you argue with a warning:
+
+- **A multi-cell room will trip the flat numbers, and that can be right.** The
+  crypt's 2x2 is 36 800 triangles — over the budget, and 9 200 per cell, which is
+  less than most of its own 1x1s. Its 1x3 is 29 colliders, and about twenty of
+  those are the shell's own walls. Read a multi-cell warning per cell before
+  changing anything.
+- **Draw calls are counted per material *per shadow flag*.** `MeshBatcher` builds
+  one mesh per material, and a second one if some of that material's geometry
+  casts shadows and some does not — so a material shared between a shadowed tomb
+  chest and an unshadowed skirting board costs two draws rather than one. With
+  thirty materials in a room that is the difference between 54 draw calls and 34.
+  Pick a default per pack (the crypt's `Room.box()` defaults to
+  `castShadow: false` and the handful of big silhouettes opt in) rather than
+  leaving it to whatever each call site happened to pass.
+
 The light budget *is* enforced. It is not, however, a shader cost: `graphics.json
 → maxActiveLights` is a fixed budget, so the renderer always enables exactly that
 many lamps (nearest first) and every material compiles for the same light count

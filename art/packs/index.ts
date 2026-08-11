@@ -7,12 +7,14 @@ import { pack as test } from './test/pack';
 import { pack as mansion } from './mansion/pack';
 import { pack as viscera } from './viscera/pack';
 import { pack as abyss } from './abyss/pack';
+import { pack as crypt } from './crypt/pack';
 
 export const artPacks: Readonly<Record<string, ArtPack>> = {
   test,
   mansion,
   viscera,
   abyss,
+  crypt,
 };
 
 export function getArtPack(id: string): ArtPack {

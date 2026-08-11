@@ -217,6 +217,75 @@ these validated clean and every one of them was obvious in a sheet.
 - **Warp your stripes harder than their spacing.** Sand ripples warped by less
   than one period read as printed corduroy rather than as a seabed.
 
+### And the ones the Sepulchre of the Nine pass caught
+
+Fourth pack. Almost every failure this time was about **light** — either faking
+it, or forgetting what it lands on — and two of them are repeats of lessons
+already in this file, which is worth saying out loud: the ones that repeat are
+the ones a new pack will hit too.
+
+- **An additive wash is a seasoning, not a light source.** Painting the halo
+  round a flame as an additive quad is right (see the abyss caustics, above), but
+  the crypt's votive course throws one per station, three stations a wall, four
+  walls — twelve overlapping quads at 0.5 opacity, plus two point lights, and
+  every room in the pack came out the same shade of orange with no darkness left
+  in it anywhere. They are at 0.18 now and only on the wall, not the floor.
+- **A warm ambient under warm practicals leaves nothing for the warmth to be
+  warm against.** The map shipped its first pass with `ambientColor: #2c2a33`,
+  which is what a crypt "feels" like and is exactly wrong: the guide's "warm
+  sources, cold ambient" is not a preference, it is the only thing that makes a
+  candle read as a candle. Cold blue-grey fill, and the same rooms became stone.
+- **Metal with no environment map has to take DIFFUSE light.** Every gold surface
+  in the Necropolis was `metalness: 0.9`, which is physically right and rendered
+  black: there is no env map in this renderer, so a full metal can only show what
+  it reflects, and it has nothing to reflect. The gilded sarcophagus the whole map
+  is built around was a dark slab under two lamps until every metal in the pack
+  came down to about 0.45.
+- **A tile size is a look, not a setting.** Three of these in one pack: painted
+  registers at a 2.3 m tile made the figures 45 cm and a wall of them read as a
+  bank of card-index drawers; brick at 1.5 m made the vault bricks 6 cm and the
+  ceiling read as basketwork; gold stars at a 2.4 m tile came out 40 cm across
+  and read as clover leaves. All three were fixed by changing one number.
+- **A figure built from stacked rectangles is a drawer.** The frieze's people
+  were a body box, a wig box and a kilt box, and no amount of colour fixed them.
+  What makes a silhouette read as a person is that it is *not* a rectangle: two
+  legs with daylight between them, a waist narrower than the shoulders, a round
+  head. The same lesson as the ghost's empty sleeves, one dimension down.
+- **A niche is a hole in the LOOK of a wall and must not be a hole in the wall.**
+  The shell cuts the masonry either side of a recess and leaves a sill under it -
+  but a recess that opens at floor level has no sill, so `validate:art` reported
+  eight rooms where "the wall is closed this run but has no collider", and a
+  player could have walked into a corpse shelf and out through the picture at the
+  back of it. Any decorative opening needs one collider across the whole run.
+- **Anything on a chain needs a batcher of its own** — a repeat of the abyss
+  kelp, and it cost exactly as much: three swinging props built as one
+  `THREE.Mesh` per chain link put the corridor at 66 draw calls, and the same
+  props merged into one mesh each put it at 32.
+- **Shadow casting is a decision a pack makes once.** `MeshBatcher` splits a
+  material into two meshes when some of its geometry casts and some does not, so
+  one material shared between a shadowed tomb chest and an unshadowed piece of
+  trim costs two draws instead of one. With thirty materials in a room that is the
+  difference between 54 draws and 34. Casting is now opt-in in this pack, and
+  what opts in is a silhouette a player reads across a room.
+- **A cylinder has a top cap, and a light above it will find it.** The brazier's
+  coal bed was inside the bowl, so what a player saw was the bowl's lit top cap:
+  a bowl of soup on a stool. The coals go ON the cap, dark, with the light well
+  above the rim.
+- **A near-black glossy disc on a floor is a hole in the floor**, and the pack
+  made this mistake twice in one room - a "wet patch" and a sump - after it was
+  already written down for the abyss's puddles. Water needs a colour you can see.
+- **A black wedge across an overview is the vault, not a bug.** Two rooms were
+  investigated for a shadow that turned out to be the groin vault's diagonal rib
+  seen from a camera parked at the springing, which is where the review tool puts
+  its raised corner views. Turning shadows off in `graphics.json` for one render
+  is the cheapest way to tell a shadow from geometry.
+- **`?props=1` will find the one detail that is 15 % of your map.** Here it was
+  the votive lamp station - 80,000 triangles over 1,932 of them, three quarters
+  of it in 7 x 6 spheres on flames two centimetres across. Five-segment flames
+  cost the pack nothing anybody can see and gave back 50,000 triangles. This is
+  the same finding as `tubeWorms`, in the same place in the process, for the same
+  reason.
+
 ### And the ones the shared-art pass caught
 
 Characters and props are not rooms, but they get reviewed the same way — a

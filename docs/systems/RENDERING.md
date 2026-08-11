@@ -229,20 +229,44 @@ headings, over several seeds.
 Measured with `tools/leakcheck.html?rooms=1&props=1`, every door open, 48 camera
 poses spread over the grid. Nothing here is a leak — it is what the packs are.
 
-| | mansion | viscera | abyss |
-| --- | --- | --- | --- |
-| Triangles standing in the map | 155k | ~230k | **429k** |
-| Triangles drawn, average pose | 5–7k | 11–16k | **22–38k** |
-| Draw calls, average pose | 60–68 | 59–65 | **83–104** |
-| Worst room | library, 9.1k | ribcage, 18k | **archive, 23.9k** |
-| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** |
-| World build | 95–300 ms | 150–750 ms | **230–1200 ms** |
+| | mansion | viscera | abyss | crypt |
+| --- | --- | --- | --- | --- |
+| Triangles standing in the map | 155k | ~230k | **429k** | 439k |
+| Triangles drawn, average pose | 5–7k | 11–16k | **22–38k** | 22–23k |
+| Draw calls, average pose | 60–68 | 59–65 | **83–104** | 78–86 |
+| Worst room | library, 9.1k | ribcage, 18k | **archive, 23.9k** | ossuary, 23.3k |
+| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** | 7–9 |
+| World build | 95–300 ms | 150–750 ms | **230–1200 ms** | 970–1010 ms |
 
 Every abyss room is inside the per-room budget in
 [`../art/ROOM_FORMAT.md`](../art/ROOM_FORMAT.md) §7 — that budget is 40k
 triangles and was written with room to spare. Abyss spends it; the manor does
 not. Only 8% of abyss's triangles are see-through, so this is geometry cost
 rather than an overdraw problem.
+
+The crypt stands as heavy as abyss and draws two thirds of it, because it is a
+map of small walled rooms rather than of halls with sight lines through them:
+only 4.6% of its triangles are see-through, and the culler gets more out of a
+crypt than out of an oceanarium. Its per-room numbers are all inside the 25k
+budget except the one deliberate set piece (`crypt.sepulchre`, a 2x2 at 36.8k,
+which is 9.2k per cell — less per cell than most of its own 1x1s). Two more
+warnings are accepted rather than fixed: `crypt.robbers` at 41 draw calls, which
+is the hinge room and legitimately carries both halves' material sets, and
+`crypt.hypostyle` at 29 colliders, which is three cells' worth of shell wall
+against a guideline written for one.
+
+Two findings from that pack generalise, and both are in
+[`../art/ROOM_REVIEW.md`](../art/ROOM_REVIEW.md) in full:
+
+- **Shadow casting is a per-pack decision, and the default should be off.**
+  `MeshBatcher` splits a material into two meshes when some of its geometry casts
+  and some does not, so a material shared between a shadowed tomb and an
+  unshadowed skirting costs two draw calls. Making casting opt-in took the crypt's
+  worst room from 54 draws to 34 across the whole pack.
+- **`?props=1` finds the 15% detail every time.** Abyss's was `tubeWorms`;
+  the crypt's was the votive lamp station, 80k triangles over 1,932 of them,
+  three quarters of it in 7 × 6 spheres on two-centimetre flames. Five-segment
+  flames gave back 50k triangles and look identical.
 
 `?props=1` charges every batched triangle to the art function that added it,
 which is where the budget conversation should start rather than with a room. It

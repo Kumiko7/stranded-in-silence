@@ -144,6 +144,13 @@ export function createLobbyMaterials(): MaterialLibrary {
       emissiveIntensity: 0.12,
       roughness: 0.95,
     }),
+    'poster.crypt': standard(0xffffff, {
+      map: tex.posterCrypt,
+      emissive: 0xffffff,
+      emissiveMap: tex.posterCrypt,
+      emissiveIntensity: 0.12,
+      roughness: 0.95,
+    }),
     'poster.test': standard(0xffffff, {
       map: tex.posterTest,
       emissive: 0xffffff,

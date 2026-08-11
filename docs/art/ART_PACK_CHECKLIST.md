@@ -98,19 +98,40 @@ rooms — that variance is where the tension lives.
 against calcified skeleton, half the rooms each, so walking the maze is a
 rhythm of temperature changes rather than twenty variations on one idea;
 `abyss` is a steel research station against the trench that is getting into it,
-amber against cyan, straight lines against none; the manor does the same thing
-more quietly with its grand rooms and its service rooms. Give the two halves
-different palettes, different light colours and different floor materials, and
-put one hinge room in the set that is honestly both — it is the one that makes
-the transition read as deliberate.
+amber against cyan, straight lines against none; `crypt` is a consecrated
+medieval crypt against the dynastic tomb it was built on top of, grey limestone
+against ochre sandstone, tallow against oil, pointed arches against post and
+lintel; the manor does the same thing more quietly with its grand rooms and its
+service rooms. Give the two halves different palettes, different light colours
+and different floor materials, and put one hinge room in the set that is honestly
+both — it is the one that makes the transition read as deliberate. (`crypt` has a
+third, smaller family for the thing eating both halves: two rooms of fungus and
+root, violet where everything else is flame. A third strand works as long as it
+is *small* and it is the one that crosses the boundary.)
 
 **Find the pack's one repeatable trick and put it in the shell.** Every pack has
 a single detail that does most of the work of making twenty rooms feel like one
 place, and it belongs in `kit/shell.ts` rather than in each room: `viscera`
 rings every opening with a sphincter or a bone arch, `abyss` runs an emissive
 strip along the base of every wall and hangs a viewing pane in any wall the
-generator cannot open. Both cost nothing per room and both are the reason the
-set holds together.
+generator cannot open, `crypt` sets a course of burning votive niches round every
+wall and cuts a recess with something in it — a corpse shelf, a stack of skulls, a
+hooded figure — into any wall the generator cannot open. All of them cost nothing
+per room and all of them are the reason their set holds together.
+
+Two things the crypt pass learned about that trick, both worth knowing before you
+write one:
+
+- **A wall course of lights is the whole lighting design, so cost it early.**
+  Three stations a wall, four walls, twenty-two rooms is nineteen hundred of them,
+  and at forty triangles each that was 15 % of the entire map (see
+  [`../systems/RENDERING.md`](../systems/RENDERING.md)). Build it out of the
+  cheapest geometry that reads and check it with `tools/leakcheck.html?props=1`
+  before you build twenty rooms on top of it.
+- **A decorative opening still has to stop a player.** The shell cuts real
+  masonry for its recesses, and a recess that starts at floor level leaves the
+  wall with no collider across the middle - `npm run validate:art` caught it in
+  eight rooms at once. One collider across the whole wall run fixes every kind.
 
 Two practical rules that decide half the layout before you start decorating:
 

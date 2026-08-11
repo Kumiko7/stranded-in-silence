@@ -434,6 +434,88 @@ export const posterAbyss = (): THREE.Texture =>
   });
 
 /**
+ * The Sepulchre's poster: a lit doorway at the end of a crypt, seen over the tops
+ * of three skulls.
+ *
+ * The composition is doing what the map does - grey stone above, warm light in one
+ * arch, and a figure standing in it that is a shade too tall. Everything is a
+ * silhouette against that one warm hole, because the whole map is lit by candle
+ * niches and this is the only way to say so in a flat two-colour print.
+ */
+export const posterCrypt = (): THREE.Texture =>
+  colorTexture('lobby.posterCrypt', 256, (x, y, size) => {
+    const u = x / size;
+    const v = y / size;
+    const paper = paperAt(x, y, size);
+    if (u < 0.08 || u > 0.92 || v < 0.2 || v > 0.94) return paper;
+
+    /* --- the wall ----------------------------------------------------------- */
+    // Ashlar in courses, going darker toward the top of the frame so the eye is
+    // pushed down into the arch.
+    const grain = n2(x, y, size, 9, 9101, 3);
+    const course = ((v * 14) % 1 < 0.08 ? 1 : 0) + ((u * 9 + Math.floor(v * 14) * 0.5) % 1 < 0.06 ? 0.6 : 0);
+    let wall = mix(rgb(0x4e5049), rgb(0x67685f), grain * 0.9);
+    wall = mix(wall, rgb(0x2f3130), Math.min(0.8, course * 0.5));
+    wall = shade(wall, 1.06 - (v - 0.2) * 0.55);
+
+    /* --- the arch ----------------------------------------------------------- */
+    // A two-centred arch: half width at the springing, and a head that comes to a
+    // point. A round-headed one would read as a tunnel rather than as a crypt.
+    const half = 0.17;
+    const spring = 0.62;
+    const du = Math.abs(u - 0.5);
+    const inJamb = du < half && v < spring;
+    const R = half * 1.6;
+    const cOff = R - half;
+    const dHead = Math.hypot(du + cOff, Math.max(0, v - spring));
+    const inHead = v >= spring && dHead < R;
+    const inArch = (inJamb || inHead) && v > 0.235;
+    const onRing = !inArch && ((du < half + 0.035 && v < spring) || (v >= spring && dHead < R + 0.035)) && v > 0.235;
+
+    // Darker than the wall it is cut in, not paler: at 0x8a8b80 the moulding was the
+    // brightest thing on the print and the poster read as a pale arch rather than as
+    // a lit doorway at the end of a crypt.
+    if (onRing) return mix(rgb(0x3c3e3a), rgb(0x585a52), grain);
+
+    if (inArch) {
+      // Inside: warm light rising off the floor of the passage beyond, and the
+      // figure standing in it. The light is the only saturated thing on the print.
+      const rise = Math.max(0, 1 - (v - 0.235) / 0.5);
+      let glow = mix(rgb(0x2a1e14), rgb(0xf0a840), Math.pow(rise, 1.35));
+      glow = mix(glow, rgb(0xf0c878), Math.pow(Math.max(0, 1 - Math.hypot(du * 2.4, v - 0.3) / 0.22), 2) * 0.8);
+      // The figure: a hooded shape, narrow, with its shoulders a little too high
+      // for its height. Nothing else in the arch.
+      const fw = 0.028 + Math.max(0, 0.62 - v) * 0.09;
+      const head = Math.hypot(du * 1.5, v - 0.63) < 0.032;
+      if ((du < fw && v > 0.26 && v < 0.64) || head) return rgb(0x14100e);
+      return glow;
+    }
+
+    /* --- the skulls --------------------------------------------------------- */
+    // Three of them along the bottom of the print, in silhouette, at three sizes.
+    // They are the foreground and they are what makes the arch read as far away.
+    for (const [sx, sr] of [
+      [0.24, 0.075],
+      [0.5, 0.055],
+      [0.76, 0.068],
+    ] as const) {
+      const d = Math.hypot((u - sx) * 1.05, (v - 0.245) / 1.15);
+      if (d < sr) {
+        // Two sockets and a nasal hole, cut out of the dome as paler holes: a
+        // silhouette with no holes in it is a stone.
+        const socket = Math.min(Math.hypot((u - sx + sr * 0.36) * 1.3, v - 0.262), Math.hypot((u - sx - sr * 0.36) * 1.3, v - 0.262));
+        if (socket < sr * 0.3) return rgb(0x3a2f22);
+        if (Math.hypot((u - sx) * 3.4, v - 0.235) < sr * 0.22) return rgb(0x3a2f22);
+        return rgb(0x100e0c);
+      }
+      // The jaw, as a lower band under each dome.
+      if (Math.abs(u - sx) < sr * 0.7 && v > 0.21 && v < 0.235) return rgb(0x100e0c);
+    }
+
+    return wall;
+  });
+
+/**
  * The random-map poster: a question mark on a sunburst, in the same flat print
  * style as the rest of the wall so it reads as one more expedition rather than
  * as a UI element that wandered into the room.
