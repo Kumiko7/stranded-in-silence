@@ -63,8 +63,14 @@ export interface PlayerTransform {
  */
 export type ClaimKind = 'take' | 'chest' | 'unlock' | 'barricade';
 
-/** The enemy runs on the host; everyone else just receives this. */
+/** The hunters run on the host; everyone else just receives this. */
 export interface EnemyTransform {
+  /**
+   * Which hunter. How many there are is a pure function of the map and the
+   * difficulty (`enemy.json -> spawn.regions`), which every peer already has -
+   * so an index is all that has to cross the wire.
+   */
+  index: number;
   x: number;
   z: number;
   yaw: number;
@@ -218,7 +224,7 @@ export type NetMessage =
   | { t: 'stats'; id: string; stats: PlayerStats }
   /** Any peer may emit noise; the host feeds it all into one bus. */
   | { t: 'noise'; id: string; kind: NoiseKind; x: number; z: number }
-  | { t: 'enemy'; x: number; z: number; yaw: number; alert: string }
+  | { t: 'enemy'; index: number; x: number; z: number; yaw: number; alert: string }
   /** Host -> the player it caught. They apply their own health ladder and echo it. */
   | { t: 'hit'; id: string }
   | { t: 'health'; id: string; state: HealthState }

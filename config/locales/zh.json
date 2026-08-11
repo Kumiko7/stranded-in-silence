@@ -189,10 +189,8 @@
   "room.abyss.drydock": "潜水器舱",
   "room.abyss.breach": "破口",
 
-  "difficulty.easy.name": "不安",
-  "difficulty.normal.name": "闹鬼",
-  "difficulty.hard.name": "被猎",
-  "difficulty.nightmare.name": "寂静",
+  "difficulty.normal.name": "普通",
+  "difficulty.hard.name": "困难",
 
   "enemy.ghost.name": "安静者",
 

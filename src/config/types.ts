@@ -156,6 +156,10 @@ export interface EnemyArchetype {
     idleAtWaypointSeconds: [number, number];
     waypointsPerRoom: number;
     preferRoomsNearLastNoiseWeight: number;
+    /** How far another hunter's patch reaches, in room links. */
+    avoidOtherHuntersRooms: number;
+    /** Weight multiplier for a room inside that patch. Below 1 pushes them apart. */
+    otherHunterAreaWeight: number;
   };
   search: {
     durationSeconds: number;
@@ -168,7 +172,13 @@ export interface EnemyArchetype {
   spawn: {
     minRoomDistanceFromPlayers: number;
     requiresUnlockedPathToPlayers: boolean;
-    count: number;
+    /**
+     * One hunter per entry; the value is how many locked doors it starts BEHIND.
+     * `[0]` is the single hunter the players share a partition with; `[0, 1]`
+     * adds one sealed in past the first lock, which nobody meets until they
+     * open it.
+     */
+    regions: number[];
   };
   alert: {
     levels: string[];
@@ -445,8 +455,14 @@ export interface MapsConfig {
 
 export interface DifficultyMode {
   nameKey: string;
-  /** Off until step 38 applies the overlay. The lobby lever only cycles enabled modes. */
+  /** The lobby lever only cycles enabled modes. */
   enabled?: boolean;
+  /** Deep-merged over the base config when a run starts. See `configForRun`. */
+  overrides?: {
+    enemy?: DeepPartial<EnemyConfig>;
+    world?: DeepPartial<WorldConfig>;
+    player?: DeepPartial<PlayerConfig>;
+  };
 }
 
 export interface DifficultyConfig {

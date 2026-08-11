@@ -96,8 +96,13 @@ export interface RunLayout {
   /** Every spawn point in the shared start room. Players take one each by slot. */
   playerSpawns: { position: readonly [number, number, number]; yaw: number }[];
   exitCell: Cell;
-  /** Where the hunter starts: far from the players, and behind no locked door. */
-  enemySpawn: { cell: Cell; position: readonly [number, number] };
+  /**
+   * Where each hunter starts, one entry per `enemy.json -> spawn.regions`.
+   * `region` is how many locked doors it begins behind, so entry 0 (region 0) is
+   * the one sharing a partition with the players and anything above that is
+   * sealed off until its door is opened.
+   */
+  enemySpawns: { cell: Cell; position: readonly [number, number]; region: number }[];
 }
 
 const STEP: Record<Side, readonly [number, number]> = {
@@ -309,7 +314,7 @@ export function generate(
   world: WorldConfig,
   blueprints: readonly RoomBlueprint[],
   /** `enemy.json -> archetypes.<id>.spawn`. Kept as a parameter so generation reads one config file. */
-  enemySpawn: { minRoomDistanceFromPlayers: number },
+  enemySpawn: { minRoomDistanceFromPlayers: number; regions: readonly number[] },
 ): RunLayout {
   const { width, height, cellSize } = world.grid;
   const inBounds = (x: number, y: number) => x >= 0 && y >= 0 && x < width && y < height;
@@ -637,26 +642,59 @@ export function generate(
         })
       : [{ position: [spawnCell[0] * cellSize, 0, spawnCell[1] * cellSize] as const, yaw: 0 }];
 
-  // --- 10. the hunter's start room -------------------------------------------
-  // Measured over the OPEN edge set with locks blocked, so the enemy can always
-  // walk to the players without a key, and starts far enough away that nobody is
-  // ambushed on the spawn tile. Falls back to the furthest room it can reach.
+  // --- 10. the hunters' start rooms ------------------------------------------
+  // One hunter per entry in `spawn.regions`, and the value is which partition it
+  // wakes up in.
+  //
+  // Region 0 is the players' own, measured over the OPEN edge set with locks
+  // blocked: that hunter can always walk to them without a key, and starts far
+  // enough away that nobody is ambushed on the spawn tile.
+  //
+  // A hunter in a later region needs no distance rule, because the lock is the
+  // distance. It cannot be seen or heard from where the players start and it
+  // cannot come to them - it has no key either - until somebody opens that door,
+  // which is precisely the moment it is meant to become their problem.
   const enemyWalk = walkSlots(spawnSlot?.index ?? 0, open, lockedEdges);
-  const reachable = slots
-    .filter((slot) => enemyWalk.distance.has(slot.index))
-    .map((slot) => ({ slot, distance: enemyWalk.distance.get(slot.index) ?? 0 }));
-
-  const farEnough = reachable.filter((entry) => entry.distance >= enemySpawn.minRoomDistanceFromPlayers);
   const enemyRng = stream(seed, 'enemySpawn');
-  const chosen =
-    farEnough.length > 0 ? shuffle(enemyRng, farEnough)[0] : reachable.sort((a, b) => b.distance - a.distance)[0];
+  const hunted = new Set<number>();
 
-  if (!farEnough.length) {
-    console.warn(`[generation] no room ${enemySpawn.minRoomDistanceFromPlayers}+ from spawn for the enemy`);
-  }
+  const chooseEnemySlot = (wanted: number): LayoutSlot | undefined => {
+    const free = slots.filter((slot) => regionOf(slot.index) === wanted && !hunted.has(slot.index));
 
-  const enemyRoom = rooms[roomOfSlot.get(chosen?.slot.index ?? 0) ?? 0];
-  const enemyPoint = enemyRoom?.patrolPoints[0] ?? ([0, 0] as const);
+    // A map with fewer locks than the difficulty asked for still needs all of
+    // its hunters, so an empty region falls back toward the players' side.
+    if (!free.length) {
+      if (wanted <= 0) return slots.find((slot) => !hunted.has(slot.index));
+      console.warn(`[generation] no room behind lock ${wanted} for a hunter`);
+      return chooseEnemySlot(wanted - 1);
+    }
+    if (wanted > 0) return shuffle(enemyRng, free)[0];
+
+    const ranked = free
+      .filter((slot) => enemyWalk.distance.has(slot.index))
+      .map((slot) => ({ slot, distance: enemyWalk.distance.get(slot.index) ?? 0 }));
+    if (!ranked.length) return shuffle(enemyRng, free)[0];
+
+    const farEnough = ranked.filter((entry) => entry.distance >= enemySpawn.minRoomDistanceFromPlayers);
+    if (!farEnough.length) {
+      console.warn(`[generation] no room ${enemySpawn.minRoomDistanceFromPlayers}+ from spawn for the hunter`);
+    }
+    return (farEnough.length ? shuffle(enemyRng, farEnough)[0] : ranked.sort((a, b) => b.distance - a.distance)[0])?.slot;
+  };
+
+  const wantedRegions = enemySpawn.regions.length ? enemySpawn.regions : [0];
+  const enemySpawns = wantedRegions.map((wanted) => {
+    const slot = chooseEnemySlot(wanted);
+    if (slot) hunted.add(slot.index);
+
+    const room = rooms[roomOfSlot.get(slot?.index ?? 0) ?? 0];
+    const point = room?.patrolPoints[0] ?? ([0, 0] as const);
+    return {
+      cell: [Math.round(point[0] / cellSize), Math.round(point[1] / cellSize)] as Cell,
+      position: point,
+      region: slot ? regionOf(slot.index) : 0,
+    };
+  });
 
   return {
     seed,
@@ -669,10 +707,7 @@ export function generate(
     items: items.filter((item) => item.itemId !== ''),
     playerSpawns,
     exitCell,
-    enemySpawn: {
-      cell: [Math.round(enemyPoint[0] / cellSize), Math.round(enemyPoint[1] / cellSize)],
-      position: enemyPoint,
-    },
+    enemySpawns,
   };
 }
 

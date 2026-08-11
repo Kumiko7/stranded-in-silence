@@ -125,16 +125,22 @@ exactly when a team is agreeing on a plan. The microphone lifecycle is owned by
 ## 6. How a run is put together
 
 ```
-host picks map + seed
+host picks map + seed + difficulty
+        │
+        ▼
+config/configForRun ─────────► base ⊕ map overrides ⊕ difficulty overrides
         │
         ▼
 world/generation ── reads ──► config/world.json  (grid, doors, contents, loot)
+        │           reads ──► config/enemy.json  (spawn.regions — how many hunters,
+        │                                         and how many locks behind each)
         │           reads ──► art pack blueprint METADATA (footprint, doorWalls, anchors)
         │                     (no 3D objects built yet)
         ▼
-  RunLayout  { rooms[], doors[], containers[], items[], playerSpawns[], exitCell }
+  RunLayout  { rooms[], doors[], containers[], items[], playerSpawns[], exitCell,
+               enemySpawns[] }
         │
-        ├──► sent to clients as (mapId, seed) — clients regenerate identically
+        ├──► sent to clients as (mapId, seed, difficultyId) — clients regenerate identically
         │
         ├──► world/collision  builds the static collision grid
         ├──► ai/navigation    builds the room graph + per-room nav
@@ -144,9 +150,11 @@ world/generation ── reads ──► config/world.json  (grid, doors, content
 The generator is **art-agnostic** and the renderer is **layout-agnostic**. Full
 detail in [`systems/GENERATION.md`](systems/GENERATION.md).
 
-Because layout derives from `(mapId, seed)`, peers never transmit the map — they
-transmit two values and rebuild it. Every `rng` call in generation and in art
-`build()` draws from that seed, which is why `Math.random()` is banned in `art/`.
+Because layout derives from `(mapId, seed, difficultyId)`, peers never transmit the
+map — they transmit three values and rebuild it. Every `rng` call in generation and
+in art `build()` draws from that seed, which is why `Math.random()` is banned in
+`art/`. It is also why the number of hunters is not replicated: the difficulty
+decides it, and every peer applied the same difficulty.
 
 ---
 
@@ -204,7 +212,7 @@ peers emitting the landing would be four times the noise.
 Emitters declare `{ radius, loudness }` in `config/player.json → noise` or
 `config/items.json`. The enemy's `hearing` block in `config/enemy.json` decides what
 gets through. Every peer emits its own noise and broadcasts it; the host feeds all
-of it into the one bus its enemy listens to. Events live for a single tick. Propagation is **distance only** — walls and doors do not muffle sound
+of it into the one bus every hunter it is simulating listens to. Events live for a single tick. Propagation is **distance only** — walls and doors do not muffle sound
 anywhere in the game, for players or the enemy. Doors cost the enemy *time*, not
 hearing.
 
@@ -244,7 +252,8 @@ mic picking up small sounds cannot give you away. Full detail in
 | Change net sync | `src/net/` + `src/shared/messages.ts` — [`systems/NETWORKING.md`](systems/NETWORKING.md) |
 | Add a sound | `config/audio.json → sounds` + a recipe in `src/audio/recipes.ts` or a file in `assets/audio/` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |
 | Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
-| Add a difficulty | `config/difficulty.json` only |
+| Add a difficulty, or change what one does | `config/difficulty.json` only — plus a `difficulty.<id>.name` key per language |
+| Change how many hunters a difficulty puts on the map | `config/enemy.json → archetypes.<id>.spawn.regions`, overridden per mode in `difficulty.json` |
 | Add a save field | `src/save/index.ts`; an *options* field is `src/save/options.ts` plus a control in `src/ui/screens/Options.tsx` and a line in `applyOptions()` in `src/main.tsx` |
 | Add a scoreboard stat | `src/world/runStats.ts` (`STAT_IDS`), a `#count()` call in `src/game/Game.ts`, a category in `game.json → scoring`, a `scoreboard.category.*` locale key |
 | Change what a run pays out | `config/items.json → items.coinPile / items.diamond`; the exit-door half is `Game.#cashInTreasure()`, and the purse is banked by `bankRun()` in `src/main.tsx` when a player who escaped actually leaves the run |

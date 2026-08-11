@@ -48,7 +48,7 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 > | Message | Direction | Purpose |
 > | --- | --- | --- |
 > | `noise {id, kind, x, z}` | any peer → all | Every peer emits its own footsteps, doors, chests and drops; the host feeds them all into one `NoiseBus`. `kind` indexes `player.json → noise`, so only four numbers cross the wire. |
-> | `enemy {x, z, yaw, alert}` | host → all | At `snapshotRateHz`. Clients never simulate the enemy, they interpolate this. |
+> | `enemy {index, x, z, yaw, alert}` | host → all | One per hunter, at `snapshotRateHz`. Clients never simulate a hunter, they interpolate this. **How many there are never crosses the wire**: it falls out of `(mapId, seed, difficultyId)`, which every peer already has, so a snapshot only has to name an index. |
 > | `hit {id}` | host → all | Addressed: only the named player applies it. The victim owns their own health ladder. |
 > | `health {id, state}` | owner → all | The result, so every peer can draw a downed teammate and count the wipe condition. |
 > | `revive {id}` | reviver → all | Applied by the named player, who then echoes `health`. |
@@ -213,9 +213,15 @@ show it at once where a press
 
 ## The map is not replicated
 
-`(mapId, seed)` goes over the wire; every peer runs the identical generator
+`(mapId, seed, difficultyId)` goes over the wire; every peer applies the same map
+and difficulty overlays to its config and then runs the identical generator
 ([`GENERATION.md`](GENERATION.md)). This is the reason for the determinism rules in
 [`../art/ART_GUIDE.md`](../art/ART_GUIDE.md) §7.
+
+It is also why the hunter **count** is never sent. The difficulty decides it
+(`enemy.json → spawn.regions`), the difficulty id is already in `runStart`, so a
+client builds the same list the host did and an `enemy` snapshot is an index into
+a list both ends already agree on.
 
 > Peers are assumed to be running the same build and the same `config/`. Detecting a
 > mismatch (hashing the config and rejecting the join) is a deliberate future
@@ -227,7 +233,7 @@ show it at once where a press
 | --- | --- | --- | --- |
 | `move {x, z, yaw, pitch, height, hiding, health, left, right}` | state | any → all | `snapshotRateHz` |
 | `chat {id, text}` | events | any → all | on send |
-| `enemy {x, z, yaw, alert}` | state | host → all | `snapshotRateHz` |
+| `enemy {index, x, z, yaw, alert}` | state | host → all | `snapshotRateHz`, per hunter |
 | `ping {id}` | state | any → all | `connection.heartbeatSeconds` |
 | `runStart {mapId, seed, difficultyId}` | events | host → all | once |
 | `ready` / `loading` / `runGo` | events | ↑ host / host → all | per load |

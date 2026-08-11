@@ -153,7 +153,8 @@ function layoutFor(blueprint: RoomBlueprint, cellSize: number): RunLayout {
     items,
     playerSpawns: [],
     exitCell: [0, 0],
-    enemySpawn: { cell: [0, 0], position: [0, 0] },
+    // A room preview has no hunter in it, and nothing here would draw one.
+    enemySpawns: [],
   };
 }
 

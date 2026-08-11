@@ -189,10 +189,8 @@
   "room.abyss.drydock": "Ангар батискафа",
   "room.abyss.breach": "Пробоина",
 
-  "difficulty.easy.name": "Тревога",
-  "difficulty.normal.name": "Наваждение",
-  "difficulty.hard.name": "Охота",
-  "difficulty.nightmare.name": "Тишина",
+  "difficulty.normal.name": "Обычный",
+  "difficulty.hard.name": "Сложный",
 
   "enemy.ghost.name": "Тихий",
 

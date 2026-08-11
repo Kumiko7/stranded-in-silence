@@ -189,10 +189,8 @@
   "room.abyss.drydock": "潜水艇格納庫",
   "room.abyss.breach": "破孔",
 
-  "difficulty.easy.name": "不安",
-  "difficulty.normal.name": "怪異",
-  "difficulty.hard.name": "追跡",
-  "difficulty.nightmare.name": "静寂",
+  "difficulty.normal.name": "ノーマル",
+  "difficulty.hard.name": "ハード",
 
   "enemy.ghost.name": "静かなるもの",
 

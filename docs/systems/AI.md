@@ -3,8 +3,12 @@
 Owner: `src/ai/`. Config: `config/enemy.json` (per archetype). Art contract:
 [`../art/SHARED_ART.md`](../art/SHARED_ART.md) → `enemy.*`.
 
-Runs **on the host only**. Clients receive the enemy's transform and alert level in
-snapshots and interpolate. See [`NETWORKING.md`](NETWORKING.md).
+Runs **on the host only**. Clients receive each hunter's transform and alert level
+in snapshots and interpolate. See [`NETWORKING.md`](NETWORKING.md).
+
+Most of this file says "the enemy" in the singular, and on `normal` there is
+exactly one. A map may carry more — see **"More than one hunter"** below — and
+every word here applies to each of them independently.
 
 ## The files
 
@@ -38,7 +42,7 @@ It reaches the world only through the `EnemyContext` callbacks it is handed
 
 | State | Speed key | Behaviour |
 | --- | --- | --- |
-| `PATROL` | `movement.patrolSpeed` | Picks a target room weighted by `patrol.preferUnvisitedWeight` and recency (`patrol.recentVisitDecaySeconds`), walks its `patrolPoint` anchors, idles `patrol.idleAtWaypointSeconds` |
+| `PATROL` | `movement.patrolSpeed` | Picks a target room weighted by `patrol.preferUnvisitedWeight`, recency (`patrol.recentVisitDecaySeconds`) and where the other hunters are (below), walks its `patrolPoint` anchors, idles `patrol.idleAtWaypointSeconds`. A room it has no route to — anything behind a locked door — is re-rolled a few times before it settles for idling, which is what stops a hunter sealed into its own partition from loitering by a door it cannot open |
 | `INVESTIGATE` | `movement.searchSpeed` | Moves to a specific heard position (jittered by `hearing.positionJitterMetres`) |
 | `SEARCH` | `movement.searchSpeed` | Sweeps `search.roomsToSearch` nearby rooms for `search.durationSeconds`, opening lockers at `search.lockerSearchChance` |
 | `CHASE` | `movement.chaseSpeed` | Pursues the nearest perceived player; holds the target for `sight.timeToLoseSeconds` after losing sight |
@@ -183,11 +187,49 @@ and opens it first — no chance, no sweep. The sight test uses where the player
 *standing*, not the locker: the locker has a collider, so testing its centre would
 always be blocked by the very object being looked at.
 
+## More than one hunter
+
+`config/enemy.json → archetypes.<id>.spawn.regions` is one entry per hunter, and
+the value is how many locked doors that hunter **starts behind**. `[0]` is the
+single hunter every difficulty had until now; `hard` ships `[0, 1]`, which adds a
+second one sealed into the partition past the first locked door.
+
+The second one is not a different enemy. It is another instance of `enemy.ts`
+running the same FSM on the same archetype, and it is the *map* that makes it feel
+different: it cannot open a locked door
+(`doors.canOpenLockedDoors`), so until the team spends its first key that hunter
+has never been seen, cannot be heard from the start room, and cannot reach anyone.
+Opening the door is what lets it out. See [`GENERATION.md`](GENERATION.md) → step 7.
+
+**They do not co-operate.** They share no target, no last-known position and
+nothing they have perceived — the only thing one hunter knows about another is
+where it is standing and which room its route ends in, and the only thing that
+uses it is patrol room choice:
+
+```
+weight ×= patrol.otherHunterAreaWeight    if the room is within
+                                          patrol.avoidOtherHuntersRooms links of
+                                          another hunter, or of where one is heading
+```
+
+It is a multiplier rather than an exclusion, so two of them may still cross — a
+noise still outweighs the whole thing, which is the point. What it buys is that
+they sweep different wings instead of shadowing each other through the same three
+rooms. With one hunter on the map the set is empty and every weight is unchanged,
+which is why `normal` plays exactly as it did.
+
+The host simulates all of them and sends one snapshot each, carrying an index (see
+[`NETWORKING.md`](NETWORKING.md)). The screen and the mix answer to the **nearest**
+hunter for the heartbeat and the **most alert** one for the wash and the score, so
+two hunters never mean two heartbeats.
+
 ## Spawning
 
-See [`GENERATION.md`](GENERATION.md). Guarantees, verified over 200 seeds:
-≥ `spawn.minRoomDistanceFromPlayers` rooms away measured over the real door graph,
-and a locked-door-free path to the players.
+See [`GENERATION.md`](GENERATION.md). Guarantees, verified over hundreds of seeds
+for every enabled difficulty: the region-0 hunter is
+≥ `spawn.minRoomDistanceFromPlayers` rooms away measured over the real door graph
+with a locked-door-free path to the players, and any hunter in a deeper region is
+genuinely unreachable until its door is opened.
 
 ## Adding a second enemy archetype
 
@@ -200,6 +242,9 @@ and a locked-door-free path to the players.
 No code changes if the behaviour fits the FSM above. New *behaviour* (e.g. an enemy
 that teleports) means a new state in `src/ai/states/` plus a config flag to enable it.
 
+This is a second *kind*. A second **instance** of the one archetype is just another
+entry in `spawn.regions` and costs nothing at all — see above.
+
 ## Tuning cheatsheet
 
 | Feels… | Change |
@@ -210,3 +255,4 @@ that teleports) means a new state in `src/ai/states/` plus a config flag to enab
 | Gives up too quickly | `sight.timeToLoseSeconds` up, `search.durationSeconds` up |
 | Camps your area | `patrol.preferUnvisitedWeight` up |
 | Lockers feel useless | `search.lockerSearchChance` down |
+| Two hunters keep bumping into each other | `patrol.avoidOtherHuntersRooms` up, `patrol.otherHunterAreaWeight` down |

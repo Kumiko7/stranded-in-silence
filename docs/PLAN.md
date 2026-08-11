@@ -66,8 +66,10 @@ run something you have to *solve*. Slice 3 makes it something you can lose:
   the purse when you finally walk away rather than when you walked through the door.
   With text chat, which spans the session and obeys the same channel rule as voice.
 
-Still missing: nothing in Slice 3. Steps 38 and Phase 4 are what remain — and step 46
-is now `◐`: the cabin has its dart minigame, but no trophies.
+Still missing: nothing in Slice 3, and step 38 is done — the lever offers `Normal`
+and `Hard`, and `Hard` puts a second hunter behind the first locked door. Phase 4 is
+what remains — and step 46 is now `◐`: the cabin has its dart minigame, but no
+trophies.
 
 Because these are slices rather than a sequence of finished steps, several steps
 below are `◐` — the part the slice needed is done, the rest is not. Each one lists
@@ -88,7 +90,7 @@ what is still missing.
 **Touches:** `src/config/{index,types,load,merge,validate}.ts`, `src/i18n/`, `src/save/` (stub).
 **Details:** deep-merge layering (base → map → difficulty → save profile), `$doc`/`$note` key stripping, boot-time validation with readable errors, `t()` with `{placeholder}` substitution and safe fallback. Keep the merge generic so further overlay layers slot in later, but add only these.
 **Done when:** `t('game.title')` renders the title from `en.json`, and changing a value in `config/graphics.json` visibly changes the running dev build.
-**Still missing:** difficulty overlay and `validate.ts`. The save-profile layer and the locale switching UI landed with step 35 — the profile is deliberately *not* a config merge layer, because these settings belong to live subsystems (see step 35 and [`CONFIG.md`](CONFIG.md)).
+**Still missing:** `validate.ts`. The difficulty overlay landed with step 38 (`configForRun`). The save-profile layer and the locale switching UI landed with step 35 — the profile is deliberately *not* a config merge layer, because these settings belong to live subsystems (see step 35 and [`CONFIG.md`](CONFIG.md)).
 
 ### ◐ 3. Core engine services
 **Goal:** the plumbing every later step assumes.
@@ -376,10 +378,13 @@ floating under the plaster.
 **Note:** coins are a **team purse**. A pile is spent on contact and never takes a slot, so there is nothing to divide; the diamond is the one exception - it takes a hand and only pays out when its carrier is through the exit door. Whoever escapes banks the purse as it stands when they leave. The wardrobe shows the banked total; the shop that spends it is step 42.
 **Note:** the brick, cracked lens and tremor box from the old roster were dropped. Blinding, sensing and the noise-decoy were folded into the flare charge and the alarm clock; the roster is seven items rather than nine on purpose.
 
-### ☐ 38. Difficulty modes
-**Touches:** `src/config/` overlay application, lobby UI.
-**Details:** apply `config/difficulty.json` overlays at run start; select in the lobby.
-**Done when:** all four modes measurably change enemy behaviour with no code changes beyond the selector.
+### ☑ 38. Difficulty modes
+**Touches:** `src/config/index.ts` (`configForRun`), `src/world/generation.ts`, `src/ai/enemy.ts`, `src/game/Game.ts`, `src/net/index.ts`, `config/{difficulty,enemy}.json`, locales.
+**Details:** `configForRun(mapId, difficultyId)` applies the map overlay then the difficulty overlay over `enemy`, `world` and `player`; the lever selects it and `runStart` already carried the id.
+**Done when:** every enabled mode measurably changes enemy behaviour with no code changes beyond the selector.
+**Note:** shipped as **two** modes, `Normal` and `Hard`, not four. `easy` and `nightmare` were scrapped rather than left disabled — a mode nobody can pick is a mode nobody is balancing.
+**Note:** `Hard` is also what made the hunter **countable**. `enemy.json → spawn.regions` is one entry per hunter and the value is how many locked doors it starts behind, so `[0, 1]` puts a second one in the partition past the first lock: unseen and unreachable until the team spends its first key, and unable to follow them until they open that door. The AI is unchanged apart from patrol room choice, which now weights down whatever wing another hunter has (`patrol.avoidOtherHuntersRooms`, `.otherHunterAreaWeight`) so they cover the map instead of shadowing each other. See [`systems/AI.md`](systems/AI.md) → "More than one hunter".
+**Note:** the hunter count never crosses the wire — it falls out of `(mapId, seed, difficultyId)`, so an `enemy` snapshot only had to gain an index.
 
 ---
 

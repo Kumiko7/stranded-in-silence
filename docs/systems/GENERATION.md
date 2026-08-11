@@ -22,7 +22,8 @@ interface RunLayout {
   items: PlacedItem[];      // world items with a rolled (or key-forced) item id
   playerSpawns: Placed[];
   exitCell: [number, number];
-  enemySpawn: { cell: [number, number]; position: [number, number] };
+  // one per `enemy.json → spawn.regions`; `region` is how many locks it starts behind
+  enemySpawns: { cell: [number, number]; position: [number, number]; region: number }[];
 }
 ```
 
@@ -122,13 +123,24 @@ means the slot stays bare. If the map ends up with fewer than
 `contents.chests.mapTotalMin` chests, unused chest anchors are topped up. Key
 placements (below) override whatever a slot rolled.
 
-**7 — Place the enemy.**
-A room chosen from those ≥ `enemy.json → spawn.minRoomDistanceFromPlayers` rooms
-from the player spawn, measured by breadth-first walk over the **final** door set
-with locked edges blocked — so the path back to the players crosses no locked door
-(`spawn.requiresUnlockedPathToPlayers`) by construction. It stands on that room's
-first patrol point. If no room is far enough it takes the furthest one it can
-reach and warns.
+**7 — Place the hunters.**
+One per entry in `enemy.json → spawn.regions`, and the entry's value is which
+**region** (step 3) it wakes up in — how many locked doors it starts behind.
+
+*Region 0*, the players' own partition, is a room chosen from those ≥
+`spawn.minRoomDistanceFromPlayers` rooms from the player spawn, measured by
+breadth-first walk over the **final** door set with locked edges blocked — so the
+path back to the players crosses no locked door
+(`spawn.requiresUnlockedPathToPlayers`) by construction. If no room is far enough
+it takes the furthest one it can reach and warns.
+
+*Any deeper region* needs no distance rule, because the lock **is** the distance.
+That hunter cannot be seen or heard from the start room, and it cannot come to the
+players — it has no key either — until somebody opens that door, which is exactly
+when it is meant to become their problem. It is a plain random room of that region.
+An empty region (a map with fewer locks than the difficulty asked for) falls back
+toward the players' side and warns. Every hunter stands on its room's first patrol
+point, and no two share a room.
 
 The `spawn` block is passed into `generate()` as a parameter rather than read from
 a second config file, so generation still reads exactly one: `world.json`.
@@ -142,8 +154,11 @@ slot unreachable, then falls back to an all-1×1 grid. Solvability is
 asserts the invariants: determinism, every cell owned by exactly one room, every
 room's cells equal to its footprint at its own rotation, every declared opening
 landing on a door that actually exists, full connectivity, a greedy key hunt
-always reaching the exit, an unlocked enemy path to the players, and the
-one-per-map multi-cell cap. It re-derives the rotation maths rather than importing
+always reaching the exit, an unlocked path to the players for the hunter that
+shares their partition and a still-locked one for any hunter a difficulty put
+behind a door, and the one-per-map multi-cell cap. It runs the whole sweep once
+per **enabled difficulty**, because a difficulty is a generator input like any
+other. It re-derives the rotation maths rather than importing
 it, so a broken rotation in `generation.ts` makes the two disagree instead of
 agreeing with itself.
 

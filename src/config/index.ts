@@ -4,7 +4,7 @@
  * Layers, later winning:
  *   1. config/*.json                          base
  *   2. maps.json -> maps.<id>.overrides       when a map is chosen
- *   3. difficulty.json -> modes.<id>.overrides  when a run starts (not wired yet)
+ *   3. difficulty.json -> modes.<id>.overrides  when a run starts
  *   4. save profile                           options-menu changes (not wired yet)
  *
  * Files are imported at build time, so editing a JSON file hot-reloads the dev
@@ -80,6 +80,27 @@ export function configForMap(mapId: string): Config {
   };
 }
 
+/**
+ * The config a run actually plays on: the map's overrides, then the chosen
+ * difficulty's on top. Both are pure data overlays, which is what keeps adding
+ * either of them a config change rather than a code change.
+ *
+ * Every peer calls this with the same `(mapId, difficultyId)`, so the layout and
+ * the hunters they each derive agree without any of it crossing the wire.
+ */
+export function configForRun(mapId: string, difficultyId: string): Config {
+  const cfg = configForMap(mapId);
+  const overrides = loadConfig().difficulty.modes[difficultyId]?.overrides;
+  if (!overrides) return cfg;
+
+  return {
+    ...cfg,
+    enemy: deepMerge(cfg.enemy, overrides.enemy),
+    world: deepMerge(cfg.world, overrides.world),
+    player: deepMerge(cfg.player, overrides.player),
+  };
+}
+
 /** Graphics with `graphics.json -> lobby` applied. The lobby is the bright place. */
 export function lobbyGraphics(): GraphicsConfig {
   const { graphics } = loadConfig();
@@ -93,10 +114,7 @@ export function enabledMapIds(): string[] {
     .map(([id]) => id);
 }
 
-/**
- * Difficulties the lobby lever may cycle. Only `normal` is enabled until step 38
- * applies the overlays - a lever that changed a label and nothing else would lie.
- */
+/** Difficulties the lobby lever may cycle, in the order `difficulty.json` lists them. */
 export function enabledDifficultyIds(): string[] {
   const cfg = loadConfig();
   const ids = Object.entries(cfg.difficulty.modes)

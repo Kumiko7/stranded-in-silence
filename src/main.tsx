@@ -413,7 +413,7 @@ async function boot(): Promise<void> {
     lobby.end();
     net.setScene('run');
     closeChat();
-    game.start(run.mapId, run.seed, slot);
+    game.start(run.mapId, run.seed, slot, run.difficultyId);
     set({
       lobby: null,
       optionsOpen: false,

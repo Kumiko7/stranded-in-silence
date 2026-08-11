@@ -61,11 +61,14 @@
 
       "patrol": {
         "$doc": "Room selection weights. Higher weight = more likely target room.",
+        "$hunters": "With more than one hunter on the map, a room within `avoidOtherHuntersRooms` links of where another one is standing or heading has its weight multiplied by `otherHunterAreaWeight`. It is a preference, not a rule - two hunters may still meet, they just stop sweeping the same wing together.",
         "preferUnvisitedWeight": 4.0,
         "recentVisitDecaySeconds": 90,
         "idleAtWaypointSeconds": [0.5, 2.5],
         "waypointsPerRoom": 3,
-        "preferRoomsNearLastNoiseWeight": 2.0
+        "preferRoomsNearLastNoiseWeight": 2.0,
+        "avoidOtherHuntersRooms": 2,
+        "otherHunterAreaWeight": 0.12
       },
 
       "search": {
@@ -78,9 +81,10 @@
       },
 
       "spawn": {
+        "$doc": "One hunter per entry in `regions`. The value is how many locked doors it starts BEHIND: 0 is the players' own partition, 1 is past the first locked door and before the second. A hunter in a later region cannot be seen or reached until that door is opened - and it cannot get out either, because it has no key.",
         "minRoomDistanceFromPlayers": 4,
         "requiresUnlockedPathToPlayers": true,
-        "count": 1
+        "regions": [0]
       },
 
       "alert": {

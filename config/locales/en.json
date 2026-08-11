@@ -188,10 +188,8 @@
   "room.abyss.drydock": "Submersible Bay",
   "room.abyss.breach": "The Breach",
 
-  "difficulty.easy.name": "Uneasy",
-  "difficulty.normal.name": "Haunted",
-  "difficulty.hard.name": "Hunted",
-  "difficulty.nightmare.name": "Silence",
+  "difficulty.normal.name": "Normal",
+  "difficulty.hard.name": "Hard",
 
   "enemy.ghost.name": "The Quiet One",
 

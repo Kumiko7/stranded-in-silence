@@ -14,7 +14,8 @@
  *     rotated room cuts its openings where it thinks it does;
  *   - every cell is walkable from the spawn, and a greedy key hunt always
  *     reaches the exit - the "you can never be stuck" property;
- *   - the enemy can reach the players without a key;
+ *   - the hunter sharing the players' partition can reach them without a key,
+ *     and any hunter a difficulty puts behind a lock really is behind it;
  *   - each multi-cell blueprint is used at most once per map.
  *
  * See docs/systems/GENERATION.md. Room-level art checks live in the sibling
@@ -30,6 +31,7 @@ const json = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url), '
 const baseWorld = json('../config/world.json');
 const maps = json('../config/maps.json');
 const enemy = json('../config/enemy.json');
+const difficulty = json('../config/difficulty.json');
 
 const SEEDS = Number(process.argv[2] ?? 400);
 const SIDES = ['north', 'east', 'south', 'west'];
@@ -327,10 +329,26 @@ function checkLayout(where, layout, blueprints, world) {
   const exit = cellKey(layout.exitCell[0], layout.exitCell[1]);
   if (!final.has(exit)) fail(where, `the exit at ${exit} is not reachable after collecting every reachable key`);
 
-  /* the enemy can walk to the players without a key */
-  const enemyCell = cellKey(layout.enemySpawn.cell[0], layout.enemySpawn.cell[1]);
-  if (!walk(locked).has(enemyCell)) {
-    fail(where, `the enemy starts at ${enemyCell}, which the players cannot reach without unlocking a door`);
+  /* the hunters start where the difficulty said they would */
+  const reachableNow = walk(locked);
+  const seenCells = new Set();
+  for (const [index, placedEnemy] of layout.enemySpawns.entries()) {
+    const enemyCell = cellKey(placedEnemy.cell[0], placedEnemy.cell[1]);
+
+    // Region 0 shares a partition with the players: it must be able to walk to
+    // them with no key at all, which is the promise "you are always hunted".
+    if (placedEnemy.region === 0 && !reachableNow.has(enemyCell)) {
+      fail(where, `hunter ${index} starts at ${enemyCell}, which the players cannot reach without unlocking a door`);
+    }
+    // Anything deeper is sealed in by the very locks that gate the players, so
+    // the check is the mirror image: it must NOT be reachable yet, or it is not
+    // behind a locked door at all.
+    if (placedEnemy.region > 0 && reachableNow.has(enemyCell)) {
+      fail(where, `hunter ${index} is meant to be behind lock ${placedEnemy.region} but starts at ${enemyCell}, already reachable`);
+    }
+    if (!everywhere.has(enemyCell)) fail(where, `hunter ${index} starts at ${enemyCell}, which is not a reachable cell`);
+    if (seenCells.has(enemyCell)) fail(where, `two hunters start in the same cell, ${enemyCell}`);
+    seenCells.add(enemyCell);
   }
 
   /* placed content stays inside the room that declared it */
@@ -370,44 +388,67 @@ async function main() {
   const { getArtPack } = await server.ssrLoadModule('/art/packs/index.ts');
   await server.close();
 
-  const spawnRules = enemy.archetypes?.ghost?.spawn ?? { minRoomDistanceFromPlayers: 4 };
+  const baseSpawn = enemy.archetypes?.ghost?.spawn ?? { minRoomDistanceFromPlayers: 4, regions: [0] };
+
+  // A difficulty is a pure config overlay, so every mode the lobby lever offers
+  // is a different generator input and has to hold the same invariants. Hard is
+  // the one that matters here: it asks for a second hunter sealed behind a lock,
+  // and "sealed" is a property of the layout, not of the AI.
+  const modes = Object.entries(difficulty.modes)
+    .filter(([, mode]) => mode.enabled !== false)
+    .map(([id, mode]) => ({
+      id,
+      world: mode.overrides?.world,
+      spawn: merge(baseSpawn, mode.overrides?.enemy?.archetypes?.ghost?.spawn),
+    }));
 
   for (const [mapId, entry] of Object.entries(maps.maps)) {
     if (entry.enabled === false) continue;
     const pack = getArtPack(entry.artPack);
-    const world = merge(baseWorld, entry.overrides?.world);
     stats.maps += 1;
 
-    for (let seed = 1; seed <= SEEDS; seed++) {
-      const where = `${mapId} seed ${seed}`;
-      let layout;
-      try {
-        layout = generate(mapId, seed, world, pack.rooms, spawnRules);
-      } catch (error) {
-        fail(where, `generate() threw: ${error.message}`);
-        continue;
-      }
-      stats.layouts += 1;
+    for (const mode of modes) {
+      // Map overrides first, then the difficulty's on top - the same order
+      // `configForRun` applies them in.
+      const world = merge(merge(baseWorld, entry.overrides?.world), mode.world);
 
-      // Determinism, on a sample of seeds - it is the expensive check.
-      if (seed % 25 === 0) {
-        const again = generate(mapId, seed, world, pack.rooms, spawnRules);
-        if (JSON.stringify(again) !== JSON.stringify(layout)) {
-          fail(where, 'two generations from the same seed differ');
+      for (let seed = 1; seed <= SEEDS; seed++) {
+        const where = `${mapId} ${mode.id} seed ${seed}`;
+        let layout;
+        try {
+          layout = generate(mapId, seed, world, pack.rooms, mode.spawn);
+        } catch (error) {
+          fail(where, `generate() threw: ${error.message}`);
+          continue;
         }
-      }
+        stats.layouts += 1;
 
-      checkLayout(where, layout, pack.rooms, world);
+        if (layout.enemySpawns.length !== mode.spawn.regions.length) {
+          fail(where, `${layout.enemySpawns.length} hunter(s) placed, ${mode.spawn.regions.length} asked for`);
+        }
+
+        // Determinism, on a sample of seeds - it is the expensive check.
+        if (seed % 25 === 0) {
+          const again = generate(mapId, seed, world, pack.rooms, mode.spawn);
+          if (JSON.stringify(again) !== JSON.stringify(layout)) {
+            fail(where, 'two generations from the same seed differ');
+          }
+        }
+
+        checkLayout(where, layout, pack.rooms, world);
+      }
     }
   }
 
   console.log(
-    `\n${stats.layouts} layout(s) over ${stats.maps} map(s): ${stats.rooms} rooms, ` +
-      `${stats.multiCell} multi-cell placements, ` +
+    `\n${stats.layouts} layout(s) over ${stats.maps} map(s) x ${modes.length} difficulty mode(s): ` +
+      `${stats.rooms} rooms, ${stats.multiCell} multi-cell placements, ` +
       `${((stats.rotated / Math.max(1, stats.rooms)) * 100).toFixed(0)}% of rooms rotated.`,
   );
+  // Per map rather than per layout: a blueprint used once in every map is 100%.
+  const perMap = Math.max(1, SEEDS * modes.length);
   for (const [id, count] of [...placements].sort((a, b) => b[1] - a[1])) {
-    console.log(`  ${id.padEnd(24)} in ${((count / SEEDS) * 100).toFixed(0)}% of maps`);
+    console.log(`  ${id.padEnd(24)} in ${((count / perMap) * 100).toFixed(0)}% of maps`);
   }
 
   if (failures.size) {

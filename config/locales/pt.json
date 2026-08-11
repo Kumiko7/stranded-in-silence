@@ -189,10 +189,8 @@
   "room.abyss.drydock": "Baía de submersíveis",
   "room.abyss.breach": "A brecha",
 
-  "difficulty.easy.name": "Inquietação",
-  "difficulty.normal.name": "Assombro",
-  "difficulty.hard.name": "Caçada",
-  "difficulty.nightmare.name": "Silêncio",
+  "difficulty.normal.name": "Normal",
+  "difficulty.hard.name": "Difícil",
 
   "enemy.ghost.name": "O Calado",
 

@@ -9,6 +9,11 @@
  * The whole design rests on one asymmetry: it is faster than a sprinting player
  * but SLOWER through doors. You never outrun it, you make it commit to the
  * wrong noise and put a door between you.
+ *
+ * A map may carry more than one (`enemy.json -> spawn.regions`). They are fully
+ * independent instances of this file with one exception: patrol room choice
+ * knows where the others are, so they cover the map instead of shadowing each
+ * other. Nothing else about them is shared.
  */
 import { pickWeighted, type Rng } from '@/core/rng';
 import type { EnemyArchetype } from '@/config/types';
@@ -88,9 +93,24 @@ export interface LockerEntry {
   z: number;
 }
 
+/** Another hunter on the map, as far as this one is concerned. */
+export interface EnemyPeer {
+  x: number;
+  z: number;
+  /** The room its current route ends in, if it has one. */
+  destination: CellKey | null;
+}
+
 export interface EnemyContext {
   targets: readonly PerceptionTarget[];
   noise: readonly NoiseEvent[];
+  /**
+   * Every OTHER hunter. They do not co-ordinate, share what they have seen or
+   * react to each other in any way - the only thing this is used for is picking
+   * a patrol room, so two of them stop sweeping the same wing together. Empty
+   * with one hunter on the map, which is why its behaviour is unchanged.
+   */
+  others: readonly EnemyPeer[];
   lockerEntries: readonly LockerEntry[];
   graph: RoomGraph;
   doors: ReadonlyMap<string, Door>;
@@ -110,6 +130,16 @@ export interface EnemyContext {
 
 const ARRIVE_RADIUS = 0.55;
 const DOOR_STAND_OFF = 1.15;
+/**
+ * How many rooms patrol will consider before it settles for standing still.
+ *
+ * Rooms behind a locked door are `Infinity` in the graph, so a pick can simply
+ * have no route - and for a hunter that starts sealed into a partition of its
+ * own (`spawn.regions`) most of the map is like that. One pick per idle cycle
+ * would leave it loitering by the door it cannot open; a handful of picks costs
+ * a few A* runs over 36 nodes and it walks its own wing like anything else.
+ */
+const PATROL_ROOM_ATTEMPTS = 4;
 
 export function createEnemy(x: number, z: number): EnemyState {
   return {
@@ -287,12 +317,18 @@ function patrol(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
     }
   }
 
-  const target = choosePatrolRoom(enemy, ctx, here);
-  if (!target) return;
+  for (let attempt = 0; attempt < PATROL_ROOM_ATTEMPTS; attempt++) {
+    const target = choosePatrolRoom(enemy, ctx, here);
+    if (!target) return;
 
-  enemy.destination = target;
-  enemy.waypoints = routeTo(enemy, ctx, target, pointInRoom(ctx, target, ctx.rng));
-  enemy.idleFor = idleSeconds(ctx);
+    const route = routeTo(enemy, ctx, target, pointInRoom(ctx, target, ctx.rng));
+    if (!route.length) continue;
+
+    enemy.destination = target;
+    enemy.waypoints = route;
+    enemy.idleFor = idleSeconds(ctx);
+    return;
+  }
 }
 
 function investigate(enemy: EnemyState, ctx: EnemyContext): void {
@@ -666,14 +702,43 @@ function choosePatrolRoom(enemy: EnemyState, ctx: EnemyContext, here: CellKey): 
   const candidates = ctx.graph.nodes.filter((node) => node.key !== here);
   if (!candidates.length) return null;
 
+  const taken = otherHuntersPatch(ctx);
+
   const weightOf = (key: CellKey): number => {
     const last = enemy.visited.get(key);
     const stale = last === undefined || enemy.time - last > config.recentVisitDecaySeconds;
     const near = enemy.lastKnown ? ctx.graph.cellAt(enemy.lastKnown.x, enemy.lastKnown.z) === key : false;
-    return 1 + (stale ? config.preferUnvisitedWeight : 0) + (near ? config.preferRoomsNearLastNoiseWeight : 0);
+    const weight = 1 + (stale ? config.preferUnvisitedWeight : 0) + (near ? config.preferRoomsNearLastNoiseWeight : 0);
+    // A multiplier, not an exclusion: a wing another hunter has drops right down
+    // the list without ever becoming a place this one refuses to go. A noise it
+    // heard over there still outweighs the whole thing, which is the point.
+    return taken.has(key) ? weight * config.otherHunterAreaWeight : weight;
   };
 
   return pickWeighted(ctx.rng, candidates, (node) => weightOf(node.key)).key;
+}
+
+/**
+ * The rooms the other hunters have between them: where each is standing and
+ * where each is heading, plus everything within `avoidOtherHuntersRooms` links
+ * of either. Two hunters searching the same three rooms is two hunters doing
+ * one hunter's job.
+ */
+function otherHuntersPatch(ctx: EnemyContext): ReadonlySet<CellKey> {
+  const patch = new Set<CellKey>();
+  if (!ctx.others.length) return patch;
+
+  const { avoidOtherHuntersRooms: reach } = ctx.config.patrol;
+  const spread = (key: CellKey): void => {
+    patch.add(key);
+    for (const room of ctx.graph.roomsWithin(key, reach)) patch.add(room);
+  };
+
+  for (const other of ctx.others) {
+    spread(ctx.graph.cellAt(other.x, other.z));
+    if (other.destination) spread(other.destination);
+  }
+  return patch;
 }
 
 function pointInRoom(ctx: EnemyContext, key: CellKey, rng: Rng): { x: number; z: number } {

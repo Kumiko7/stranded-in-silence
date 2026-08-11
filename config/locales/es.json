@@ -189,10 +189,8 @@
   "room.abyss.drydock": "Bahía de sumergibles",
   "room.abyss.breach": "La brecha",
 
-  "difficulty.easy.name": "Inquietud",
-  "difficulty.normal.name": "Embrujo",
-  "difficulty.hard.name": "Cacería",
-  "difficulty.nightmare.name": "Silencio",
+  "difficulty.normal.name": "Normal",
+  "difficulty.hard.name": "Difícil",
 
   "enemy.ghost.name": "El Callado",
 

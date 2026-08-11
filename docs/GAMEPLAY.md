@@ -31,7 +31,8 @@ safe. Everything in it is done by walking up to it and pressing `E`.
     re-derive it.
   - A poster carries a **tick** once you have escaped that map **yourself**. A team
     that got out without you does not mark your card.
-- **The lever** in the middle of the room sets the difficulty. Anyone may pull it.
+- **The lever** in the middle of the room sets the difficulty — `Normal` or `Hard`.
+  Anyone may pull it.
 - **The wardrobe** customises your player. One option for now
   (`player.json → customisation`).
 - Finishing a run returns everyone to the cabin to pick the next one. The escape menu
@@ -69,6 +70,13 @@ the load between them — see [`ARCHITECTURE.md §5`](ARCHITECTURE.md).
 One enemy minimum, always spawning at least
 `enemy.json → archetypes.<id>.spawn.minRoomDistanceFromPlayers` rooms away, and always
 with a path to the players that does not require opening a locked door.
+
+On **Hard** there are two. The second starts in the partition past the first locked
+door: it is not seen, not heard and cannot reach anybody until the team spends its
+first key, and after that it is a second hunter loose in the map. They do not
+co-ordinate — the only thing one knows about the other is roughly where it is, and
+the only use it makes of that is patrolling somewhere else. Everything below applies
+to each of them.
 
 - **Faster than a sprinting player.** You do not outrun it; you break line of sight,
   put doors between you, and make it commit to the wrong noise.
@@ -216,6 +224,5 @@ These are accounted for in config and architecture so they slot in without rewor
 - Multi-cell rooms (1×2, 2×2, L) — `world.json → layout.multiCellRooms`
 - Lobby trophies and minigames
 - Collectables and lore notes
-- Difficulty modes — `config/difficulty.json`, already fully data-driven
 - Metaprogression: XP and a shop to spend the purse on — `game.json → meta`
 - Vertical maps (rooms stacked) — `world.json → grid.levels`, deliberately deferred

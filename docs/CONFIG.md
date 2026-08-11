@@ -34,6 +34,8 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | How long the enemy takes to open doors | `enemy.json` | `archetypes.<id>.doors.*` |
 | Enemy patrol / search behaviour | `enemy.json` | `archetypes.<id>.patrol.*`, `.search.*` |
 | How far from players the enemy spawns | `enemy.json` | `archetypes.<id>.spawn.*` |
+| **How many hunters, and where each starts** | `enemy.json` | `archetypes.<id>.spawn.regions` — one entry per hunter, the value being how many locked doors it starts *behind*. `[0]` is one hunter in the players' partition; `hard` uses `[0, 1]` to seal a second past the first lock |
+| How far apart two hunters patrol | `enemy.json` | `archetypes.<id>.patrol.avoidOtherHuntersRooms`, `.otherHunterAreaWeight` — a weight multiplier, so they prefer different wings without ever refusing to meet |
 | Map size (6×6 → anything) | `world.json` | `grid.width`, `grid.height` |
 | Room / cell dimensions | `world.json` | `grid.cellSize`, `ceilingHeight` |
 | How maze-y vs loopy the map is | `world.json` | `layout.extraDoorChance`, `deadEndTargetRatio` |
@@ -85,8 +87,9 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | What the lobby wardrobe offers | `player.json` | `customisation.colours`, `.defaultColourId` |
 | Which hats the wardrobe sells, and for how much | `player.json` | `customisation.hats` — `artId` must resolve in `art/shared/index.ts`, `cost` is in banked coins and `0` means owned from the start. The order here is the order the shop lists them in, so it doubles as the price ladder |
 | UI colours, fonts, HUD layout | `ui.json` | `theme.*`, `hud.*` |
-| Difficulty modes | `difficulty.json` | `modes.*` |
-| Which difficulties the lobby lever offers | `difficulty.json` | `modes.<id>.enabled` — only `normal` until step 38 applies the overlays |
+| Difficulty modes | `difficulty.json` | `modes.*` — two ship: `normal` (the base config untouched) and `hard` |
+| Which difficulties the lobby lever offers | `difficulty.json` | `modes.<id>.enabled`, in the order the file lists them |
+| What a difficulty actually changes | `difficulty.json` | `modes.<id>.overrides` — a deep merge over `enemy`, `world` and `player`, applied at run start. Adding a mode is config only |
 | Any on-screen text | `locales/en.json` | see [`LOCALISATION.md`](LOCALISATION.md) |
 
 ## How config is loaded
@@ -111,7 +114,9 @@ default it falls back to is still read from the files above, which is what makes
 
 Layers 2 and 3 are **pure data overlays** — this is why adding a difficulty or a map
 requires zero code. The merge is generic, so further overlay layers can be slotted in
-later without reworking it.
+later without reworking it. Layers 1–3 together are `configForRun(mapId,
+difficultyId)`, and every peer calls it with the same two ids, so the config a run
+plays on is never replicated either.
 
 Config is imported at build time (`import.meta.glob`), so in `npm run dev` editing a
 JSON file hot-reloads the running game. Values read once at boot (grid size,

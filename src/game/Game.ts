@@ -10,7 +10,7 @@ import { getArtPack } from '@art/packs/index';
 import { resolveArt } from '@art/shared/index';
 import { clearGeometryCache } from '@art/lib/build';
 import type { RoomDims } from '@art/lib/contract';
-import { configForMap, type Config } from '@/config/index';
+import { configForRun, type Config } from '@/config/index';
 import { rangeInt, stream, type Rng } from '@/core/rng';
 import type { EnemyArchetype, HealthState, ItemDef } from '@/config/types';
 import { createPlayerState, applyLook, eyeHeight, stepPlayer, type PlayerState } from '@/entities/player';
@@ -35,7 +35,14 @@ import {
   type ProjectileBody,
   type ProjectileWorld,
 } from '@/entities/projectile';
-import { createEnemy, updateEnemy, type EnemyLocker, type EnemyState, type LockerEntry } from '@/ai/enemy';
+import {
+  createEnemy,
+  updateEnemy,
+  type EnemyLocker,
+  type EnemyPeer,
+  type EnemyState,
+  type LockerEntry,
+} from '@/ai/enemy';
 import { footstepInterval, footstepKind, noiseSpec, NoiseBus, type NoiseKind } from '@/ai/noiseBus';
 import type { PerceptionTarget } from '@/ai/perception';
 import { RoomGraph } from '@/ai/roomGraph';
@@ -153,6 +160,33 @@ export interface ScoreRow {
   /** `escaped` outranks health: getting out is how a run ends well. */
   status: 'escaped' | 'disconnected' | HealthState;
   stats: PlayerStats;
+}
+
+/**
+ * One hunter, from this browser's point of view.
+ *
+ * `state` is the simulation and only the host has one; everybody else knows a
+ * hunter purely as the last transform it was sent and the buffer that plays it
+ * back. How many there are is not replicated: `(mapId, seed, difficultyId)`
+ * decides it, so every peer builds the same list and a snapshot only has to name
+ * an index into it.
+ */
+interface Hunter {
+  /** Host only. `null` on a client, which never simulates one. */
+  state: EnemyState | null;
+  view: EnemyTransform;
+  /** Snapshot playback, so a client draws it moving rather than jumping. */
+  buffer: TransformBuffer;
+  art: {
+    object: THREE.Object3D;
+    root: THREE.Object3D;
+    setAlert?: (level: string) => void;
+    dispose?: () => void;
+  } | null;
+  /** The level currently pushed to the art, so a change costs one call. */
+  artAlert: string;
+  /** Its own stream, so two hunters do not draw the same patrol from one source. */
+  rng: Rng;
 }
 
 export interface RunHooks {
@@ -356,27 +390,16 @@ export class Game {
   /** The shared purse. Only banked by a player who actually gets out. */
   #coins = 0;
 
-  /* --- the hunter ---------------------------------------------------------- */
+  /* --- the hunters --------------------------------------------------------- */
   #noise = new NoiseBus();
   /** Lockers climbed into this tick, local or remote. Cleared with the noise bus. */
   #lockerEntries: LockerEntry[] = [];
   #graph: RoomGraph | null = null;
   #doorsById = new Map<string, Door>();
-  #enemy: EnemyState | null = null;
-  #enemyArt: {
-    object: THREE.Object3D;
-    root: THREE.Object3D;
-    setAlert?: (level: string) => void;
-    dispose?: () => void;
-  } | null = null;
-  /** The latest known enemy transform. The host writes it from its own sim. */
-  #enemyView: EnemyTransform = { x: 0, z: 0, yaw: 0, alert: 'calm' };
-  /** Playback of those snapshots, so a client draws it moving rather than jumping. */
-  #enemyBuffer: TransformBuffer | null = null;
-  #enemyAlert = '';
+  /** One per `layout.enemySpawns`. Usually one; `hard` puts a second behind a lock. */
+  #hunters: Hunter[] = [];
   /** Tracked separately from the art's, so a sting does not need art to exist. */
   #audioAlert = '';
-  #enemyRng: Rng = stream(0, 'enemy');
   #enemyTimer = 0;
   #footstepTimer = 0;
   /** Speaking re-emits on this interval; noise events only live one tick. */
@@ -431,9 +454,9 @@ export class Game {
     return this.#player;
   }
 
-  /** Read-only view of the hunter, for the dev handle and later a debug overlay. */
-  get enemy(): EnemyState | null {
-    return this.#enemy;
+  /** Read-only view of the hunters, for the dev handle and later a debug overlay. */
+  get enemies(): readonly EnemyState[] {
+    return this.#hunters.map((hunter) => hunter.state).filter((state): state is EnemyState => state !== null);
   }
 
   /** This player got through the exit door. It is what decides whether they bank. */
@@ -477,11 +500,16 @@ export class Game {
     return !this.#run.isSpectator(id);
   }
 
-  /** `slot` selects this player's spawn point within the shared start room. */
-  start(mapId: string, seed: number, slot = 0): void {
+  /**
+   * `slot` selects this player's spawn point within the shared start room, and
+   * `difficultyId` picks the config overlay every peer applies before it
+   * generates - so the map, the hunters and their numbers all follow from
+   * `(mapId, seed, difficultyId)` without any of it crossing the wire.
+   */
+  start(mapId: string, seed: number, slot = 0, difficultyId = this.#config.difficulty.default): void {
     this.end();
 
-    const config = configForMap(mapId);
+    const config = configForRun(mapId, difficultyId);
     this.#config = config;
     this.#renderer.applyGraphics(config.graphics);
 
@@ -531,7 +559,6 @@ export class Game {
     this.#doorsById = new Map(world.doors.map((door) => [door.id, door]));
     this.#noise.clear();
     this.#footstepTimer = 0;
-    this.#enemyRng = stream(seed, 'enemy');
 
     // Rebuilt from who is actually here: last run's dropouts are not this
     // run's problem, and the roster is drawn from this.
@@ -543,14 +570,21 @@ export class Game {
     this.#stats.clear();
     this.#statsTimer = 0;
 
-    const [ex, ez] = layout.enemySpawn.position;
-    this.#enemy = createEnemy(ex, ez);
-    this.#enemyView = { x: ex, z: ez, yaw: 0, alert: 'calm' };
-    this.#enemyBuffer = new TransformBuffer(config.net.simulation);
-    this.#enemyBuffer.reset({ x: ex, z: ez, yaw: 0, pitch: 0, height: 0 }, now());
-    this.#enemyAlert = '';
+    this.#hunters = layout.enemySpawns.map(({ position }, index) => {
+      const [ex, ez] = position;
+      const buffer = new TransformBuffer(config.net.simulation);
+      buffer.reset({ x: ex, z: ez, yaw: 0, pitch: 0, height: 0 }, now());
+      return {
+        // A client is handed every hunter's transform and simulates none of them.
+        state: this.#isHost ? createEnemy(ex, ez) : null,
+        view: { index, x: ex, z: ez, yaw: 0, alert: 'calm' },
+        buffer,
+        art: this.#buildEnemyArt(index),
+        artAlert: '',
+        rng: stream(seed, `enemy:${index}`),
+      };
+    });
     this.#audioAlert = '';
-    this.#spawnEnemyArt();
     this.#renderer.feedback.reset();
 
     this.#audio.stopSustains();
@@ -586,8 +620,7 @@ export class Game {
     this.#look = null;
     this.#hiding = null;
     this.#spectating = null;
-    this.#enemy = null;
-    this.#enemyBuffer = null;
+    this.#hunters = [];
     this.#graph = null;
     this.#doorsById.clear();
     this.#pending.clear();
@@ -619,7 +652,11 @@ export class Game {
     this.#pushUse(null);
   }
 
-  /** The archetype this map's enemy uses. One for now; `maps.json` picks later. */
+  /**
+   * The archetype every hunter on this map uses. One for now; `maps.json` picks
+   * later. A second hunter is a second instance of the same thing, which is why
+   * "two on Hard" costs no config beyond a spawn entry.
+   */
   #archetype(config: Config = this.#config): EnemyArchetype {
     const { enemy } = config;
     const archetype = enemy.archetypes[enemy.defaultArchetype];
@@ -627,19 +664,20 @@ export class Game {
     return archetype;
   }
 
-  #spawnEnemyArt(): void {
+  #buildEnemyArt(index: number): Hunter['art'] {
     const world = this.#world;
     const layout = this.#layout;
-    if (!world || !layout || !this.#dims) return;
+    if (!world || !layout || !this.#dims) return null;
 
     const art = resolveArt(this.#archetype().artId)({
       materials: world.materials,
-      rng: stream(layout.seed, 'enemyArt'),
+      // Per hunter, so two of them are not the same silhouette twice over.
+      rng: stream(layout.seed, `enemyArt:${index}`),
       dims: this.#dims,
     });
 
     this.#renderer.scene.add(art.object);
-    this.#enemyArt = {
+    return {
       object: art.object,
       root: art.parts['root'] ?? art.object,
       setAlert: art.api?.setAlert?.bind(art.api),
@@ -651,10 +689,12 @@ export class Game {
   }
 
   #removeEnemyArt(): void {
-    if (!this.#enemyArt) return;
-    this.#renderer.scene.remove(this.#enemyArt.object);
-    this.#enemyArt.dispose?.();
-    this.#enemyArt = null;
+    for (const hunter of this.#hunters) {
+      if (!hunter.art) continue;
+      this.#renderer.scene.remove(hunter.art.object);
+      hunter.art.dispose?.();
+      hunter.art = null;
+    }
   }
 
   /* --- remote players ----------------------------------------------------- */
@@ -1008,15 +1048,16 @@ export class Game {
   }
 
   /**
-   * The same test the enemy's own hearing makes, run locally so every peer can
-   * colour the roster. Clients use the last enemy snapshot, which is close
-   * enough for a warning light.
+   * The same test a hunter's own hearing makes, run locally so every peer can
+   * colour the roster. Clients use the last snapshot, which is close enough for
+   * a warning light. Any hunter hearing it lights the ring - which is the honest
+   * answer, even though it does not say which one.
    */
   #enemyCanHear(loudness: number, radius: number, x: number, z: number): boolean {
-    if (!this.#enemy && this.#net.role === 'offline') return false;
+    if (!this.#hunters.length) return false;
     const { hearing } = this.#archetype();
     if (loudness * hearing.hearingMultiplier < hearing.threshold) return false;
-    return Math.hypot(this.#enemyView.x - x, this.#enemyView.z - z) <= radius * hearing.rangeMultiplier;
+    return this.#nearestEnemyDistance(x, z) <= radius * hearing.rangeMultiplier;
   }
 
   /**
@@ -1054,10 +1095,17 @@ export class Game {
     this.#hooks.onRosterChange(roster);
   }
 
-  /** Host -> client enemy transform. Clients never simulate the enemy. */
+  /**
+   * Host -> client hunter transform. Clients never simulate one. An index this
+   * browser has no hunter for is dropped rather than grown into: the count comes
+   * from the difficulty overlay both ends already applied, so a mismatch means
+   * the snapshot is wrong, not that the list is short.
+   */
   setEnemyTransform(transform: EnemyTransform): void {
-    this.#enemyView = transform;
-    this.#enemyBuffer?.push({ x: transform.x, z: transform.z, yaw: transform.yaw, pitch: 0, height: 0 }, now());
+    const hunter = this.#hunters[transform.index];
+    if (!hunter) return;
+    hunter.view = transform;
+    hunter.buffer.push({ x: transform.x, z: transform.z, yaw: transform.yaw, pitch: 0, height: 0 }, now());
   }
 
   /** The enemy caught the local player. */
@@ -1077,8 +1125,13 @@ export class Game {
     }
 
     this.#renderer.feedback.flash();
-    // The host plays this from the attack itself; a client only learns of it here.
-    if (this.#net.role === 'client') this.#audio.play('enemy.attack', { at: this.#enemyPosition() });
+    // The host plays this from the attack itself; a client only learns of it
+    // here, and `hit` does not name a hunter - so it comes from whichever one is
+    // standing on top of you, which is the one that just swung.
+    const caught = this.#player ? this.#nearestEnemy(this.#player.x, this.#player.z) : null;
+    if (this.#net.role === 'client' && caught) {
+      this.#audio.play('enemy.attack', { at: this.#enemyPosition(caught) });
+    }
     this.#announceHealth(state);
   }
 
@@ -1525,34 +1578,59 @@ export class Game {
 
   #updateEnemy(dt: number, player: PlayerState, live: boolean): void {
     const world = this.#world;
-    const enemy = this.#enemy;
     const graph = this.#graph;
-    if (!world || !enemy || !graph) return;
+    if (!world || !graph) return;
 
     if (this.#isHost && live) {
-      updateEnemy(enemy, dt, {
-        targets: this.#perceptionTargets(player),
-        noise: this.#noise.events,
-        lockerEntries: this.#lockerEntries,
-        graph,
-        doors: this.#doorsById,
-        lockers: this.#enemyLockers(player),
-        collision: world.collision,
-        config: this.#archetype(),
-        rng: this.#enemyRng,
-        slowAt: (x, z) => this.#effects.slowAt(x, z),
-        openDoor: (doorId) => this.#enemyOpensDoor(doorId),
-        attack: (targetId) => this.#enemyAttacks(targetId),
-        searchLocker: (lockerId) => this.#enemySearchesLocker(lockerId),
-      });
+      // Every hunter perceives the same world in the same tick, so the targets
+      // and the lockers are gathered once rather than per hunter.
+      const targets = this.#perceptionTargets(player);
+      const lockers = this.#enemyLockers(player);
 
-      this.#enemyView = { x: enemy.x, z: enemy.z, yaw: enemy.yaw, alert: enemy.alert };
+      for (const hunter of this.#hunters) {
+        const enemy = hunter.state;
+        if (!enemy) continue;
+
+        updateEnemy(enemy, dt, {
+          targets,
+          noise: this.#noise.events,
+          lockerEntries: this.#lockerEntries,
+          others: this.#otherHunters(hunter),
+          graph,
+          doors: this.#doorsById,
+          lockers,
+          collision: world.collision,
+          config: this.#archetype(),
+          rng: hunter.rng,
+          slowAt: (x, z) => this.#effects.slowAt(x, z),
+          openDoor: (doorId) => this.#enemyOpensDoor(doorId),
+          attack: (targetId) => this.#enemyAttacks(hunter, targetId),
+          searchLocker: (lockerId) => this.#enemySearchesLocker(lockerId),
+        });
+
+        hunter.view = { index: hunter.view.index, x: enemy.x, z: enemy.z, yaw: enemy.yaw, alert: enemy.alert };
+      }
+
       this.#sendEnemy(dt);
       this.#checkRunOver();
     }
 
-    this.#drawEnemy();
+    this.#drawEnemies();
     this.#updateFeedback(dt, player);
+  }
+
+  /**
+   * What one hunter knows about the others: nothing but where they are and where
+   * they are heading, and only so that patrols spread out over the map instead
+   * of stacking up in one wing. They share no perception and no target.
+   */
+  #otherHunters(self: Hunter): EnemyPeer[] {
+    const others: EnemyPeer[] = [];
+    for (const hunter of this.#hunters) {
+      if (hunter === self || !hunter.state) continue;
+      others.push({ x: hunter.state.x, z: hunter.state.z, destination: hunter.state.destination });
+    }
+    return others;
   }
 
   /** Offline counts as host: there is nobody else to run the simulation. */
@@ -1647,8 +1725,8 @@ export class Game {
     }
   }
 
-  #enemyAttacks(targetId: string): void {
-    this.#audio.play('enemy.attack', { at: this.#enemyPosition() });
+  #enemyAttacks(hunter: Hunter, targetId: string): void {
+    this.#audio.play('enemy.attack', { at: this.#enemyPosition(hunter) });
     if (targetId === this.#net.selfId) {
       this.takeHit();
       return;
@@ -1669,35 +1747,41 @@ export class Game {
     this.#enemyTimer -= dt;
     if (this.#enemyTimer > 0) return;
     this.#enemyTimer = 1 / this.#config.net.simulation.snapshotRateHz;
-    this.#net.broadcast({ t: 'enemy', ...this.#enemyView });
+    // One message per hunter, each naming its index. They are sent whole and
+    // re-sent every tick, so one lost on the way costs nothing.
+    for (const hunter of this.#hunters) this.#net.broadcast({ t: 'enemy', ...hunter.view });
   }
 
   /** Presentation only: the sim never reads back from the art. */
-  #drawEnemy(): void {
-    const art = this.#enemyArt;
-    if (!art) return;
+  #drawEnemies(): void {
+    for (const hunter of this.#hunters) {
+      const art = hunter.art;
+      if (!art) continue;
 
-    // The host owns the sim, so it draws exactly where the enemy is. A client
-    // has only snapshots, so it plays them back through the same buffer the
-    // remote players use.
-    const view = this.#isHost ? this.#enemyView : (this.#enemyBuffer?.sample(now()) ?? this.#enemyView);
-    art.object.position.x = view.x;
-    art.object.position.z = view.z;
-    art.root.rotation.y = view.yaw;
+      // The host owns the sim, so it draws exactly where the hunter is. A client
+      // has only snapshots, so it plays them back through the same buffer the
+      // remote players use.
+      const view = this.#isHost ? hunter.view : hunter.buffer.sample(now());
+      art.object.position.x = view.x;
+      art.object.position.z = view.z;
+      art.root.rotation.y = view.yaw;
 
-    if (this.#enemyAlert !== this.#enemyView.alert) {
-      this.#enemyAlert = this.#enemyView.alert;
-      art.setAlert?.(this.#enemyAlert);
+      if (hunter.artAlert !== hunter.view.alert) {
+        hunter.artAlert = hunter.view.alert;
+        art.setAlert?.(hunter.artAlert);
+      }
     }
   }
 
   #updateFeedback(dt: number, player: PlayerState): void {
-    const distance = Math.hypot(this.#enemyView.x - player.x, this.#enemyView.z - player.z);
+    // Two hunters do not make two heartbeats: the screen and the mix answer to
+    // the nearest one and to the most worked-up one, which need not be the same.
+    const distance = this.#nearestEnemyDistance(player.x, player.z);
     // A spectator has no body to be hurt in, so no vignette belongs on their
     // screen - and `dead` would otherwise read as the downed one for good.
     const spectating = this.spectating;
     this.#renderer.feedback.update(dt, {
-      alert: this.#enemyView.alert as AlertLevel,
+      alert: this.#peakAlert() as AlertLevel,
       enemyDistance: distance,
       injured: !spectating && player.health.state === 'injured',
       downed: !spectating && isDown(player.health.state),
@@ -1705,11 +1789,43 @@ export class Game {
     this.#updateAudio(distance);
   }
 
-  /** Where the hunter actually is on the host, where it was last seen on a client. */
-  #enemyPosition(): { x: number; z: number } {
-    const enemy = this.#enemy;
+  /** Metres to the closest hunter, or `Infinity` when there is none in the map. */
+  #nearestEnemyDistance(x: number, z: number): number {
+    let nearest = Infinity;
+    for (const hunter of this.#hunters) {
+      nearest = Math.min(nearest, Math.hypot(hunter.view.x - x, hunter.view.z - z));
+    }
+    return nearest;
+  }
+
+  /** The hunter a sound at `(x, z)` most likely came from. Null with none in the map. */
+  #nearestEnemy(x: number, z: number): Hunter | null {
+    let nearest: Hunter | null = null;
+    let best = Infinity;
+    for (const hunter of this.#hunters) {
+      const distance = Math.hypot(hunter.view.x - x, hunter.view.z - z);
+      if (distance >= best) continue;
+      best = distance;
+      nearest = hunter;
+    }
+    return nearest;
+  }
+
+  /** The highest alert level any hunter is at, by `alert.levels` order. */
+  #peakAlert(): string {
+    const { levels } = this.#archetype().alert;
+    let peak = levels[0] ?? 'calm';
+    for (const hunter of this.#hunters) {
+      if (levels.indexOf(hunter.view.alert) > levels.indexOf(peak)) peak = hunter.view.alert;
+    }
+    return peak;
+  }
+
+  /** Where a hunter actually is on the host, where it was last seen on a client. */
+  #enemyPosition(hunter: Hunter): { x: number; z: number } {
+    const enemy = hunter.state;
     if (enemy && this.#isHost) return { x: enemy.x, z: enemy.z };
-    return { x: this.#enemyView.x, z: this.#enemyView.z };
+    return { x: hunter.view.x, z: hunter.view.z };
   }
 
   /**
@@ -1723,7 +1839,7 @@ export class Game {
     // moment you are through the door, and the mix should say so at once.
     const over = this.spectating || this.#over;
     const closeness = over ? 0 : heartbeatCloseness(this.#config.player, enemyDistance);
-    const alert = over ? 'calm' : this.#enemyView.alert;
+    const alert = over ? 'calm' : this.#peakAlert();
 
     this.#audio.sustain('heartbeat', 'player.heartbeat', {
       on: closeness > 0,
@@ -1731,10 +1847,14 @@ export class Game {
       rate: 1 + closeness * (cues.heartbeatMaxRate - 1),
     });
 
-    this.#audio.sustain('enemy', 'enemy.idle.loop', {
-      on: !over && this.#enemyArt !== null,
-      at: this.#enemyPosition(),
-    });
+    // One drone each, spatialised where each hunter is: the drone is how you
+    // work out there are two of them, and where the other one went.
+    for (const hunter of this.#hunters) {
+      this.#audio.sustain(`enemy:${hunter.view.index}`, 'enemy.idle.loop', {
+        on: !over && hunter.art !== null,
+        at: this.#enemyPosition(hunter),
+      });
+    }
 
     // Only on the way up. It losing interest is not a moment worth a cue.
     if (alert !== this.#audioAlert) {
@@ -2571,8 +2691,11 @@ export class Game {
     }
 
     if (!this.#isHost) return;
-    const enemy = this.#enemy;
-    if (enemy && Math.hypot(enemy.x - at.x, enemy.z - at.z) <= radius) {
+    // Every hunter in the light, not just the one it was aimed at: a flare going
+    // off in a room does not get to pick which of them was looking.
+    for (const hunter of this.#hunters) {
+      const enemy = hunter.state;
+      if (!enemy || Math.hypot(enemy.x - at.x, enemy.z - at.z) > radius) continue;
       enemy.stunFor = Math.max(enemy.stunFor, itemParam(def, 'enemyStunSeconds', 5));
     }
     // Loud enough to bring it running if it was stood just outside the light.
@@ -2670,13 +2793,15 @@ export class Game {
       bodies.push({ id, x: remote.target.x, z: remote.target.z, radius, height: standHeight });
     }
     const enemy = this.#archetype().body;
-    bodies.push({
-      id: 'enemy',
-      x: this.#enemyView.x,
-      z: this.#enemyView.z,
-      radius: enemy.radius,
-      height: enemy.height,
-    });
+    for (const hunter of this.#hunters) {
+      bodies.push({
+        id: `enemy:${hunter.view.index}`,
+        x: hunter.view.x,
+        z: hunter.view.z,
+        radius: enemy.radius,
+        height: enemy.height,
+      });
+    }
 
     return {
       config: this.#config.items.defaults.throw,

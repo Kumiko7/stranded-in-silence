@@ -1,23 +1,10 @@
 {
-  "$doc": "Difficulty modes are pure config overlays: each entry is deep-merged over the base configs at run start. Adding a difficulty requires zero code.",
-  "$note": "`enabled` is what the lobby lever cycles through. Only `normal` is on until step 38 wires the overlay into config loading - a lever that changes a label and nothing else would be a lie.",
+  "$doc": "Difficulty modes are pure config overlays: each entry is deep-merged over the base configs when a run starts. Adding a difficulty requires zero code.",
+  "$note": "`enabled` is what the lobby lever cycles through. Two modes ship: Normal is the base config untouched, Hard is the same hunter sharpened plus a SECOND one sealed behind the first locked door - see enemy.json -> archetypes.ghost.spawn.regions. note: , keySpareCount: 0 lockerSearchChance: 0.6 options exists too",
 
   "default": "normal",
 
   "modes": {
-    "easy": {
-      "nameKey": "difficulty.easy.name",
-      "enabled": false,
-      "overrides": {
-        "enemy": { "archetypes": { "ghost": {
-          "movement": { "chaseSpeed": 4.8 },
-          "sight": { "range": 15.0 },
-          "hearing": { "rangeMultiplier": 0.8 },
-          "spawn": { "minRoomDistanceFromPlayers": 5 }
-        } } },
-        "world": { "doors": { "lockedDoorCount": 1, "keySpareCount": 2 } }
-      }
-    },
     "normal": {
       "nameKey": "difficulty.normal.name",
       "enabled": true,
@@ -25,31 +12,16 @@
     },
     "hard": {
       "nameKey": "difficulty.hard.name",
-      "enabled": false,
+      "enabled": true,
       "overrides": {
         "enemy": { "archetypes": { "ghost": {
           "movement": { "chaseSpeed": 5.9 },
           "sight": { "range": 24.0, "timeToLoseSeconds": 4.0 },
           "hearing": { "rangeMultiplier": 1.25 },
-          "search": { "durationSeconds": 40.0, "lockerSearchChance": 0.6 },
-          "spawn": { "minRoomDistanceFromPlayers": 4 }
+          "search": { "durationSeconds": 15.0 },
+          "spawn": { "minRoomDistanceFromPlayers": 4, "regions": [0, 1] }
         } } },
-        "world": { "doors": { "lockedDoorCount": 3, "keySpareCount": 0 } }
-      }
-    },
-    "nightmare": {
-      "nameKey": "difficulty.nightmare.name",
-      "enabled": false,
-      "overrides": {
-        "enemy": { "archetypes": { "ghost": {
-          "movement": { "chaseSpeed": 6.3 },
-          "doors": { "openSecondsWhenChasing": 0.7 },
-          "sight": { "range": 28.0 },
-          "hearing": { "rangeMultiplier": 1.5, "voiceRoomLimit": 2 },
-          "spawn": { "count": 2, "minRoomDistanceFromPlayers": 4 }
-        } } },
-        "world": { "doors": { "lockedDoorCount": 3, "keySpareCount": 0 } },
-        "player": { "health": { "reviveHoldSeconds": 9.0 } }
+        "world": { "doors": { "lockedDoorCount": 3 } }
       }
     }
   }
