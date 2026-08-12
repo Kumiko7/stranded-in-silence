@@ -28,7 +28,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { ownGeometryCache } from '../../../lib/build';
+import { boxGeometry, ownGeometryCache } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
@@ -175,6 +175,11 @@ export function disc(r: number, seg = 18): THREE.CircleGeometry {
 }
 
 for (const cache of [cylCache, sphereCache, coneCache, torusCache, planeCache, discCache]) ownGeometryCache(cache);
+
+/** The cached box geometry, for the few props that want one without a collider. */
+export function boxLike(w: number, h: number, d: number): THREE.BoxGeometry {
+  return boxGeometry(w, h, d);
+}
 
 /** Upright cylinder whose `y` is its bottom. */
 export function post(
@@ -1561,7 +1566,7 @@ export function debris(room: Room, x: number, z: number, radius = 0.8, count = 9
     const size = room.range(0.05, 0.17);
     room.geo(
       i % 4 === 0 ? 'bone' : i % 3 === 0 ? 'stonePale' : 'stone',
-      ball(size, 6),
+      ball(size, 5),
       tiltMatrix([x + Math.cos(a) * r, size * 0.3, z + Math.sin(a) * r], [0, a, 0], [1.3, 0.55, 1.1]),
       { tile: 0.3, ...NO_SHADOW },
     );
@@ -1626,18 +1631,25 @@ export function sporeCluster(room: Room, x: number, y: number, z: number, scale 
     const capR = room.range(0.07, 0.16) * scale;
     tallest = Math.max(tallest, h);
     const lean = room.range(-0.12, 0.12);
-    room.geo('stem', cyl(capR * 0.28, capR * 0.42, h, 7), tiltMatrix([cx, y + h / 2, cz], [0, 0, lean]), { tile: 0.3, ...NO_SHADOW });
-    // The cap: a squashed dome, and the gills UNDER it, which is where a
-    // mushroom is brightest and what makes it read as lit from within.
-    room.geo(capMat, ball(capR, 9), tiltMatrix([cx + lean * h * 0.4, y + h, cz], [0, 0, lean], [1, 0.62, 1]), { tile: 0.3, ...FLAT });
-    room.geo('gill', disc(capR * 0.8, 10), tiltMatrix([cx + lean * h * 0.4, y + h - capR * 0.05, cz], [Math.PI / 2, 0, 0]), FLAT);
+    room.geo('stem', cyl(capR * 0.28, capR * 0.42, h, 6), tiltMatrix([cx, y + h / 2, cz], [0, 0, lean]), { tile: 0.3, ...NO_SHADOW });
+    /**
+     * The cap: a squashed dome, and the gills UNDER it, which is where a mushroom is
+     * brightest and what makes it read as lit from within.
+     *
+     * SIX segments, not nine. `tools/leakcheck.html?props=1` charged 6 % of the whole
+     * map to this function - a thousand calls, most of the cost in 9 x 5 domes on
+     * caps you read as a blob of light in the dark anyway. Six is 40 % cheaper and
+     * looks the same at the fog density these are seen through.
+     */
+    room.geo(capMat, ball(capR, 6), tiltMatrix([cx + lean * h * 0.4, y + h, cz], [0, 0, lean], [1, 0.62, 1]), { tile: 0.3, ...FLAT });
+    room.geo('gill', disc(capR * 0.8, 8), tiltMatrix([cx + lean * h * 0.4, y + h - capR * 0.05, cz], [Math.PI / 2, 0, 0]), FLAT);
     // A ring of smaller ones round the base of the big ones.
     if (i % 2 === 0) {
       for (let k = 0; k < 3; k++) {
         const b = a + k * 2.1;
         const kr = capR * 0.34;
-        room.geo('stem', cyl(kr * 0.3, kr * 0.4, kr * 1.6, 5), poseMatrix([cx + Math.cos(b) * capR * 1.4, y + kr * 0.8, cz + Math.sin(b) * capR * 1.4]), FLAT);
-        room.geo(capMat, ball(kr, 6), tiltMatrix([cx + Math.cos(b) * capR * 1.4, y + kr * 1.6, cz + Math.sin(b) * capR * 1.4], [0, 0, 0], [1, 0.6, 1]), FLAT);
+        room.geo('stem', cyl(kr * 0.3, kr * 0.4, kr * 1.6, 4), poseMatrix([cx + Math.cos(b) * capR * 1.4, y + kr * 0.8, cz + Math.sin(b) * capR * 1.4]), FLAT);
+        room.geo(capMat, ball(kr, 5), tiltMatrix([cx + Math.cos(b) * capR * 1.4, y + kr * 1.6, cz + Math.sin(b) * capR * 1.4], [0, 0, 0], [1, 0.6, 1]), FLAT);
       }
     }
   }
@@ -1726,13 +1738,16 @@ export function dustShaft(room: Room, x: number, z: number, top: number, bottom:
 }
 
 /** Motes hanging in the air. Twenty specks, and a room stops being a vacuum. */
-export function dustMotes(room: Room, x: number, y: number, z: number, radius = 1.6, count = 18, spore = false): void {
+export function dustMotes(room: Room, x: number, y: number, z: number, radius = 1.6, count = 14, spore = false): void {
+  // THREE segments and a fifth fewer of them. A mote is two pixels; at four
+  // segments and eighteen a room this was 3.5 % of the map's triangles, which is a
+  // lot to spend on something nobody can resolve the shape of.
   for (let i = 0; i < count; i++) {
     const a = room.range(0, Math.PI * 2);
     const r = room.range(0, radius);
     room.geo(
       spore ? 'lumenSpore' : 'waxPale',
-      ball(room.range(0.008, 0.022), 4),
+      ball(room.range(0.008, 0.022), 3),
       poseMatrix([x + Math.cos(a) * r, y + room.range(-0.7, 0.9), z + Math.sin(a) * r]),
       FLAT,
     );
@@ -2033,3 +2048,302 @@ export function scarabLitter(room: Room, x: number, z: number, radius = 1.0, cou
     }
   }
 }
+
+/* --- the cave: the hill the crypt was cut into ---------------------------------- */
+
+/**
+ * A stalagmite: a stack of shallow discs, widest at the floor, each one a little
+ * off the one below it so the column leans and bulges.
+ *
+ * Built as a stack rather than as a cone because a cone is a spike and a
+ * stalagmite is a candle: the silhouette has to have steps in it, and the steps
+ * are the ten thousand years.
+ */
+export function stalagmite(room: Room, x: number, z: number, height = 1.1, radius = 0.26): void {
+  /**
+   * Every section OVERLAPS the one below it by half its height, and the radius only
+   * steps by a few per cent at a time.
+   *
+   * The first pass gave each section its own height and a big radius drop, and a
+   * stalagmite came out as a stack of shallow discs - a wedding cake. What makes
+   * dripstone read is a continuous taper with slight swellings on it, so the
+   * sections have to blend into each other rather than sit on each other.
+   */
+  const steps = Math.max(4, Math.round(height / 0.2));
+  let cx = x;
+  let cz = z;
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1);
+    // A swelling every third section, so the profile is not a cone either.
+    const swell = 1 + (i % 3 === 1 ? 0.07 : 0);
+    const r = radius * (1 - Math.pow(t, 1.4) * 0.7) * swell;
+    const h = (height / steps) * 2.1;
+    // OPEN-ended: a closed cylinder has a top cap, the cap is a horizontal disc
+    // that catches the light differently from the sides, and fourteen of those up a
+    // column is a stack of bright rings. Overlapping sections need no caps.
+    room.geo(i % 4 === 0 ? 'flowstone' : 'caveRockPale', cyl(r * 0.93, r, h, 7, true), poseMatrix([cx, t * (height - h * 0.4) + h / 2, cz]), { tile: 0.5 });
+    cx += room.range(-0.015, 0.015);
+    cz += room.range(-0.015, 0.015);
+  }
+  // The wet tip, and the puddle it has been dripping into.
+  room.geo('flowstone', ball(radius * 0.2, 6), poseMatrix([cx, height, cz]), NO_SHADOW);
+  room.geo('water', disc(radius * 1.5, 10), tiltMatrix([x, 0.013, z], [-Math.PI / 2, room.range(0, 3), 0]), FLAT);
+  if (height > 0.9) room.blockCircle(x, z, radius * 0.9);
+}
+
+/**
+ * A flowstone column: a stalagmite and a stalactite that met. Floor to ceiling,
+ * so it is the one thing in a cave that gives the space a vertical measure - and
+ * the waist where the two halves joined is what tells the story.
+ */
+export function flowstoneColumn(room: Room, x: number, z: number, radius = 0.4): void {
+  const { ceilingHeight } = room.ctx.dims;
+  // Sections at twice the pitch they occupy, same as `stalagmite()`: overlapping
+  // is what makes a column read as one object instead of as a stack of drums.
+  const steps = 14;
+  for (let i = 0; i < steps; i++) {
+    const t = (i + 0.5) / steps;
+    // Fat at both ends, pinched a third of the way up where the two halves met.
+    const pinch = 0.5 + Math.abs(t - 0.36) * 1.3;
+    const r = radius * Math.min(1, pinch);
+    const h = (ceilingHeight / steps) * 2.0;
+    room.geo(i % 4 === 0 ? 'flowstone' : 'caveRockPale', cyl(r * 0.96, r, h, 8, true), poseMatrix([x + Math.sin(t * 4) * 0.04, t * ceilingHeight, z]), {
+      tile: 0.6,
+      castShadow: true,
+    });
+  }
+  // Drapery: two ribs of flowstone down the sides, as narrow BOXES. As quads they
+  // were half-metre pale sheets standing in the room - the pane-of-fog failure with
+  // an opaque material (docs/art/ROOM_REVIEW.md §4).
+  for (const a of [0.8, 3.4]) {
+    room.box(
+      'flowstone',
+      [0.12, ceilingHeight * 0.55, 0.3],
+      [x + Math.cos(a) * radius * 0.85, ceilingHeight * 0.3, z + Math.sin(a) * radius * 0.85],
+      -a,
+      { tile: 0.6 },
+    );
+  }
+  room.blockCircle(x, z, radius * 1.05);
+}
+
+/**
+ * A rimstone pool: still water held behind a lip of calcite it built itself.
+ *
+ * Water at deck level with a raised rim, like every other pool in this pack
+ * (docs/art/ROOM_REVIEW.md §4) - but the rim is a ring of lobes rather than a
+ * kerb, because rimstone grows in scallops and a straight edge would read as
+ * masonry.
+ */
+export function rimstonePool(room: Room, x: number, z: number, radius = 1.3, lit = false): void {
+  const lobes = Math.max(8, Math.round(radius * 9));
+  for (let i = 0; i < lobes; i++) {
+    const a = (i / lobes) * Math.PI * 2;
+    const r = radius * (0.94 + ((i * 7) % 5) * 0.03);
+    room.geo('flowstone', ball(radius * 0.2, 6), tiltMatrix([x + Math.cos(a) * r, 0.02, z + Math.sin(a) * r], [0, a, 0], [1.5, 0.7, 1]), { tile: 0.4 });
+  }
+  room.geo(lit ? 'waterLit' : 'water', disc(radius * 0.92, 16), tiltMatrix([x, 0.075, z], [-Math.PI / 2, 0, 0]), FLAT);
+  // Two stones breaking the surface, so it reads as shallow rather than as a hole.
+  for (let i = 0; i < 2; i++) {
+    room.geo('caveRock', ball(room.range(0.1, 0.17), 6), tiltMatrix([x + room.range(-radius * 0.5, radius * 0.5), 0.06, z + room.range(-radius * 0.5, radius * 0.5)], [0, i, 0], [1.3, 0.6, 1]), FLAT);
+  }
+  if (lit) {
+    room.geo('wash.cold', disc(radius * 1.3, 14), tiltMatrix([x, 0.085, z], [-Math.PI / 2, 0, 0]), FLAT);
+    // Lichen round the rim, where the water keeps it wet. Emissive only, and it is
+    // what makes a lit pool read as lit BY something rather than as glowing.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.5;
+      room.geo('lumenLichen', ball(0.05, 5), tiltMatrix([x + Math.cos(a) * radius * 1.02, 0.09, z + Math.sin(a) * radius * 1.02], [0, a, 0], [1.6, 0.7, 0.8]), FLAT);
+    }
+  }
+  room.collider({ kind: 'circle', center: [x, z], radius: radius * 0.95 });
+}
+
+/**
+ * A cluster of luminous lichen on rock: a wet patch of flowstone with the glow
+ * sitting IN it. `lit` spends a real light.
+ *
+ * It does not flicker and it does not pulse - `breathe()` is for fungus, which is
+ * alive in a way this is not. A cave is a place that was never lit, and a light
+ * that holds perfectly still is how that reads.
+ */
+export function lichenPatch(room: Room, x: number, y: number, z: number, scale = 1, lit = false, intensity = 3): void {
+  const spots = 5 + Math.floor(room.range(0, 4));
+  for (let i = 0; i < spots; i++) {
+    const a = room.range(0, Math.PI * 2);
+    const r = room.range(0, 0.34 * scale);
+    const px = x + Math.cos(a) * r;
+    const pz = z + Math.sin(a) * r;
+    const py = y + room.range(-0.16, 0.16) * scale;
+    const w = room.range(0.09, 0.2) * scale;
+    room.geo('flowstone', ball(w * 1.5, 5), tiltMatrix([px, py, pz], [0, a, 0], [1.4, 0.8, 1]), { tile: 0.3 });
+    room.geo('lumenLichen', ball(w * 0.6, 5), tiltMatrix([px, py + w * 0.3, pz], [0, a, 0], [1.5, 0.7, 1.2]), FLAT);
+  }
+  room.geo('wash.cold', disc(1.1 * scale, 12), tiltMatrix([x, y - 0.3, z], [-Math.PI / 2, 0, 0]), FLAT);
+  if (lit) {
+    // Pale rather than saturated, and weak. At 0x64e0d8 and intensity 5 two of
+    // these turned the whole cave into one flat teal wash with no rock colour left
+    // in it anywhere: lichen is a thing you find, not a thing that lights a room.
+    const lamp = new THREE.PointLight(0x9ce0d4, intensity, room.ctx.dims.cellSize * 1.1, 2);
+    lamp.position.set(x, y + 0.3, z);
+    room.light(lamp);
+  }
+}
+
+/** A boulder, or a heap of them where the roof has come down. No two alike. */
+export function boulders(room: Room, x: number, z: number, radius = 1.2, count = 5): void {
+  for (let i = 0; i < count; i++) {
+    const a = room.range(0, Math.PI * 2);
+    const r = room.range(0, radius);
+    const size = room.range(0.22, 0.55);
+    const px = x + Math.cos(a) * r;
+    const pz = z + Math.sin(a) * r;
+    room.geo(i % 3 === 0 ? 'caveRockPale' : 'caveRock', ball(size, 6), tiltMatrix([px, size * 0.42, pz], [0, a, i * 0.4], [1.25, 0.8, 1.1]), { tile: 0.8, castShadow: true });
+    if (size > 0.4) room.blockCircle(px, pz, size * 0.8);
+  }
+}
+
+/** Water falling from a crack: a thin cylinder, a wet patch, and the splash ring. */
+export function drip(room: Room, x: number, z: number, from: number, to = 0.02): void {
+  room.geo('water', cyl(0.008, 0.008, from - to, 4), poseMatrix([x, (from + to) / 2, z]), FLAT);
+  room.geo('water', disc(room.range(0.16, 0.3), 10), tiltMatrix([x, 0.013, z], [-Math.PI / 2, room.range(0, 3), 0]), FLAT);
+  room.geo('flowstone', ring(0.2, 0.025, 10), tiltMatrix([x, 0.016, z], [Math.PI / 2, 0, 0]), FLAT);
+}
+
+/* --- the barrow: a ship under a mound -------------------------------------------- */
+
+/**
+ * A clinker-built hull, half buried, with the strakes overlapping and a row of
+ * iron rivets along every seam.
+ *
+ * `length` runs along the prop's own X. The whole object is the SHEER - a boat
+ * read from the side is one long curve rising at both ends - so the strakes are
+ * sampled along that curve rather than laid out flat, and the rivets are what say
+ * the timber was fastened rather than carved.
+ */
+export function shipHull(room: Room, x: number, z: number, rotationY = 0, length = 5.0): void {
+  const cos = Math.cos(rotationY);
+  const sin = Math.sin(rotationY);
+  const at = (along: number, across: number, y: number): Vec3 => [x + cos * along + sin * across, y, z - sin * along + cos * across];
+  const half = length / 2;
+
+  // Five strakes a side. Each is a run of short planks following the sheer, and
+  // each sits a little outboard and higher than the one below it: that overlap is
+  // what "clinker" means and it is the whole silhouette.
+  const strakes = 5;
+  const segs = 7;
+  for (let k = 0; k < strakes; k++) {
+    const t = k / (strakes - 1);
+    const beam = 0.5 + t * 0.42;
+    const rise = 0.12 + t * 0.5;
+    for (let s of [-1, 1]) {
+      for (let i = 0; i < segs; i++) {
+        const f = (i + 0.5) / segs - 0.5;
+        // The sheer: both ends of a strake lift, and the middle is the lowest point.
+        const sheer = rise + Math.pow(Math.abs(f) * 2, 2.4) * (0.5 + t * 0.7);
+        const w = beam * (1 - Math.pow(Math.abs(f) * 2, 3) * 0.72);
+        const len = (length / segs) * 1.08;
+        // A PLANK, not a log: 16 cm wide and 5 cm thick, leaning outboard so the
+        // laps catch the light. Round strakes made the whole hull read as a stack of
+        // firewood, which is what a clinker boat looks least like.
+        room.geo(
+          'timber',
+          boxLike(len, 0.055, 0.17),
+          tiltMatrix(at(f * length, s * w, sheer), [0, rotationY + Math.sign(f) * Math.abs(f) * 0.12, s * 0.42]),
+          { tile: 0.6, castShadow: k > 2 },
+        );
+        // A rivet every other plank, on the lap.
+        if (i % 2 === 0) {
+          room.geo('ironPale', ball(0.028, 5), poseMatrix(at(f * length, s * (w + 0.05), sheer + 0.05)), FLAT);
+        }
+      }
+    }
+  }
+  // Stem and stern posts, both curling up out of the sheer.
+  for (const s of [-1, 1]) {
+    room.geo('timber', cyl(0.09, 0.13, 1.5, 6), tiltMatrix(at(s * (half - 0.1), 0, 0.75), [s * 0.42, rotationY, 0]), { tile: 0.6, castShadow: true });
+    room.geo('timber', ball(0.12, 6), tiltMatrix(at(s * (half + 0.5), 0, 1.42), [0, rotationY, 0], [1.4, 1, 0.8]), NO_SHADOW);
+  }
+  // The gunwale: a rail along the top strake either side. It is what the shields
+  // hang on, and without it they read as floating in the dark.
+  for (const s of [-1, 1]) {
+    for (let i = 0; i < 5; i++) {
+      const f = (i + 0.5) / 5 - 0.5;
+      const sheer = 0.62 + Math.pow(Math.abs(f) * 2, 2.4) * 1.2;
+      const w = 0.92 * (1 - Math.pow(Math.abs(f) * 2, 3) * 0.72);
+      room.geo('timber', cyl(0.06, 0.06, length / 5 + 0.08, 6), tiltMatrix(at(f * length, s * w, sheer), [Math.PI / 2, rotationY, Math.PI / 2]), {
+        tile: 0.5,
+        castShadow: false,
+      });
+    }
+  }
+  // The keelson down the middle, and the mast step on it.
+  room.box('timber', [length * 0.8, 0.14, 0.3], at(0, 0, 0.08), rotationY, { tile: 0.6 });
+  room.collider({ kind: 'box', center: [x, z], halfExtents: [half * 0.92, 0.85], rotationY });
+}
+
+/** The mast, snapped off a metre up, with the shroud cleats still on it. */
+export function mastStump(room: Room, x: number, z: number, height = 1.3): void {
+  room.geo('timber', cyl(0.11, 0.15, height, 8), poseMatrix([x, height / 2, z]), { tile: 0.7, castShadow: true });
+  // The break: splinters, which is what stops it reading as a bollard.
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.4;
+    room.geo('timber', spike(0.035, room.range(0.14, 0.34), 4), poseMatrix([x + Math.cos(a) * 0.07, height, z + Math.sin(a) * 0.07]), NO_SHADOW);
+  }
+  for (const y of [height * 0.4, height * 0.72]) {
+    room.geo('ironDark', ring(0.14, 0.02, 9), tiltMatrix([x, y, z], [Math.PI / 2, 0, 0]), NO_SHADOW);
+  }
+  room.blockCircle(x, z, 0.16);
+}
+
+/**
+ * A round shield: boards, a rim and an iron boss, painted in the two colours they
+ * had. Hung on a gunwale or a wall - `tilt` leans it back against something.
+ */
+export function shield(room: Room, x: number, y: number, z: number, rotationY = 0, radius = 0.36, red = false, tilt = 0.1): void {
+  const face = red ? 'shieldRed' : 'shieldPale';
+  room.geo(face, cyl(radius, radius, 0.045, 14), tiltMatrix([x, y, z], [Math.PI / 2 + tilt, rotationY, 0]), { tile: 0.5, castShadow: false });
+  // The other colour, as a quadrant: two colours in a pattern is what a shield is.
+  room.geo(red ? 'shieldPale' : 'shieldRed', cyl(radius * 0.99, radius * 0.99, 0.05, 14, true), tiltMatrix([x, y, z], [Math.PI / 2 + tilt, rotationY, 0], [0.5, 1, 1]), {
+    tile: 0.5,
+    castShadow: false,
+  });
+  room.geo('iron', ring(radius, 0.03, 14), tiltMatrix([x, y, z], [tilt, rotationY, 0]), NO_SHADOW);
+  const out = 0.05;
+  room.geo('iron', ball(radius * 0.24, 7), tiltMatrix([x - Math.sin(rotationY) * out, y + tilt * 0.1, z - Math.cos(rotationY) * out], [0, 0, 0], [1, 1, 0.6]), NO_SHADOW);
+}
+
+/** A spear or an axe leaning against something: a shaft and a head. */
+export function haft(room: Room, x: number, z: number, rotationY = 0, height = 1.9, axe = false): void {
+  const lean = 0.14;
+  const top: Vec3 = [x - Math.sin(rotationY) * height * lean, height, z - Math.cos(rotationY) * height * lean];
+  strut(room, 'timber', [x, 0.02, z], top, 0.022, 5, NO_SHADOW);
+  if (axe) {
+    // A bearded axe: a socket and a blade that hangs below it.
+    room.geo('ironPale', boxLike(0.05, 0.16, 0.09), poseMatrix([top[0], top[1] - 0.06, top[2]], rotationY), NO_SHADOW);
+    room.geo('ironPale', quad(0.26, 0.3), poseMatrix([top[0] - 0.04, top[1] - 0.18, top[2]], rotationY + Math.PI / 2), FLAT);
+  } else {
+    room.geo('ironPale', spike(0.035, 0.34, 5), poseMatrix([top[0], top[1] + 0.14, top[2]]), NO_SHADOW);
+    room.geo('ironPale', cyl(0.022, 0.03, 0.1, 6), poseMatrix([top[0], top[1] - 0.02, top[2]]), NO_SHADOW);
+  }
+}
+
+/** A horse skull: a long muzzle, a heavy jaw and two sockets. Not a human one. */
+export function horseSkull(room: Room, x: number, y: number, z: number, rotationY = 0, scale = 1): void {
+  const s = 0.16 * scale;
+  const sin = Math.sin(rotationY);
+  const cos = Math.cos(rotationY);
+  const out = (d: number, up = 0, side = 0): Vec3 => [x - sin * d + cos * side, y + up, z - cos * d - sin * side];
+  // The cranium, then a muzzle twice as long as it: the proportion IS the horse.
+  room.geo('bone', ball(s, 7), tiltMatrix([x, y + s * 0.8, z], [0, rotationY, 0], [0.9, 1, 1.15]), { tile: 0.3, ...NO_SHADOW });
+  room.geo('bone', cyl(s * 0.42, s * 0.6, s * 2.4, 6), tiltMatrix(out(s * 1.5, s * 0.6), [Math.PI / 2, rotationY, 0.12]), { tile: 0.3, ...NO_SHADOW });
+  room.geo('bonePale', cyl(s * 0.34, s * 0.42, s * 0.5, 6), tiltMatrix(out(s * 2.7, s * 0.42), [Math.PI / 2, rotationY, 0.2]), NO_SHADOW);
+  // The eye sockets, high and to the sides, which is where a prey animal has them.
+  for (const side of [-1, 1]) {
+    room.geo('bitumen', ball(s * 0.3, 5), poseMatrix(out(s * 0.5, s * 1.1, side * s * 0.72)), FLAT);
+  }
+  // The jaw, hanging open, and the teeth in it.
+  room.geo('bone', cyl(s * 0.3, s * 0.44, s * 2.0, 5), tiltMatrix(out(s * 1.4, s * 0.16), [Math.PI / 2, rotationY, 0.3]), NO_SHADOW);
+  room.geo('bonePale', boxLike(s * 0.9, s * 0.14, s * 0.3), poseMatrix(out(s * 2.2, s * 0.3), rotationY), FLAT);
+}
+

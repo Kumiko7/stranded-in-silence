@@ -12,9 +12,18 @@
  * The **Rot** is what is arriving: mycelium, root, violet and teal, and the only
  * light in the map with no flame behind it.
  *
- * The two halves alternate as you walk the maze, and the rooms that are honestly
- * both - the robbers' tunnel, the bloom, the yew - are the ones that make the
- * boundary read as deliberate rather than as an accident of generation.
+ * Underneath both of them is the hill itself - **the cave**: wet limestone,
+ * flowstone, cold lichen, and one wall where somebody blew ochre round their hands
+ * thirty thousand years before the Order arrived. And cut into the hill beside it,
+ * **the barrow**: a clinker-built ship under four feet of turf, with shields on the
+ * gunwale, a horse at the prow and a runestone at its head. Oak, iron and paint
+ * where everything else here is stone.
+ *
+ * The families alternate as you walk the maze, and the map reads oldest to newest
+ * as you go: cave, barrow, dynasty, Order. The rooms that are honestly two things
+ * at once - the robbers' tunnel, the bloom, the yew, the painted cave with a
+ * six-hundred-year-old candle stand in front of its paintings - are the ones that
+ * make each boundary read as deliberate rather than as an accident of generation.
  *
  * The signature object is the wall niche: a recess in a wall the generator can
  * never open, with something in it. A corpse on a shelf, a stack of skulls behind

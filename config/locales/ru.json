@@ -190,11 +190,8 @@
   "room.abyss.breach": "Пробоина",
   "map.crypt.name": "Склеп Девяти",
   "map.crypt.desc": "Девять были замурованы внутри. Кто-то открывает двери с той стороны.",
-  "room.crypt.gate": "Порог",
   "room.crypt.ossuary": "Костница",
   "room.crypt.chapel": "Погребальная часовня",
-  "room.crypt.reliquary": "Реликварий",
-  "room.crypt.scriptorium": "Поминальная",
   "room.crypt.apothecary": "Аптекарская",
   "room.crypt.circle": "Круг",
   "room.crypt.undercroft": "Затопленный подклет",
@@ -212,6 +209,9 @@
   "room.crypt.gilded": "Золочёная камера",
   "room.crypt.bloom": "Цветение",
   "room.crypt.yew": "Под тисом",
+  "room.crypt.cavern": "Провал",
+  "room.crypt.painted": "Расписная пещера",
+  "room.crypt.barrow": "Ладейная могила",
 
 
   "difficulty.normal.name": "Обычный",

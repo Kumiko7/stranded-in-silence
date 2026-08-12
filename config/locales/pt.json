@@ -190,11 +190,8 @@
   "room.abyss.breach": "A brecha",
   "map.crypt.name": "Sepulcro dos Nove",
   "map.crypt.desc": "Nove foram selados lá dentro. Alguém anda abrindo as portas pelo lado de dentro.",
-  "room.crypt.gate": "O Limiar",
   "room.crypt.ossuary": "A Capela dos Ossos",
   "room.crypt.chapel": "A Capela Funerária",
-  "room.crypt.reliquary": "O Relicário",
-  "room.crypt.scriptorium": "A Sala dos Óbitos",
   "room.crypt.apothecary": "A Botica",
   "room.crypt.circle": "O Círculo",
   "room.crypt.undercroft": "A Cripta Afogada",
@@ -212,6 +209,9 @@
   "room.crypt.gilded": "A Câmara Dourada",
   "room.crypt.bloom": "A Floração",
   "room.crypt.yew": "Sob o Teixo",
+  "room.crypt.cavern": "A Cova",
+  "room.crypt.painted": "A Caverna Pintada",
+  "room.crypt.barrow": "A Tumba do Barco",
 
 
   "difficulty.normal.name": "Normal",

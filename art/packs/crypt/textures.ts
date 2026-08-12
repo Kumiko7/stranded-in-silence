@@ -878,6 +878,246 @@ export const mossStone = (): THREE.Texture =>
     return shade(base, 0.86 + fine * 0.24);
   });
 
+/* --- THE CAVE: the hill the crypt was cut into ----------------------------- */
+
+export const LIMESTONE_TILE = 2.8;
+
+function limestoneAt(x: number, y: number, size: number): { band: number; pit: number; wet: number } {
+  /**
+   * Flowstone banding: limestone in a cave is a *deposited* surface, so its grain
+   * runs in long horizontal contours that pool and swell rather than in courses.
+   * Ridged noise stretched hard on x is the whole recipe, and it is the one thing
+   * that stops a cave wall reading as badly-laid masonry.
+   */
+  const contour = n2s(x, y, size, 2.2, 9, 33101, 4);
+  const band = ridge(contour, 0.16) * 0.8 + ridge(n2s(x, y, size, 3, 16, 33203, 3), 0.1) * 0.5;
+  const pit = Math.max(0, n2(x, y, size, 20, 33307, 3) - 0.54) * 2.4;
+  const wet = n2(x, y, size, 5, 33401, 3);
+  return { band: Math.min(1, band), pit, wet };
+}
+
+/** Wet cave limestone: grey-fawn, banded, pitted, and never in a straight line. */
+export const limestone = (): THREE.Texture =>
+  colorTexture('crypt.limestone', SIZE, (x, y, size) => {
+    const { band, pit, wet } = limestoneAt(x, y, size);
+    let base = mix(rgb(0x6c675c), rgb(0x8a8375), band * 0.7 + wet * 0.4);
+    // Iron and manganese staining in the low ground, which is what gives cave rock
+    // its two tones without introducing a second colour.
+    base = mix(base, rgb(0x4a4238), Math.max(0, 0.4 - wet) * 1.5 + pit * 0.5);
+    // Fresh calcite on the wettest bands: the only bright thing in a cave, and it
+    // is what tells the eye the rock is still growing.
+    base = mix(base, rgb(0xa8a294), Math.max(0, wet - 0.68) * 1.8 * band);
+    return shade(base, 0.86 + band * 0.24);
+  });
+
+export const limestoneNormal = (): THREE.Texture =>
+  normalTexture(
+    'crypt.limestoneN',
+    SIZE,
+    (x, y, size) => {
+      const { band, pit } = limestoneAt(x, y, size);
+      return 0.4 + band * 0.5 - pit * 0.35;
+    },
+    2.8,
+  );
+
+export const CLAY_TILE = 2.4;
+
+/** Cave floor: wet clay, pebbles, and the puddle rings a dripping roof leaves. */
+export const caveClay = (): THREE.Texture =>
+  colorTexture('crypt.clay', SIZE, (x, y, size) => {
+    const clay = n2(x, y, size, 7, 34101, 4);
+    const pebble = Math.max(0, n2(x, y, size, 34, 34203, 2) - 0.62) * 2.8;
+    // Concentric rings where drips have landed for ten thousand years. Faint, and
+    // the one detail that says a ceiling is doing something.
+    const ring = ridge(n2(x, y, size, 4, 34307, 2), 0.03);
+    const damp = n2(x, y, size, 3, 34401, 3);
+
+    let base = mix(rgb(0x50483c), rgb(0x6d6252), clay * 0.9);
+    base = mix(base, rgb(0x8a8578), Math.min(0.7, pebble));
+    base = mix(base, rgb(0x3c3830), Math.max(0, damp - 0.52) * 1.7);
+    base = mix(base, rgb(0x777063), ring * 0.35);
+    return shade(base, 0.88 + clay * 0.2);
+  });
+
+export const clayNormal = (): THREE.Texture =>
+  normalTexture(
+    'crypt.clayN',
+    SIZE,
+    (x, y, size) => n2(x, y, size, 7, 34101, 4) * 0.6 + Math.max(0, n2(x, y, size, 34, 34203, 2) - 0.62) * 2.8 * 0.4,
+    1.6,
+  );
+
+export const CAVE_ART_TILE = 2.6;
+
+/**
+ * Ochre on flowstone: hand prints and animals, thirty thousand years older than
+ * anything else in the map.
+ *
+ * Blown red ochre round a splayed hand, done as a five-fingered radial mask, and
+ * two beasts as one long body with four legs and a head - which is exactly how
+ * much anatomy a palaeolithic painter used, and coincidentally all that survives
+ * being 30 cm across on a wall lit by one candle.
+ */
+export const caveArt = (): THREE.Texture =>
+  colorTexture('crypt.caveArt', SIZE, (x, y, size) => {
+    const u = x / size;
+    const v = y / size;
+    const { band, pit, wet } = limestoneAt(x, y, size);
+
+    // The rock first: this is limestone with paint ON it, not a painted panel.
+    let base = mix(rgb(0x6c675c), rgb(0x8a8375), band * 0.7 + wet * 0.4);
+    base = mix(base, rgb(0x4a4238), Math.max(0, 0.4 - wet) * 1.5 + pit * 0.5);
+
+    /** A blown hand print: the palm as a disc, five fingers as radial spokes. */
+    const hand = (hu: number, hv: number, scale: number, turn: number): number => {
+      const du = (u - hu) / scale;
+      const dv = (v - hv) / scale;
+      const cu = du * Math.cos(turn) - dv * Math.sin(turn);
+      const cv = du * Math.sin(turn) + dv * Math.cos(turn);
+      const r = Math.hypot(cu, cv);
+      if (r > 1.15) return 0;
+      // The halo of blown pigment reaches further than the hand itself.
+      const halo = Math.max(0, 1 - r / 1.15) * 0.34;
+      if (Math.hypot(cu, (cv + 0.28) * 1.25) < 0.42) return 1;
+      const a = Math.atan2(cv - 0.1, cu);
+      const finger = Math.abs(((a / Math.PI) * 2.6) % 1 - 0.5);
+      if (cv > 0 && finger > 0.34 && r < 1.0) return 1;
+      // The thumb, off to one side and shorter.
+      if (Math.hypot((cu + 0.5) * 1.3, (cv + 0.1) * 1.6) < 0.24) return 1;
+      return halo;
+    };
+
+    /** A beast: one long body, a head, a hump and four legs. */
+    const beast = (bu: number, bv: number, scale: number, flip: number): number => {
+      const du = ((u - bu) / scale) * flip;
+      const dv = (v - bv) / scale;
+      // The body: a long shape with a raised back, which is the whole silhouette.
+      const back = 0.16 + Math.max(0, 0.2 - Math.abs(du + 0.1)) * 0.9;
+      if (Math.abs(du) < 0.75 && dv > -0.02 && dv < back) return 1;
+      // The head and the muzzle, low and forward.
+      if (Math.hypot((du - 0.8) * 1.2, (dv - 0.08) * 1.5) < 0.2) return 1;
+      if (du > 0.9 && du < 1.15 && Math.abs(dv - 0.02) < 0.06) return 1;
+      // Four legs, in two pairs.
+      for (const lu of [-0.55, -0.35, 0.4, 0.6]) {
+        if (Math.abs(du - lu) < 0.055 && dv < 0 && dv > -0.34) return 1;
+      }
+      return 0;
+    };
+
+    const ochre = rgb(0x9a3f22);
+    const ochreDark = rgb(0x6d2a17);
+    const charcoal = rgb(0x2a2420);
+
+    let paint = 0;
+    let colour = ochre;
+    // Two clusters of hands and two beasts per tile, at different scales, none of
+    // them level: a grid of prints reads as wallpaper.
+    for (const [hu, hv, sc, turn] of [
+      [0.18, 0.62, 0.085, 0.2],
+      [0.28, 0.72, 0.07, -0.5],
+      [0.13, 0.78, 0.06, 0.9],
+      [0.74, 0.3, 0.08, -0.3],
+      [0.85, 0.42, 0.065, 0.4],
+    ] as const) {
+      paint = Math.max(paint, hand(hu, hv, sc, turn));
+    }
+    if (paint > 0) colour = ochre;
+    const b1 = beast(0.5, 0.34, 0.13, 1);
+    const b2 = beast(0.32, 0.14, 0.1, -1);
+    if (b1 > 0 || b2 > 0) {
+      paint = Math.max(paint, b1 > 0 ? 1 : 0.9);
+      colour = b2 > 0 && b1 === 0 ? charcoal : ochreDark;
+    }
+
+    // The paint has flaked and the rock has grown over it: the pigment only
+    // survives where the flowstone is dry.
+    const survive = 0.55 + wet * 0.7 - pit * 0.5;
+    base = mix(base, colour, Math.min(1, paint) * Math.max(0, Math.min(1, survive)) * 0.9);
+    return shade(base, 0.86 + band * 0.24);
+  });
+
+export const TURF_TILE = 2.0;
+
+/** The underside of a turf roof: matted root, dry grass and the soil it holds up. */
+export const turf = (): THREE.Texture =>
+  colorTexture('crypt.turf', SIZE, (x, y, size) => {
+    const soil = n2(x, y, size, 9, 35101, 4);
+    // Root mat: dense fine threads, all of them roughly horizontal because they
+    // grew sideways along the sods.
+    const mat = ridge(n2s(x, y, size, 22, 6, 35203, 3), 0.06) * 0.8 + ridge(n2s(x, y, size, 40, 9, 35307, 2), 0.05) * 0.5;
+    const straw = ridge(n2s(x, y, size, 14, 30, 35401, 2), 0.04);
+
+    let base = mix(rgb(0x413628), rgb(0x59492f), soil * 0.9);
+    base = mix(base, rgb(0x7a6a45), Math.min(0.8, mat));
+    base = mix(base, rgb(0x8f7f52), straw * 0.4);
+    base = mix(base, rgb(0x2a2318), Math.max(0, soil - 0.66) * 2);
+    return shade(base, 0.88 + mat * 0.2);
+  });
+
+export const CARVING_TILE = 1.6;
+
+/**
+ * Norse interlace: a beast whose body is a knot, cut into stone and painted red
+ * in the cuts. Runes down one edge.
+ *
+ * The interlace is two sine bands crossing each other - which is what ring-chain
+ * ornament actually is - and the paint surviving only in the cut is what makes it
+ * read as carved rather than as drawn on.
+ */
+export const runeCarving = (): THREE.Texture =>
+  colorTexture('crypt.carving', SIZE, (x, y, size) => {
+    const u = x / size;
+    const v = y / size;
+    const grain = n2(x, y, size, 14, 36101, 3);
+    let base = mix(rgb(0x74736b), rgb(0x8b8a80), grain * 0.9);
+
+    // Two interlaced bands, each a thick sine, crossing four times per tile.
+    const b1 = Math.abs(v - (0.5 + Math.sin(u * Math.PI * 4) * 0.22));
+    const b2 = Math.abs(v - (0.5 + Math.sin(u * Math.PI * 4 + Math.PI) * 0.22));
+    const onBand = Math.min(b1, b2) < 0.055;
+    const inGroove = Math.min(b1, b2) > 0.032 && Math.min(b1, b2) < 0.055;
+
+    if (onBand) {
+      base = mix(base, rgb(0x9a9890), 0.5);
+      // The groove either side of the band: dark, with old red lead left in it.
+      if (inGroove) base = mix(rgb(0x3a352f), rgb(0x8a3a24), 0.42);
+    }
+
+    // A column of runes down the left-hand margin: vertical staves with one or two
+    // diagonal branches, which is what futhark looks like at this size.
+    if (u < 0.13) {
+      const cell = Math.floor(v * 9);
+      const inV = (v * 9) % 1;
+      const roll = hash1(cell, 64, 36203);
+      const stave = Math.abs(u - 0.065) < 0.012 && inV > 0.14 && inV < 0.86;
+      const branch =
+        (roll > 0.5 && Math.abs(inV - 0.34 - (u - 0.065) * 2.4) < 0.05 && u > 0.065) ||
+        (roll > 0.25 && Math.abs(inV - 0.66 + (u - 0.065) * 2.4) < 0.05 && u < 0.065);
+      if (stave || branch) base = mix(rgb(0x36322c), rgb(0x8a3a24), 0.35);
+    }
+
+    const wear = n2(x, y, size, 5, 36307, 3);
+    base = mix(base, rgb(0x7f7d73), wear > 0.66 ? 0.4 : 0);
+    return shade(base, 0.88 + grain * 0.2);
+  });
+
+export const carvingNormal = (): THREE.Texture =>
+  normalTexture(
+    'crypt.carvingN',
+    SIZE,
+    (x, y, size) => {
+      const u = x / size;
+      const v = y / size;
+      const b1 = Math.abs(v - (0.5 + Math.sin(u * Math.PI * 4) * 0.22));
+      const b2 = Math.abs(v - (0.5 + Math.sin(u * Math.PI * 4 + Math.PI) * 0.22));
+      const d = Math.min(b1, b2);
+      const band = d < 0.032 ? 0.85 : d < 0.055 ? 0.2 : 0.55;
+      return band + n2(x, y, size, 14, 36101, 3) * 0.1;
+    },
+    3.0,
+  );
+
 /* --- fabric, wax, metal, gold ---------------------------------------------- */
 
 export const LINEN_TILE = 0.95;

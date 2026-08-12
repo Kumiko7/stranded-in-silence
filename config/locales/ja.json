@@ -190,11 +190,8 @@
   "room.abyss.breach": "破孔",
   "map.crypt.name": "九人の霊廟",
   "map.crypt.desc": "九人が封じられた。誰かが内側から扉を開け続けている。",
-  "room.crypt.gate": "門口",
   "room.crypt.ossuary": "骸骨礼拝堂",
   "room.crypt.chapel": "埋葬礼拝堂",
-  "room.crypt.reliquary": "聖遺物室",
-  "room.crypt.scriptorium": "死者名簿室",
   "room.crypt.apothecary": "薬房",
   "room.crypt.circle": "魔法円",
   "room.crypt.undercroft": "水没した地下聖堂",
@@ -212,6 +209,9 @@
   "room.crypt.gilded": "黄金の間",
   "room.crypt.bloom": "菌の花",
   "room.crypt.yew": "イチイの下",
+  "room.crypt.cavern": "陥没洞",
+  "room.crypt.painted": "壁画の洞窟",
+  "room.crypt.barrow": "船葬墓",
 
 
   "difficulty.normal.name": "ノーマル",

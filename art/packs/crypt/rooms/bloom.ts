@@ -101,7 +101,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // haze quads this used to have read as sheets of glass standing in the room from
   // every doorway - a full-width translucent sheet is a pane of fog, and it is worse
   // than no atmosphere at all (docs/art/ROOM_REVIEW.md §4).
-  dustMotes(room, -0.6, 1.4, 0.6, 3.0, 30, true);
+  dustMotes(room, -0.6, 1.4, 0.6, 3.0, 20, true);
   room.geo('hazeSpore', quad(0.7, 1.5), tiltMatrix([2.4, 0.78, -1.6], [0, 0.6, 0]), { castShadow: false, receiveShadow: false });
 
   /* --- the crypt underneath -------------------------------------------------------- */

@@ -40,8 +40,19 @@ import { boxCollider, boxGeometry } from '../../../lib/build';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
 import * as tex from '../textures';
 
-export type FloorStyle = 'flag' | 'slab' | 'earth' | 'sand' | 'sandstone' | 'bone' | 'moss' | 'rot';
-export type WallStyle = 'ashlar' | 'plaster' | 'brick' | 'bone' | 'sandstone' | 'frieze' | 'mudbrick' | 'rot' | 'moss';
+export type FloorStyle = 'flag' | 'slab' | 'earth' | 'sand' | 'sandstone' | 'bone' | 'moss' | 'rot' | 'clay' | 'rock';
+export type WallStyle =
+  | 'ashlar'
+  | 'plaster'
+  | 'brick'
+  | 'bone'
+  | 'sandstone'
+  | 'frieze'
+  | 'mudbrick'
+  | 'rot'
+  | 'moss'
+  | 'rock'
+  | 'timber';
 export type CeilingStyle =
   | 'groin'
   | 'barrel'
@@ -52,15 +63,27 @@ export type CeilingStyle =
   | 'stars'
   | 'roots'
   | 'rock'
+  | 'cave'
+  | 'turf'
   | 'open';
 /** The lower band of the wall, where a different material takes over. */
-export type DadoStyle = 'none' | 'inscription' | 'glyph' | 'bone' | 'gilt' | 'plaster' | 'ashlar' | 'stone';
+export type DadoStyle = 'none' | 'inscription' | 'glyph' | 'bone' | 'gilt' | 'plaster' | 'ashlar' | 'stone' | 'carving';
 /** What the ring around a doorway is made of. */
-export type MouthStyle = 'gothic' | 'lintel' | 'rubble' | 'root' | 'none';
+export type MouthStyle = 'gothic' | 'lintel' | 'rubble' | 'root' | 'stave' | 'none';
 /** The emissive course along every wall. Free light, and the map's spine. */
-export type LampStyle = 'none' | 'votive' | 'oil' | 'spore' | 'soul';
+export type LampStyle = 'none' | 'votive' | 'oil' | 'spore' | 'soul' | 'lichen';
 
-export type NicheKind = 'loculus' | 'urns' | 'effigy' | 'grate' | 'lancet' | 'ossuary' | 'breach' | 'stela';
+export type NicheKind =
+  | 'loculus'
+  | 'urns'
+  | 'effigy'
+  | 'grate'
+  | 'lancet'
+  | 'ossuary'
+  | 'breach'
+  | 'stela'
+  | 'crevice'
+  | 'runestone';
 
 export interface NicheSpec {
   readonly cell?: Cell;
@@ -99,6 +122,8 @@ const FLOOR_MATERIAL: Record<FloorStyle, [string, number]> = {
   bone: ['surface.bone', tex.BONE_TILE],
   moss: ['surface.moss', tex.MOSS_TILE],
   rot: ['surface.rot', tex.ROT_TILE],
+  clay: ['surface.clay', tex.CLAY_TILE],
+  rock: ['surface.limestone', tex.LIMESTONE_TILE],
 };
 
 const WALL_MATERIAL: Record<WallStyle, [string, number]> = {
@@ -111,6 +136,8 @@ const WALL_MATERIAL: Record<WallStyle, [string, number]> = {
   mudbrick: ['surface.mudbrick', tex.MUDBRICK_TILE],
   rot: ['surface.rot', tex.ROT_TILE],
   moss: ['surface.moss', tex.MOSS_TILE],
+  rock: ['surface.limestone', tex.LIMESTONE_TILE],
+  timber: ['surface.timber', tex.TIMBER_TILE],
 };
 
 const DADO_MATERIAL: Record<Exclude<DadoStyle, 'none'>, [string, number]> = {
@@ -123,6 +150,7 @@ const DADO_MATERIAL: Record<Exclude<DadoStyle, 'none'>, [string, number]> = {
   // Ashlar at a short tile, not the grave-slab map: a ledger-stone texture on a
   // one-metre band came out as timber paneling with a chair rail on it.
   stone: ['surface.ashlar', tex.ASHLAR_TILE * 0.55],
+  carving: ['surface.carving', tex.CARVING_TILE],
 };
 
 const NEIGHBOUR: Record<Side, readonly [number, number]> = {
@@ -163,9 +191,20 @@ const PLINTH_HEIGHT = 0.26;
 /** Which wall styles were laid by a mason. It decides the trim: a moulded stone
  *  plinth under a wall furred with mycelium reads as a cave somebody fitted a
  *  skirting board to, which is the one thing this pack must never look like. */
-const BUILT: ReadonlySet<WallStyle> = new Set<WallStyle>(['ashlar', 'plaster', 'brick', 'sandstone', 'frieze', 'mudbrick', 'bone']);
+const BUILT: ReadonlySet<WallStyle> = new Set<WallStyle>([
+  'ashlar',
+  'plaster',
+  'brick',
+  'sandstone',
+  'frieze',
+  'mudbrick',
+  'bone',
+  'timber',
+]);
 /** Which of those were laid by the DYNASTY. Warm stone, batter, no arches. */
 const DYNASTIC: ReadonlySet<WallStyle> = new Set<WallStyle>(['sandstone', 'frieze', 'mudbrick']);
+/** A stave-lined mound: built, but out of oak, so its trim is a sill and a plate. */
+const TIMBERED: ReadonlySet<WallStyle> = new Set<WallStyle>(['timber']);
 
 /**
  * Anything up at the ceiling is ABOVE every light a room can hang, so all of it
@@ -235,9 +274,13 @@ export function addShell(
   const dadoHeight = options.dadoHeight ?? 1.05;
   const dynastic = DYNASTIC.has(wallStyle);
   const built = BUILT.has(wallStyle);
-  const mouthStyle = options.mouth ?? (dynastic ? 'lintel' : built ? 'gothic' : 'root');
-  const lampStyle = options.lamps ?? (dynastic ? 'oil' : built ? 'votive' : 'spore');
-  const ceilingStyle = options.ceiling ?? (dynastic ? 'corbel' : 'groin');
+  const timbered = TIMBERED.has(wallStyle);
+  /** Living rock, which is neither built nor grown and needs trim of its own. */
+  const cave = wallStyle === 'rock';
+  const mouthStyle =
+    options.mouth ?? (timbered ? 'stave' : cave ? 'rubble' : dynastic ? 'lintel' : built ? 'gothic' : 'root');
+  const lampStyle = options.lamps ?? (cave ? 'lichen' : dynastic || timbered ? 'oil' : built ? 'votive' : 'spore');
+  const ceilingStyle = options.ceiling ?? (cave ? 'cave' : timbered ? 'turf' : dynastic ? 'corbel' : 'groin');
   const lampSpacing = options.lampSpacing ?? 2.3;
 
   const floorMat = ctx.materials.get(floorName);
@@ -253,20 +296,28 @@ export function addShell(
   const ceilName =
     ceilingStyle === 'stars'
       ? 'surface.stars'
-      : ceilingStyle === 'rock' || ceilingStyle === 'roots'
-        ? 'surface.ashlar'
-        : ceilingStyle === 'corbel' || ceilingStyle === 'slabs'
-          ? 'surface.sandstone'
-          : 'surface.plaster';
+      : ceilingStyle === 'cave'
+        ? 'surface.limestone'
+        : ceilingStyle === 'turf'
+          ? 'surface.turf'
+          : ceilingStyle === 'rock' || ceilingStyle === 'roots'
+            ? 'surface.ashlar'
+            : ceilingStyle === 'corbel' || ceilingStyle === 'slabs'
+              ? 'surface.sandstone'
+              : 'surface.plaster';
   const ceilMat = ctx.materials.get(ceilName);
   const ceilTile =
     ceilingStyle === 'stars'
       ? tex.STAR_TILE
-      : ceilingStyle === 'corbel' || ceilingStyle === 'slabs'
-        ? tex.SANDSTONE_TILE
-        : ceilingStyle === 'rock' || ceilingStyle === 'roots'
-          ? tex.ASHLAR_TILE
-          : tex.PLASTER_TILE;
+      : ceilingStyle === 'cave'
+        ? tex.LIMESTONE_TILE
+        : ceilingStyle === 'turf'
+          ? tex.TURF_TILE
+          : ceilingStyle === 'corbel' || ceilingStyle === 'slabs'
+            ? tex.SANDSTONE_TILE
+            : ceilingStyle === 'rock' || ceilingStyle === 'roots'
+              ? tex.ASHLAR_TILE
+              : tex.PLASTER_TILE;
 
   const stoneMat = ctx.materials.get(dynastic ? 'stoneWarm' : 'stone');
   const stoneDark = ctx.materials.get('stoneDark');
@@ -277,6 +328,10 @@ export function addShell(
   const mossMat = ctx.materials.get('moss');
   const rootMat = ctx.materials.get('root');
   const dustMat = ctx.materials.get(dynastic ? 'sandLoose' : 'ash');
+  const caveMat = ctx.materials.get('caveRock');
+  const cavePale = ctx.materials.get('caveRockPale');
+  const flowMat = ctx.materials.get('flowstone');
+  const lichenMat = ctx.materials.get('lumenLichen');
 
   const occupied = new Set(footprint.map(([x, y]) => `${x},${y}`));
   const off = cellSize / 2 - wallThickness / 2;
@@ -400,7 +455,22 @@ export function addShell(
       if (!slab.blocking) continue;
 
       if (options.plinth !== false && slab.y0 < 0.01) {
-        if (built) {
+        if (cave) {
+          // Where a cave wall meets a cave floor there is no line at all - the rock
+          // simply thickens into a slope of fallen blocks and flowstone. A skirting
+          // board here would be the one thing that says "cellar" instead of "cave".
+          const lumps = Math.max(3, Math.round(slab.width / 0.62));
+          for (let i = 0; i < lumps; i++) {
+            const a = slab.offset - slab.width / 2 + (slab.width * (i + 0.5)) / lumps;
+            const h = 0.16 + ((i * 7) % 5) * 0.09;
+            band(a, 0.52, 0, h, 0.26 + ((i * 3) % 3) * 0.08, i % 3 === 0 ? cavePale : caveMat, 0.7);
+          }
+        } else if (timbered) {
+          // A sill beam laid on the ground with the staves standing on it. One
+          // horizontal timber is the whole read of a stave-built wall.
+          band(slab.offset, slab.width, 0, 0.2, 0.16, timberMat, tex.TIMBER_TILE * 0.6);
+          band(slab.offset, slab.width, 0.2, 0.05, 0.19, stoneDark, 0.4);
+        } else if (built) {
           // A plinth in three courses: a deep base, a chamfered weathering and a
           // thin fillet over it. Three planes at three angles to the light is
           // what makes a skirting read as moulded stone rather than as a stripe.
@@ -459,6 +529,13 @@ export function addShell(
           castShadow: false,
           consume: true,
         });
+      } else if (cave) {
+        // Nothing. A cave has no line where the wall becomes the roof, and drawing
+        // one is what makes a natural chamber read as a room somebody built.
+      } else if (timbered) {
+        // The wall plate the rafters sit on, and the earth pressing down on it.
+        band(0, cellSize, ceilingHeight - 0.26, 0.26, 0.16, timberMat, tex.TIMBER_TILE * 0.7);
+        band(0, cellSize, ceilingHeight - 0.32, 0.07, 0.22, stoneDark, 0.4);
       } else if (built) {
         // A moulded cornice and, under it, the corbel table: small blocks at a
         // regular pitch, which is what a vault lands on.
@@ -502,6 +579,34 @@ export function addShell(
     ): void => {
       batch.add(material, boxGeometry(w, h, d), poseMatrix(at(a, y + h / 2, depth), yaw), { tile, castShadow: false });
     };
+
+    if (lampStyle === 'lichen') {
+      /**
+       * Not a fitting and not even a plant anybody would notice: a film of cold
+       * luminous lichen in the wet seams of the rock. It is the only light in the
+       * map that neither flickers nor pulses, which is what makes a cave feel like
+       * a place that was never lit rather than a place whose lamps went out.
+       */
+      const seeps = 3;
+      for (let i = 0; i < seeps; i++) {
+        const y = 0.34 + ((index * 5 + i * 11) % 11) * 0.19;
+        const a = along + (((i * 7) % 5) - 2) * 0.21;
+        const w = 0.12 + ((i * 3 + index) % 4) * 0.05;
+        // A wet patch of flowstone, and the glow sitting IN it rather than on it.
+        batch.add(flowMat, boxGeometry(w * 1.7, w * 1.1, 0.05), poseMatrix(at(a, y, 0.02), yaw), {
+          tile: 0.3,
+          castShadow: false,
+        });
+        batch.add(lichenMat, new THREE.SphereGeometry(w * 0.42, 5, 4), tiltMatrix(at(a, y, 0.06), [0, yaw, 0], [1.5, 1, 0.5]), GLOW);
+      }
+      batch.add(
+        ctx.materials.get('wash.cold'),
+        new THREE.PlaneGeometry(1.2, 1.6),
+        poseMatrix(at(along, 1.1, 0.03), yaw),
+        { ...FLAT, consume: true },
+      );
+      return;
+    }
 
     if (lampStyle === 'spore') {
       // Not a fitting at all: growth in the joints, at whatever height the joint
@@ -657,7 +762,9 @@ export function addShell(
       const R = opening.width * 0.78;
       const cOff = R - half;
       const aMax = Math.atan2(Math.sqrt(Math.max(0, R * R - cOff * cOff)), cOff);
-      const steps = 7;
+      // Six voussoirs a side and a hood mould on the same loop. Seven was 3.7 % of
+      // the map on its own, and the seventh stone is 3 cm of arc.
+      const steps = 6;
       for (const s of [-1, 1]) {
         for (let i = 0; i < steps; i++) {
           const a = ((i + 0.5) / steps) * aMax;
@@ -727,6 +834,38 @@ export function addShell(
       // The sill: a single slab worn hollow in the middle by four thousand years
       // of nothing walking over it at all.
       put(ctx.materials.get('surface.sandstone'), opening.width + 0.4, 0.05, 0.46, 0, 0.026, 0.15, 0, 0.7);
+    } else if (mouthStyle === 'stave') {
+      /**
+       * Two carved posts and a lintel, with a beast's head over the middle of it.
+       *
+       * The posts are the whole object: a Norse door is a pair of uprights carved
+       * from the crown of an oak, and the head on the lintel is what tells a player
+       * this was built by people who are not the ones who built the arches.
+       */
+      const carveMat = ctx.materials.get('surface.carving');
+      for (const s of [-1, 1]) {
+        put(carveMat, 0.34, head + 0.1, 0.32, s * (half + 0.19), (head + 0.1) / 2, 0.16, 0, tex.CARVING_TILE * 0.5);
+        put(timberMat, 0.1, head + 0.06, 0.4, s * (half + 0.4), (head + 0.06) / 2, 0.2, 0, tex.TIMBER_TILE * 0.5);
+        // A bracket under each end of the lintel, cut as a curve.
+        put(timberMat, 0.3, 0.3, 0.26, s * (half + 0.22), head - 0.18, 0.13, s * 0.7, 0.4);
+      }
+      put(carveMat, opening.width + 0.9, 0.34, 0.34, 0, head + 0.17, 0.17, 0, tex.CARVING_TILE * 0.7);
+      put(timberMat, opening.width + 1.0, 0.12, 0.42, 0, head + 0.4, 0.21, 0, 0.6);
+      // The beast: a muzzle, a jaw, two eyes and a pair of ears. Six pieces, and it
+      // reads from the far side of the room because it is on the centre line.
+      batch.add(timberMat, new THREE.SphereGeometry(0.2, 8, 6), tiltMatrix(at(0, head + 0.56, 0.2), [0, yaw, 0], [1.1, 0.9, 1.2]), {
+        tile: 0.4,
+        castShadow: false,
+        consume: true,
+      });
+      put(timberMat, 0.17, 0.15, 0.34, 0, head + 0.5, 0.36, 0, 0.3);
+      put(ctx.materials.get('bitumen'), 0.2, 0.05, 0.06, 0, head + 0.44, 0.5, 0, 0.2);
+      for (const s of [-1, 1]) {
+        batch.add(ctx.materials.get('itemEnamel'), new THREE.SphereGeometry(0.032, 5, 4), poseMatrix(at(s * 0.09, head + 0.6, 0.3)), GLOW);
+        put(timberMat, 0.1, 0.16, 0.1, s * 0.14, head + 0.68, 0.16, s * 0.4, 0.2);
+      }
+      // A threshold plank, worn hollow.
+      put(timberMat, opening.width + 0.2, 0.06, 0.4, 0, 0.03, 0.13, 0, 0.5);
     } else if (mouthStyle === 'rubble') {
       // Somebody made this hole. Broken blocks round the edge, a cracked timber
       // prop each side and the spoil still lying where it fell.
@@ -824,6 +963,37 @@ export function addShell(
       batch.add(material, new THREE.PlaneGeometry(w, hh), poseMatrix(at(along, y, z), yaw), { ...FLAT, consume: true });
     };
 
+    /**
+     * A runestone leans against the wall rather than being cut into it: a carved
+     * slab, red in the grooves, with a rubble kerb round its foot. Same idea as the
+     * stela - a niche kind that is a THING against a solid wall rather than a hole
+     * in one - and the reason both exist is that a wall the generator cannot open is
+     * the only place a set piece is guaranteed to be safe.
+     */
+    if (kind === 'runestone') {
+      const carveMat = ctx.materials.get('surface.carving');
+      // The slab, leaning back a few degrees, wider at the foot.
+      put(carveMat, opening.width * 0.82, h + 0.3, 0.22, 0, midY, 0.16, 0.03, tex.CARVING_TILE);
+      put(carveMat, opening.width * 0.9, 0.24, 0.3, 0, 0.12, 0.2, 0, tex.CARVING_TILE * 0.6);
+      // A rounded head on it, which is what a runestone has instead of a cornice.
+      batch.add(carveMat, new THREE.CylinderGeometry(opening.width * 0.41, opening.width * 0.41, 0.22, 12), tiltMatrix(at(0, opening.y1 + 0.28, 0.16), [Math.PI / 2, yaw, 0]), {
+        tile: tex.CARVING_TILE,
+        castShadow: false,
+        consume: true,
+      });
+      // The kerb of stones packed round its foot to hold it up.
+      for (let i = 0; i < 7; i++) {
+        const a = -opening.width * 0.5 + (opening.width * (i + 0.5)) / 7;
+        batch.add(stoneMat, new THREE.SphereGeometry(r(0.13, 0.22), 6, 5), tiltMatrix(at(a, 0.06, r(0.34, 0.5)), [0, i, 0], [1.2, 0.7, 1]), {
+          tile: 0.4,
+          castShadow: false,
+          consume: true,
+        });
+      }
+      nicheAnchors.push({ position: at(0, midY, 0), side, kind });
+      return;
+    }
+
     // A stela is not a hole: it is a slab of relief standing against the wall,
     // and it takes the same surround as the recesses so a wall of them matches.
     if (kind === 'stela') {
@@ -854,8 +1024,8 @@ export function addShell(
     // Back, sides, soffit and floor. The back is the darkest material in the
     // pack: the whole point of a niche is that the eye cannot find the bottom.
     pane(ctx.materials.get(kind === 'breach' ? 'backdropVoid' : 'stoneDark'), opening.width + 0.5, h + 0.5, 0, midY, -depth);
-    if (kind === 'grate' || kind === 'breach') {
-      // These two open into somewhere rather than into a box, so they get a
+    if (kind === 'grate' || kind === 'breach' || kind === 'crevice') {
+      // These three open into somewhere rather than into a box, so they get a
       // picture of depth a good way further back and no side walls at all.
       pane(ctx.materials.get(DYNASTIC.has(wallStyle) ? 'backdropWarm' : 'backdropVoid'), opening.width + 1.4, h + 1.2, 0, midY, -depth - 0.7);
       pane(ctx.materials.get(DYNASTIC.has(wallStyle) ? 'hazeWarm' : 'hazeCold'), opening.width + 0.8, h + 0.6, 0, midY, -depth * 0.6);
@@ -868,7 +1038,9 @@ export function addShell(
     }
 
     /* --- the surround ------------------------------------------------------ */
-    if (kind === 'breach') {
+    if (kind === 'crevice') {
+      // A crack has no surround. Its own ragged loop of rock is built below.
+    } else if (kind === 'breach') {
       // Broken through. No surround at all: rubble round the hole and a fall of
       // spoil out onto the floor of the room.
       for (let i = 0; i < 12; i++) {
@@ -904,7 +1076,7 @@ export function addShell(
         put(stoneDark, 0.07, h + 0.1, 0.26, (s * (opening.width + 0.42)) / 2, midY, 0.13, 0.3);
       }
       const R = opening.width / 2 + 0.1;
-      const steps = 8;
+      const steps = 6;
       for (let i = 0; i < steps; i++) {
         const a = Math.PI * ((i + 0.5) / steps);
         const seg = ((Math.PI * R) / steps) * 1.35;
@@ -1140,6 +1312,38 @@ export function addShell(
           });
         }
       }
+    } else if (kind === 'crevice') {
+      /**
+       * A fissure in living rock. No surround, no sill, no frame - a crack does not
+       * have any of those - so what makes it read as depth is the picture of dark at
+       * the back of it, the lichen on its wet lip, and the fact that its edge is a
+       * ragged loop rather than a rectangle.
+       */
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2;
+        const along = Math.sign(Math.cos(a)) * Math.pow(Math.abs(Math.cos(a)), 0.55) * (opening.width / 2 + 0.16);
+        const rise = midY + Math.sign(Math.sin(a)) * Math.pow(Math.abs(Math.sin(a)), 0.55) * (h / 2 + 0.14);
+        const lump = 0.14 + Math.abs(Math.sin(a * 2.3 + 0.6)) * 0.12;
+        batch.add(caveMat, new THREE.SphereGeometry(lump, 6, 5), tiltMatrix(at(along, rise, 0.06 + lump * 0.3), [0, yaw, a], [1.2, 1, 0.8]), {
+          tile: 0.5,
+          castShadow: false,
+          consume: true,
+        });
+        // Flowstone on the lower lip, where the water runs out of it, and lichen in
+        // the wet: the only two bright things in the hole.
+        if (rise < midY && i % 2 === 0) {
+          batch.add(flowMat, new THREE.SphereGeometry(lump * 0.7, 5, 4), tiltMatrix(at(along, rise - 0.06, 0.16), [0, yaw, 0], [1.4, 0.6, 1]), {
+            tile: 0.3,
+            castShadow: false,
+            consume: true,
+          });
+          if (i % 4 === 0) {
+            batch.add(lichenMat, new THREE.SphereGeometry(0.05, 5, 4), tiltMatrix(at(along, rise - 0.02, 0.2), [0, yaw, 0], [1.6, 0.8, 0.6]), GLOW);
+          }
+        }
+      }
+      // Cold air coming out of it, and nothing else.
+      pane(ctx.materials.get('hazeCold'), opening.width * 0.5, h * 0.9, 0, midY, -0.2);
     } else if (kind === 'lancet') {
       // A stained lancet with a night sky behind it: the only daylight-coloured
       // thing in the map, and the reason the chapel reads as being under
@@ -1480,6 +1684,95 @@ export function addShell(
         }
         break;
       }
+      case 'cave': {
+        /**
+         * The roof of a cave: lumps of rock, and stalactites hanging out of the
+         * seams between them.
+         *
+         * The stalactites are the whole read, and what makes them read is that they
+         * come in three lengths and hang in LINES rather than in a scatter - a
+         * dripline follows a crack, and a crack is straight-ish. An even sprinkle of
+         * identical cones is a spiked ceiling from a platform game.
+         */
+        for (let i = 0; i < 7; i++) {
+          const ax = cx - cellSize / 2 + cellSize * ((((i * 5) % 7) + 0.5) / 7);
+          const az = cz - cellSize / 2 + cellSize * ((((i * 3) % 7) + 0.5) / 7);
+          const size = 0.62 + ((i * 37) % 11) / 12;
+          batch.add(caveMat, new THREE.SphereGeometry(size, 6, 5), tiltMatrix([ax, ceilingHeight + size * 0.5, az], [0, i, 0], [1.4, 0.7, 1.3]), {
+            tile: 1.4,
+            ...CEILING_OPTS,
+            consume: true,
+          });
+        }
+        /**
+         * Two driplines, each a run of cones of falling length along one crack.
+         *
+         * Three lines of five in pale flowstone read as a grid of spikes on a
+         * ceiling: too many, too regular and much too bright. Two lines, mostly in
+         * the rock's own colour, with one wet pale one per line, and the lengths
+         * varying by a factor of four.
+         */
+        for (let line = 0; line < 2; line++) {
+          const t = 0.3 + line * 0.36;
+          const along = line % 2 === 0;
+          const drips = 4;
+          for (let i = 0; i < drips; i++) {
+            const f = (i + 0.5) / drips;
+            const ax = cx + (along ? (f - 0.5) * (cellSize - 1.6) : (t - 0.5) * (cellSize - 1.8));
+            const az = cz + (along ? (t - 0.5) * (cellSize - 1.8) : (f - 0.5) * (cellSize - 1.6));
+            const len = 0.2 + ((i * 5 + line * 3) % 4) * 0.3;
+            batch.add(i === 1 ? flowMat : caveMat, new THREE.ConeGeometry(0.07 + len * 0.1, len, 6), poseMatrix([ax, ceilingHeight - len / 2, az]), {
+              tile: 0.4,
+              ...CEILING_OPTS,
+              consume: true,
+            });
+            // A wet bead on the tip of the longest ones, which is where the water is.
+            if (len > 0.6) {
+              batch.add(ctx.materials.get('water'), new THREE.SphereGeometry(0.035, 5, 4), poseMatrix([ax, ceilingHeight - len - 0.03, az]), {
+                ...CEILING_OPTS,
+                consume: true,
+              });
+            }
+          }
+        }
+        break;
+      }
+      case 'turf': {
+        /**
+         * The underside of a mound: rafters of split oak with the turf pressing
+         * down between them, and the rafters sagging where it has won.
+         */
+        for (let i = 0; i < 6; i++) {
+          const z = cz - cellSize / 2 + cellSize * ((i + 0.5) / 6);
+          const sag = i === 2 || i === 4 ? -0.08 : 0;
+          batch.add(timberMat, boxGeometry(cellSize, 0.2, 0.26), tiltMatrix([cx, ceilingHeight - 0.14 + sag, z], [0, 0, i === 2 ? 0.014 : 0]), {
+            tile: tex.TIMBER_TILE,
+            ...CEILING_OPTS,
+          });
+        }
+        // The earth bulging between two of them, and roots coming through it.
+        for (const [z, r] of [
+          [cz - cellSize * 0.18, 0.5],
+          [cz + cellSize * 0.28, 0.42],
+        ] as const) {
+          batch.add(ctx.materials.get('surface.turf'), new THREE.SphereGeometry(r, 7, 5), tiltMatrix([cx + 0.6, ceilingHeight - 0.1, z], [0, 0.4, 0], [2.6, 0.5, 1.2]), {
+            tile: tex.TURF_TILE,
+            ...CEILING_OPTS,
+            consume: true,
+          });
+        }
+        for (let i = 0; i < 5; i++) {
+          const ax = cx - cellSize / 2 + cellSize * ((((i * 3) % 5) + 0.5) / 5);
+          const az = cz - cellSize / 2 + cellSize * ((((i * 5) % 5) + 0.5) / 5);
+          const len = 0.3 + ((i * 41) % 7) / 9;
+          batch.add(rootMat, new THREE.CylinderGeometry(0.02, 0.05, len, 5), tiltMatrix([ax, ceilingHeight - 0.24 - len / 2, az], [(i % 3) * 0.1, i, 0.1]), {
+            tile: 0.3,
+            ...CEILING_OPTS,
+            consume: true,
+          });
+        }
+        break;
+      }
       case 'rock': {
         // Living rock, where the crypt has been cut into the hill rather than
         // built. Lumps, and a few things pointing down.
@@ -1527,6 +1820,7 @@ export function addShell(
         else if (kind === 'lancet') opening = { width: 0.95, y0: 1.45, y1: ceilingHeight - 0.42 };
         else if (kind === 'ossuary') opening = { width: 2.4, y0: 0.42, y1: 2.25 };
         else if (kind === 'breach') opening = { width: 1.9, y0: 0.0, y1: 2.1 };
+        else if (kind === 'crevice') opening = { width: 1.3, y0: 0.45, y1: 2.15 };
         else opening = null; // a stela hangs on an unbroken wall
       }
 

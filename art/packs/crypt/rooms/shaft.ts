@@ -95,16 +95,18 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // against a niche, where it would stand in front of the thing the niche is for.
   room.geo('timberDark', cyl(0.17, 0.14, 0.28, 9), poseMatrix([-2.5, 0.14, 1.9]), { tile: 0.3, castShadow: false });
   room.geo('timberDark', cyl(0.16, 0.13, 0.26, 9), tiltMatrix([2.4, 0.16, 2.9], [Math.PI / 2, 0.7, 0]), { tile: 0.3, castShadow: false });
+  // Shifted 0.5 m north of where it started: the locker the generator puts at
+  // (2.75, 3.15) is 0.7 m deep, and the ladder's foot was inside it.
   for (const s of [-1, 1]) {
-    strut(room, 'timber', [3.35, 0.05, 2.55 + s * 0.24], [2.95, 2.35, 2.3 + s * 0.24], 0.035, 6, { castShadow: false });
+    strut(room, 'timber', [3.35, 0.05, 2.05 + s * 0.24], [2.95, 2.35, 1.8 + s * 0.24], 0.035, 6, { castShadow: false });
   }
   for (let i = 0; i < 5; i++) {
     const t = i / 5;
     strut(
       room,
       'timber',
-      [3.35 - t * 0.4, 0.2 + t * 2.1, 2.31 - t * 0.25],
-      [3.35 - t * 0.4, 0.2 + t * 2.1, 2.79 - t * 0.25],
+      [3.35 - t * 0.4, 0.2 + t * 2.1, 1.81 - t * 0.25],
+      [3.35 - t * 0.4, 0.2 + t * 2.1, 2.29 - t * 0.25],
       0.02,
       5,
       { castShadow: false },

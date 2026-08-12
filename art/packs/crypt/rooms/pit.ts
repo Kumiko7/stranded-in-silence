@@ -154,7 +154,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // Motes and nothing else. A 6.6 m haze quad lying along the trench was the third
   // time this pack hung a pane of fog in a room and the third time it read as a
   // sheet of glass from the doorway (docs/art/ROOM_REVIEW.md §4).
-  dustMotes(room, 0, 1.1, pitZ, 3.0, 26);
+  dustMotes(room, 0, 1.1, pitZ, 3.0, 16);
 
   return room.finish();
 }

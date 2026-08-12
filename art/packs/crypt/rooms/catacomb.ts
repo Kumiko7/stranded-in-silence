@@ -29,9 +29,13 @@ export const catacomb: RoomBlueprint = {
   anchors: {
     chest: [{ position: [-3.15, 0, 2.5], rotationY: -Math.PI / 2 }],
     locker: [{ position: [11.15, 0, 2.5], rotationY: Math.PI / 2 }],
+    // Both raised anchors are on the FOOT end of an effigy tomb's lid, clear of the
+    // carved figure lying on it. The second one used to be at x = 8.2, which stopped
+    // being a tomb when the north row was thinned from four chests to three - and an
+    // item anchor whose furniture has moved is an item floating at chest height.
     itemSpawn: [
-      { position: [3.4, 1.05, 2.5] },
-      { position: [8.2, 1.05, -2.5] },
+      { position: [4.2, 1.0, 2.5] },
+      { position: [10.2, 1.0, -2.5] },
       { position: [6.2, 0, 0.5] },
       { position: [-1.6, 0, -2.8] },
     ],
@@ -139,8 +143,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       receiveShadow: false,
     });
   }
-  dustMotes(room, 4.0, 1.5, 0, 3.4, 24);
-  dustMotes(room, 9.0, 1.5, 0, 2.4, 16);
+  dustMotes(room, 4.0, 1.5, 0, 3.4, 16);
+  dustMotes(room, 9.0, 1.5, 0, 2.4, 10);
 
   return room.finish();
 }

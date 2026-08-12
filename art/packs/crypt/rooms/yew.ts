@@ -125,7 +125,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // Two clusters, teal and violet, at opposite ends of the room. Both breathe
   // rather than flicker, and between them they are the whole light budget.
   sporeCluster(room, -2.6, 0, 0.6, 1.3, true, 9, true);
-  sporeCluster(room, 1.9, 0, 2.5, 1.1, true, 8, false);
+  // Pulled off the chest anchor at (2.5, 3.15): its caps reach 0.5 m and the chest
+  // is a metre wide, so at (1.9, 2.5) the two were growing through each other.
+  sporeCluster(room, 1.4, 0, 1.9, 1.1, true, 8, false);
   sporeCluster(room, -1.0, 0, -2.9, 0.7, false);
   bracketFungus(room, 'west', 2.2, 0.8, 3);
   bracketFungus(room, 'north', 2.6, 1.2, 3);
@@ -137,7 +139,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('surface.ashlar', [1.8, 1.4, 0.06], [-1.6, 1.1, 3.64], 0, { tile: 1.4 });
   // Motes only. The crossed haze quads that used to hang here were three metres
   // across and read as panes of glass from both doorways.
-  dustMotes(room, 0, 1.6, 0, 3.0, 26, true);
+  dustMotes(room, 0, 1.6, 0, 3.0, 18, true);
 
   return room.finish();
 }

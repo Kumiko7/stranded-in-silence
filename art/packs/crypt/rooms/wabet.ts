@@ -22,7 +22,11 @@ export const wabet: RoomBlueprint = {
   weight: 9,
   tags: ['necropolis', 'clinical'],
   anchors: {
-    chest: [{ position: [-2.55, 0, -3.15], rotationY: Math.PI }],
+    // On the WEST wall, not the north: the north wall's west end is the natron bay,
+    // and a chest anchored there is placed standing inside the heap. The validator
+    // checks the floor a container opens ONTO and never the ground it stands on, so
+    // this is a class of bug only a contact sheet catches.
+    chest: [{ position: [-3.15, 0, -1.6], rotationY: -Math.PI / 2 }],
     locker: [{ position: [-3.15, 0, 2.6], rotationY: -Math.PI / 2 }],
     itemSpawn: [
       { position: [1.9, 0.99, -0.9] },

@@ -182,8 +182,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       receiveShadow: false,
     });
   }
-  dustMotes(room, cx, 1.8, cz, 3.4, 26);
-  dustMotes(room, 9.4, 1.6, 9.4, 2.4, 14);
+  dustMotes(room, cx, 1.8, cz, 3.4, 16);
+  dustMotes(room, 9.4, 1.6, 9.4, 2.4, 10);
   // A pale wash on the vault over the corona, so the ceiling is not simply black
   // above the one bright thing in the room.
   room.geo('wash.warm', quad(4.4, 4.4), tiltMatrix([cx, 3.3, cz], [Math.PI / 2, 0, 0]), { castShadow: false, receiveShadow: false });

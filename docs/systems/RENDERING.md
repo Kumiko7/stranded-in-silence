@@ -231,12 +231,12 @@ poses spread over the grid. Nothing here is a leak — it is what the packs are.
 
 | | mansion | viscera | abyss | crypt |
 | --- | --- | --- | --- | --- |
-| Triangles standing in the map | 155k | ~230k | **429k** | 439k |
+| Triangles standing in the map | 155k | ~230k | **429k** | 413k |
 | Triangles drawn, average pose | 5–7k | 11–16k | **22–38k** | 22–23k |
-| Draw calls, average pose | 60–68 | 59–65 | **83–104** | 78–86 |
-| Worst room | library, 9.1k | ribcage, 18k | **archive, 23.9k** | ossuary, 23.3k |
-| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** | 7–9 |
-| World build | 95–300 ms | 150–750 ms | **230–1200 ms** | 970–1010 ms |
+| Draw calls, average pose | 60–68 | 59–65 | **83–104** | 87–93 |
+| Worst room | library, 9.1k | ribcage, 18k | **archive, 23.9k** | ossuary, 22.2k |
+| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** | 7–11 |
+| World build | 95–300 ms | 150–750 ms | **230–1200 ms** | 1.6–1.7 s |
 
 Every abyss room is inside the per-room budget in
 [`../art/ROOM_FORMAT.md`](../art/ROOM_FORMAT.md) §7 — that budget is 40k
@@ -248,12 +248,20 @@ The crypt stands as heavy as abyss and draws two thirds of it, because it is a
 map of small walled rooms rather than of halls with sight lines through them:
 only 4.6% of its triangles are see-through, and the culler gets more out of a
 crypt than out of an oceanarium. Its per-room numbers are all inside the 25k
-budget except the one deliberate set piece (`crypt.sepulchre`, a 2x2 at 36.8k,
-which is 9.2k per cell — less per cell than most of its own 1x1s). Two more
-warnings are accepted rather than fixed: `crypt.robbers` at 41 draw calls, which
+budget except the one deliberate set piece (`crypt.sepulchre`, a 2x2 at 36.1k,
+which is 9k per cell — less per cell than most of its own 1x1s). Two more
+warnings are accepted rather than fixed: `crypt.robbers` at 42 draw calls, which
 is the hinge room and legitimately carries both halves' material sets, and
 `crypt.hypostyle` at 29 colliders, which is three cells' worth of shell wall
 against a guideline written for one.
+
+The pack came down from 489k triangles to 413k in two `?props=1` passes without a
+visible change, and every reduction was the same shape — **segment counts on
+small round things there are a thousand of**. In order: the votive flames (7 × 6
+spheres on a two-centimetre flame, 15 % of the map), mushroom caps (9 × 5 domes,
+6 %), dust motes (4-segment specks, 3.5 %), rubble and the arch voussoirs. A
+five-segment flame and a three-segment mote are indistinguishable at the fog
+density they are seen through, and together they were a fifth of the map.
 
 Two findings from that pack generalise, and both are in
 [`../art/ROOM_REVIEW.md`](../art/ROOM_REVIEW.md) in full:

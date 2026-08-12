@@ -190,11 +190,8 @@
   "room.abyss.breach": "La brecha",
   "map.crypt.name": "Sepulcro de los Nueve",
   "map.crypt.desc": "Nueve fueron sellados dentro. Alguien lleva tiempo abriendo las puertas desde dentro.",
-  "room.crypt.gate": "El Umbral",
   "room.crypt.ossuary": "La Capilla de los Huesos",
   "room.crypt.chapel": "La Capilla Funeraria",
-  "room.crypt.reliquary": "El Relicario",
-  "room.crypt.scriptorium": "La Sala de Óbitos",
   "room.crypt.apothecary": "La Botica",
   "room.crypt.circle": "El Círculo",
   "room.crypt.undercroft": "La Cripta Inundada",
@@ -212,6 +209,9 @@
   "room.crypt.gilded": "La Cámara Dorada",
   "room.crypt.bloom": "La Floración",
   "room.crypt.yew": "Bajo el Tejo",
+  "room.crypt.cavern": "La Sima",
+  "room.crypt.painted": "La Cueva Pintada",
+  "room.crypt.barrow": "La Tumba del Barco",
 
 
   "difficulty.normal.name": "Normal",

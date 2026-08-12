@@ -286,6 +286,43 @@ the ones a new pack will hit too.
   the same finding as `tubeWorms`, in the same place in the process, for the same
   reason.
 
+### And what the Sepulchre's second pass caught
+
+The pack came back with three notes - too many rooms of one kind, some floating
+props, and a frame-rate concern - and fixing those found four failure classes the
+first pass had not:
+
+- **A prop that places its own colliders at RANDOM positions must not go near an
+  anchor.** `boulders()` and `stalagmite()` scatter their rocks from the seeded
+  RNG, so a heap of them a metre from a chest anchor is fine on most seeds and a
+  chest nobody can open on the rest. `npm run validate:art` builds several seeds
+  per room and caught it; a single seed would have shipped it. Keep random
+  colliders in the half of the room that has no anchors in it.
+- **A container anchor is checked for what it opens ONTO, never for what it stands
+  IN.** The validator walks a player across the clearance in front of a chest, and
+  nothing looks at the ground under it - so a chest anchored in the middle of a
+  mudbrick bay was placed standing inside a heap of natron, and validated clean.
+  This is the class of bug the review tool exists for: every container anchor in
+  the pack now gets looked at on a sheet with the chest actually standing in it.
+- **An item anchor outlives the furniture it was resting on.** A tomb chest moved
+  1.2 m when a row was thinned, and the item anchor on its lid stayed where it
+  was - an item floating at chest height in the middle of a corridor. If a prop
+  moves, grep the blueprint for anchors at that prop's height.
+- **A cylinder's cap is a bright ring, and a stack of them is a wedding cake.**
+  Dripstone built as a stack of short closed cylinders read as a pile of discs,
+  because every cap is a horizontal face catching light the sides do not. Sections
+  that overlap by half their height with `open: true` read as one continuous
+  surface - and cost less, because they have no caps.
+- **A round strake is a log.** The ship burial's clinker hull was built from
+  cylinders and read as a stack of firewood; the same hull in flat 5 cm boxes
+  leaning outboard reads as planking. A plank is flat, and a hull is the ONLY
+  place in the pack where that difference is the whole object.
+- **A pale light at high intensity beats a saturated light at low intensity.**
+  Two cave lamps at `0x64e0d8` and intensity 5 turned an entire limestone chamber
+  into one flat teal wash with no rock colour left in it. The same lamps at
+  `0x9ce0d4` and intensity 7 are brighter *and* the rock is grey again: what
+  floods a room is the saturation, not the brightness.
+
 ### And the ones the shared-art pass caught
 
 Characters and props are not rooms, but they get reviewed the same way — a

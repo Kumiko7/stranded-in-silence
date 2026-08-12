@@ -189,11 +189,8 @@
   "room.abyss.breach": "The Breach",
   "map.crypt.name": "Sepulchre of the Nine",
   "map.crypt.desc": "Nine were sealed in. Someone has been opening the doors from the inside.",
-  "room.crypt.gate": "The Threshold",
   "room.crypt.ossuary": "The Bone Chapel",
   "room.crypt.chapel": "The Burial Chapel",
-  "room.crypt.reliquary": "The Reliquary",
-  "room.crypt.scriptorium": "The Obit Room",
   "room.crypt.apothecary": "The Apothecary",
   "room.crypt.circle": "The Circle",
   "room.crypt.undercroft": "The Drowned Undercroft",
@@ -211,6 +208,9 @@
   "room.crypt.gilded": "The Gilded Chamber",
   "room.crypt.bloom": "The Bloom",
   "room.crypt.yew": "Under the Yew",
+  "room.crypt.cavern": "The Sink",
+  "room.crypt.painted": "The Painted Cave",
+  "room.crypt.barrow": "The Ship Grave",
 
 
   "difficulty.normal.name": "Normal",

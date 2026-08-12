@@ -64,10 +64,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // as somebody's job rather than as a table with props on it.
   room.geo('stoneDark', cyl(0.09, 0.07, 0.1, 9), poseMatrix([-2.2, 0.97, 0.5]), { castShadow: false });
   room.geo('stonePale', cyl(0.02, 0.028, 0.16, 6), tiltMatrix([-2.16, 1.0, 0.52], [0.5, 0.6, 0]), { castShadow: false });
-  room.geo('brass', cyl(0.012, 0.012, 0.34, 5), tiltMatrix([-2.6, 1.15, -1.9], [Math.PI / 2, 0, 0]), { castShadow: false });
+  // The balance sits at z = -1.15, not -1.9: the bench runs from z = -1.46 to 1.46,
+  // and at -1.9 the beam and both pans were hanging in the air off the end of it.
+  room.geo('brass', cyl(0.012, 0.012, 0.34, 5), tiltMatrix([-2.6, 1.15, -1.15], [Math.PI / 2, 0, 0]), { castShadow: false });
   for (const s of [-1, 1]) {
-    room.geo('brass', cyl(0.06, 0.06, 0.01, 10), poseMatrix([-2.6, 1.02, -1.9 + s * 0.15]), { castShadow: false });
-    room.geo('brass', cyl(0.004, 0.004, 0.13, 4), poseMatrix([-2.6, 1.08, -1.9 + s * 0.15]), { castShadow: false });
+    room.geo('brass', cyl(0.06, 0.06, 0.01, 10), poseMatrix([-2.6, 1.02, -1.15 + s * 0.15]), { castShadow: false });
+    room.geo('brass', cyl(0.004, 0.004, 0.13, 4), poseMatrix([-2.6, 1.08, -1.15 + s * 0.15]), { castShadow: false });
   }
 
   /* --- the jars ------------------------------------------------------------------ */

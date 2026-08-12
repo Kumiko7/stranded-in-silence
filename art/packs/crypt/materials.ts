@@ -130,6 +130,26 @@ export function createMaterials(): MaterialLibrary {
     'surface.glyph': standard(0xffffff, { map: tex.hieroglyphBand, normalMap: tex.glyphNormal, rough: 'dry', roughness: 0.88 }),
     'surface.gilt': standard(0xffffff, { map: tex.giltPanel, normalMap: tex.giltNormal, roughness: 0.36, metalness: 0.42 }),
 
+    /**
+      * --- the shell: THE CAVE -------------------------------------------------
+      *
+      * The hill the crypt was cut into, and the oldest thing in the map. Nothing in
+      * this family has a straight line or a course in it: limestone is a DEPOSITED
+      * surface, so its grain runs in contours that pool and swell, and that is the
+      * whole difference between a cave and a badly-built cellar.
+      */
+    'surface.limestone': standard(0xffffff, { map: tex.limestone, normalMap: tex.limestoneNormal, rough: 'damp', roughness: 0.78 }),
+    'surface.clay': standard(0xffffff, { map: tex.caveClay, normalMap: tex.clayNormal, rough: 'damp', roughness: 0.9 }),
+    /** Ochre on flowstone: hands and beasts, thirty thousand years old. */
+    'surface.caveArt': standard(0xffffff, { map: tex.caveArt, normalMap: tex.limestoneNormal, rough: 'damp', roughness: 0.8 }),
+
+    /* --- the shell: THE BARROW ------------------------------------------------ */
+    /** A stave-lined chamber under a mound. Oak, adze-dressed, four feet thick. */
+    'surface.timber': standard(0xffffff, { map: tex.oldOak, normalMap: tex.oakNormal, rough: 'damp', roughness: 0.92 }),
+    'surface.turf': standard(0xffffff, { map: tex.turf, rough: 'dry', roughness: 0.96 }),
+    /** Interlace cut into stone with the red lead still in the grooves. */
+    'surface.carving': standard(0xffffff, { map: tex.runeCarving, normalMap: tex.carvingNormal, rough: 'damp', roughness: 0.82 }),
+
     /* --- the shell: THE ROT -------------------------------------------------- */
     'surface.rot': standard(0xffffff, { map: tex.mycelialFelt, normalMap: tex.rotNormal, rough: 'damp', roughness: 0.8 }),
     'surface.moss': standard(0xffffff, { map: tex.mossStone, rough: 'damp', roughness: 0.7 }),
@@ -147,6 +167,26 @@ export function createMaterials(): MaterialLibrary {
     'wash.gold': wash(0xffc165, 0.17),
     'wash.cold': wash(0x7fd0c0, 0.14),
     'wash.spore': wash(0x9a7fe0, 0.16),
+
+    /* --- cave and barrow props ------------------------------------------------ */
+    /** Flowstone: the pale wet calcite a cave is still building. */
+    flowstone: standard(0xa09884, { rough: 'damp', roughness: 0.52 }),
+    /** The rock itself as a prop - stalactites, boulders, rubble. */
+    caveRock: standard(0x6a655b, { rough: 'damp', roughness: 0.8, flat: true }),
+    caveRockPale: standard(0x8a8477, { rough: 'damp', roughness: 0.72, flat: true }),
+    /**
+     * Cave lichen. The one light in the map that is neither flame nor fungus: a cold
+     * blue-green film on wet rock, and unlike the flames it does not flicker and
+     * unlike the fungus it does not pulse. It is simply always on.
+     */
+    lumenLichen: standard(0x8fd0c8, { emissive: 0x4ce0d4, emissiveIntensity: 1.5, roughness: 0.5 }),
+    /** Blown ochre, as a prop: pigment lumps and the stained grinding stones. */
+    ochre: standard(0x9a4426, { rough: 'dry', roughness: 0.88 }),
+    /** Shield paint: lime white and red lead, the only two colours they had. */
+    shieldPale: standard(0xc0b8a2, { roughness: 0.86 }),
+    shieldRed: standard(0x9a3a26, { roughness: 0.84 }),
+    /** Turf, seen from below, holding up a roof. */
+    turfDark: standard(0x4a3f2c, { rough: 'dry', roughness: 0.96 }),
 
     /* --- stone, brick and marble as PROPS ----------------------------------- */
     stone: standard(0x74766f, { rough: 'damp', roughness: 0.84, flat: false }),

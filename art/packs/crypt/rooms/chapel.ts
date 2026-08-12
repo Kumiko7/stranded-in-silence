@@ -26,7 +26,7 @@ export const chapel: RoomBlueprint = {
     itemSpawn: [
       { position: [-2.35, 1.05, -0.55] },
       { position: [1.6, 0.55, -1.45] },
-      { position: [-2.68, 0.7, -2.16] },
+      { position: [-2.9, 0.7, -1.95] },
       { position: [3.0, 0, -2.9] },
     ],
     playerSpawn: [
