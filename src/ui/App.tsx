@@ -114,6 +114,8 @@ export interface UiState {
   buses: AudioConfig['buses'];
   /** `ui.json -> menus`: the main menu's backdrop and what it is dressed with. */
   menus: MenusConfig;
+  /** Whether closing the game is something this build can do. False in a browser. */
+  canQuit: boolean;
   /** Every action and its live bindings, for the Controls tab. */
   actions: ActionInfo[];
   /**
@@ -169,6 +171,8 @@ export interface VoiceUiState {
 
 export interface UiCallbacks {
   onStart(): void;
+  /** Closes the game. Only ever reached when `state.canQuit` says it can. */
+  onQuit(): void;
   onJoin(code: string): void;
   onResume(): void;
   /** Abandon the run and go back to the cabin. */
@@ -249,6 +253,7 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
         status={state.netStatus}
         error={state.error}
         menus={state.menus}
+        onQuit={state.canQuit ? callbacks.onQuit : null}
         onStart={callbacks.onStart}
         onJoin={callbacks.onJoin}
         onOptions={callbacks.onOpenOptions}

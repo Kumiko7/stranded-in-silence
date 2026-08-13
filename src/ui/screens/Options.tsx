@@ -125,6 +125,15 @@ export function Options({
 
           {tab === 'graphics' && (
             <FieldGroup title={t('options.group.display')}>
+              {/* First, because it is the one control here that changes the
+                  shape of the window rather than what is drawn in it. */}
+              <Switch
+                label={t('options.fullscreen')}
+                value={options.graphics.fullscreen}
+                onLabel={t('common.on')}
+                offLabel={t('common.off')}
+                onChange={(fullscreen) => onChange({ graphics: { ...options.graphics, fullscreen } })}
+              />
               <Slider
                 label={t('options.fov')}
                 value={options.graphics.fovDegrees}

@@ -21,6 +21,11 @@
     "chat": { "labelKey": "input.chat", "keys": ["Enter"], "category": "system" },
 
     "pauseMenu": { "labelKey": "input.pauseMenu", "keys": ["Escape"], "category": "system", "rebindable": false },
+    "toggleFullscreen": {
+      "labelKey": "input.toggleFullscreen",
+      "keys": ["F11"],
+      "category": "system"
+    },
     "scoreboard": { "labelKey": "input.scoreboard", "keys": ["Tab"], "category": "system", "mode": "hold" },
 
     "$spectate": "Deliberately the movement keys. A spectator is not moving, so nothing is competing for them, and 'the keys I already walk with' is one less thing to be told. `giveUp` sits on Space for the same reason: there is no jump in this game, so the biggest key on the board is free.",

@@ -299,9 +299,21 @@ than the syntax.
 | `npm run electron:dist` | Builds, then opens the shell on the **built bundle**. The way to test the packaged loading path without packaging |
 | `npm run electron:build` | Builds, then `electron-builder` → `release/` (NSIS installer + portable exe on Windows) |
 
-**Nothing in `src/` knows it is packaged**, with one exception it cannot avoid:
-`window.strandedShell` exists or it does not, and `src/save/` picks its storage
-adapter on that. There is no desktop-only code path anywhere else.
+**Nothing in `src/` knows it is packaged**, beyond one fact it cannot avoid:
+`window.strandedShell` exists or it does not. Three things read it, and all
+three are cases where a browser genuinely cannot do the job — `src/save/` picks
+its storage adapter, the main menu draws **Quit** (a tab cannot close itself, and
+a Quit button that does nothing is worse than none), and **fullscreen** is
+restored at boot (`requestFullscreen()` needs a user gesture; a window does not).
+There is no desktop-only code path anywhere else.
+
+Fullscreen is worth a line on its own, because it behaves differently by
+necessity. The switch lives in Options → Graphics with a rebindable key
+(`toggleFullscreen`, F11). In the shell it goes through the *window* and is
+restored on launch. In a browser it goes through the document, and a saved
+"fullscreen: on" is **corrected to off at boot** rather than restored — the page
+cannot act on it unasked, and a switch claiming something untrue is worse than
+a setting that did not survive.
 
 Four decisions worth knowing.
 

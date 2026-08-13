@@ -21,4 +21,14 @@ contextBridge.exposeInMainWorld('strandedShell', {
     /** Fire and forget: an options slider writes on every change. */
     write: (value) => ipcRenderer.send('save:write', value),
   },
+  /**
+   * The two things a page cannot do for itself. Fullscreen goes through the
+   * window rather than through `requestFullscreen()` because the DOM call needs
+   * a user gesture and restoring the setting at boot has none; quitting has no
+   * web equivalent at all, which is why the button only exists here.
+   */
+  window: {
+    setFullscreen: (on) => ipcRenderer.send('window:fullscreen', Boolean(on)),
+    quit: () => ipcRenderer.send('window:quit'),
+  },
 });

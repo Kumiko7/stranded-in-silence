@@ -32,6 +32,12 @@ interface Props {
   status: 'connecting' | 'ready' | 'error';
   error: string | null;
   menus: MenusConfig;
+  /**
+   * Quitting, where quitting is a thing that exists. A browser tab cannot close
+   * itself, so this is absent there and the row is not drawn - a Quit button
+   * that does nothing is worse than no Quit button.
+   */
+  onQuit: (() => void) | null;
   onStart(): void;
   onJoin(code: string): void;
   onOptions(): void;
@@ -41,7 +47,7 @@ const CODE_LENGTH = 6;
 /** Drift directions, cycled so two stills in a row never move the same way. */
 const DRIFTS = 4;
 
-export function MainMenu({ code, status, error, menus, onStart, onJoin, onOptions }: Props) {
+export function MainMenu({ code, status, error, menus, onQuit, onStart, onJoin, onOptions }: Props) {
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [copied, setCopied] = useState(false);
@@ -148,6 +154,12 @@ export function MainMenu({ code, status, error, menus, onStart, onJoin, onOption
           <button class="menu__item" onClick={onOptions}>
             {t('menu.options')}
           </button>
+
+          {onQuit && (
+            <button class="menu__item" data-sfx="back" onClick={onQuit}>
+              {t('menu.quit')}
+            </button>
+          )}
         </nav>
       </div>
 

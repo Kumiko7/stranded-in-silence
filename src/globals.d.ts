@@ -10,6 +10,11 @@ interface StrandedShell {
     read(): string | null;
     write(value: string): void;
   };
+  /** The two things a page cannot do for itself. */
+  window: {
+    setFullscreen(on: boolean): void;
+    quit(): void;
+  };
 }
 
 interface Window {
