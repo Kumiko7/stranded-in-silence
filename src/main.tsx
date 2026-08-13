@@ -20,7 +20,7 @@ import { Net, makeLobbyCode, type RunStart } from './net/index';
 import { Save, type Options } from './save/index';
 import { VoiceChat } from './voice/index';
 import { Game } from './game/Game';
-import { Lobby, type LobbyTarget } from './game/Lobby';
+import { Lobby } from './game/Lobby';
 import { Tutorial } from './game/Tutorial';
 import { disposePortraits } from './render/portraits';
 import { mountVoiceIndicator } from './ui/hud/voiceIndicator';
@@ -348,18 +348,14 @@ async function boot(): Promise<void> {
 
   /* --- lobby -------------------------------------------------------------- */
 
-  /** What the cabin's look-ray is on, so a press can be told what it landed on. */
-  let lobbyTarget: LobbyTarget | null = null;
-
   const lobby: Lobby = new Lobby(config, renderer, input, net, audio, voice, save, {
-    onInteractTargetChange: (target) => {
-      lobbyTarget = target;
+    onInteractTargetChange: (target) =>
       set({
         promptVerbKey: target?.verbKey ?? null,
         promptItemKey: target?.nameKey ?? null,
         promptHold: false,
-      });
-    },
+      }),
+    onTutorial: (id) => tutorial.note(id),
     onViewChange: (view) => set({ lobby: view, players: view.players }),
     // The cabin has no item roster, so it hands the HUD locale keys directly
     // rather than item ids for `items.json` to name.
@@ -492,14 +488,14 @@ async function boot(): Promise<void> {
    * The cabin's tutorial triggers, read straight off the input.
    *
    * They are not reported by `Lobby` because there would be nothing for it to
-   * add: every one of them is "the player pressed the key the tip is about",
+   * add: every one of them is "the player is holding the key the tip is about",
    * and routing that through the cabin would only be relaying it. Sprinting
    * needs the movement too, exactly as `stepPlayer` does - holding the key
    * standing still is not sprinting and should not tick the tip off.
    *
-   * Called before `lobby.update`, so `lobbyTarget` is last tick's ray. That is
-   * what the prompt on screen was showing when the key went down, which is the
-   * thing the press was answering.
+   * Every read here is a PEEK. `justPressed` is deliberately not among them:
+   * it consumes the press, so asking it anything would take E away from the
+   * poster the player was aiming at. Picking a map is the cabin's to report.
    */
   function noteCabinInput(): void {
     const moving = input.axis('moveBack', 'moveForward') !== 0 || input.axis('moveLeft', 'moveRight') !== 0;
@@ -508,7 +504,6 @@ async function boot(): Promise<void> {
     if (moving) tutorial.note('move');
     if (crouching) tutorial.note('crouch');
     if (moving && !crouching && input.isDown('sprint')) tutorial.note('sprint');
-    if (lobbyTarget?.kind === 'poster' && input.justPressed('interact')) tutorial.note('pick');
   }
 
   /** No host, no session: there is no migration, by design. */
@@ -969,11 +964,11 @@ async function boot(): Promise<void> {
       if (game.active) {
         game.update(dt, state.screen === 'run' || state.screen === 'spectate', goGiven);
       } else if (lobby.active) {
-        // BEFORE the cabin is given the input, not after: a solo player pressing
-        // E on a poster starts the run from inside `lobby.update`, so by the
-        // time it returns the screen is the loading card and the press has been
-        // spent. Reading first is also the more honest question - what the
-        // player meant by pressing, rather than what the cabin did about it.
+        // Before the cabin is given the input, not after: a solo player picking
+        // a map leaves for the run from inside `lobby.update`, so by the time
+        // it returns the screen is the loading card and the guard below is
+        // false. Nothing here consumes a press, so the order costs the cabin
+        // nothing.
         if (state.screen === 'lobby') noteCabinInput();
         lobby.update(dt, state.screen === 'lobby' || state.screen === 'wardrobe');
       }

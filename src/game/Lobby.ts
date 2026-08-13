@@ -76,6 +76,12 @@ export interface LobbyHooks {
   onWardrobe(open: boolean): void;
   /** The countdown finished, or a solo player pressed E. Time to load a map. */
   onStartRun(run: RunStart): void;
+  /**
+   * A moment the tutorial has a line for: `pick`. Reported rather than acted
+   * on - whether anything is drawn is `Tutorial`'s business, and the cabin does
+   * not know it exists.
+   */
+  onTutorial(id: string): void;
 }
 
 interface RemotePlayer {
@@ -463,6 +469,9 @@ export class Lobby {
    * tallied identically and only told apart when a map actually has to be named.
    */
   #pick(pickId: string): void {
+    // Before the solo branch below, which leaves for the map without returning.
+    this.#hooks.onTutorial('pick');
+
     if (this.#playerCount === 1 && this.#isHost) {
       this.#beginRun(this.#resolve(pickId));
       return;

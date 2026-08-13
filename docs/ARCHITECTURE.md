@@ -325,6 +325,15 @@ and i18n is initialised from it before anything is drawn.
 that is not in front; the host simulates the run for everybody, so a host who
 alt-tabs must not stop the game for the other three.
 
+**The browser's own shortcuts are gone, by removing the menu.** Ctrl+W, Ctrl+R,
+Ctrl+Q, the devtools pair and the zoom pair are all accelerators on Electron's
+default application menu, so `Menu.setApplicationMenu(null)` takes the lot.
+Doing it that way rather than by swallowing key combinations is deliberate:
+`before-input-event`'s `preventDefault()` stops the key reaching the **page**
+too, and *Ctrl+W is what walking forward while crouched looks like*. Ctrl+wheel
+is not a menu accelerator, so visual zoom is pinned separately. F12 opens
+devtools in an unpackaged run, because otherwise nothing can.
+
 **There is no single-instance lock**, deliberately: two copies on one machine is
 how the multiplayer is tested.
 

@@ -10,7 +10,7 @@
  * must be CommonJS while `sandbox` is on, and having the two halves of the
  * shell written the same way is worth more than the module syntax.
  */
-const { app, BrowserWindow, ipcMain, net, protocol, session } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, net, protocol, session } = require('electron');
 const { mkdirSync, readFileSync, renameSync, writeFileSync } = require('node:fs');
 const { dirname, join, normalize, sep } = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -79,6 +79,29 @@ function createWindow() {
 
   win.once('ready-to-show', () => win.show());
 
+  /*
+   * The browser's own shortcuts, gone.
+   *
+   * Nearly all of them - Ctrl+W, Ctrl+R, Ctrl+Q, Ctrl+Shift+I, the zoom pair -
+   * are accelerators on Electron's default application menu, so removing the
+   * menu removes them. That is deliberately how it is done rather than by
+   * swallowing key combinations: `before-input-event` stops a key reaching the
+   * PAGE as well, and Ctrl+W is what walking forward while crouched looks like.
+   *
+   * Ctrl+wheel is not a menu accelerator, so pinch zoom is pinned separately.
+   */
+  win.webContents.setVisualZoomLevelLimits(1, 1).catch(() => {});
+
+  // Nothing else can open devtools once the menu is gone, and a desktop build
+  // with no way in is its own kind of problem. Dev only.
+  if (!app.isPackaged) {
+    win.webContents.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown' || input.key !== 'F12') return;
+      event.preventDefault();
+      win.webContents.toggleDevTools();
+    });
+  }
+
   // A blank window with no explanation is the worst way to find out that the
   // dev server is not running, which is the usual cause.
   win.webContents.on('did-fail-load', (_event, code, description, url) => {
@@ -143,6 +166,10 @@ void app.whenReady().then(() => {
   session.defaultSession.setPermissionRequestHandler((_contents, permission, callback) => {
     callback(permission === 'media' || permission === 'fullscreen' || permission === 'pointerLock');
   });
+
+  // Takes the whole default menu with it, and every accelerator on it. A game
+  // has no File menu, and Ctrl+W closing the window mid-run is not a feature.
+  Menu.setApplicationMenu(null);
 
   serveBundle();
   createWindow();
