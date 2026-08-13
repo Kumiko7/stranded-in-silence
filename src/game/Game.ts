@@ -218,6 +218,12 @@ export interface RunHooks {
    */
   onScoreboard(rows: ScoreRow[]): void;
   onPlayerCountChange(count: number): void;
+  /**
+   * A moment the tutorial has a line for: `chest`, `heard`, `seen`. Reported
+   * rather than acted on - whether anything is drawn is `Tutorial`'s business,
+   * and this file does not know it exists.
+   */
+  onTutorial(id: string): void;
   onHealthChange(state: HealthState): void;
   onRosterChange(roster: RosterEntry[]): void;
   /** Everyone is on the floor. The run is over and it was not a win. */
@@ -400,6 +406,11 @@ export class Game {
   #hunters: Hunter[] = [];
   /** Tracked separately from the art's, so a sting does not need art to exist. */
   #audioAlert = '';
+  /**
+   * Edges, so the two hunter tutorial cues fire on the change rather than every
+   * tick the hunter spends worked up.
+   */
+  #cued = { heard: false, seen: false };
   #enemyTimer = 0;
   #footstepTimer = 0;
   /** Speaking re-emits on this interval; noise events only live one tick. */
@@ -1338,6 +1349,7 @@ export class Game {
     this.#updateProjectiles(dt);
     this.#updateEffects(dt);
     this.#updateEnemy(dt, player, live);
+    this.#tutorialCues();
     // One tick, one chance to be heard or seen. Nothing here ages.
     this.#noise.clear();
     this.#lockerEntries.length = 0;
@@ -1752,6 +1764,34 @@ export class Game {
     for (const hunter of this.#hunters) this.#net.broadcast({ t: 'enemy', ...hunter.view });
   }
 
+  /**
+   * The two moments a hunter changes the situation, reported once each.
+   *
+   * `heard` is any hunter leaving `calm`: it has something to go and look at,
+   * and the honest advice is the same whatever put it there. `seen` is one
+   * actually chasing.
+   *
+   * On the HOST that is exact - the hunter's target is right there. A client
+   * only ever receives an alert level, so on a client "chasing somebody" has to
+   * stand in for "chasing you". Both come out identical in the solo and hosted
+   * runs a player learning the game is in, and telling a client to run from a
+   * hunter that is chasing their teammate two rooms away is not bad advice.
+   */
+  #tutorialCues(): void {
+    let heard = false;
+    let seen = false;
+
+    for (const hunter of this.#hunters) {
+      if (hunter.view.alert !== 'calm') heard = true;
+      if (hunter.view.alert !== 'chasing') continue;
+      seen ||= hunter.state ? hunter.state.targetId === this.#net.selfId : true;
+    }
+
+    if (heard && !this.#cued.heard) this.#hooks.onTutorial('heard');
+    if (seen && !this.#cued.seen) this.#hooks.onTutorial('seen');
+    this.#cued = { heard, seen };
+  }
+
   /** Presentation only: the sim never reads back from the art. */
   #drawEnemies(): void {
     for (const hunter of this.#hunters) {
@@ -2065,6 +2105,7 @@ export class Game {
         break;
       case 'chest': {
         const chest = world.chests.find((candidate) => candidate.id === target.id);
+        this.#hooks.onTutorial('chest');
         // The lid is the host's to lift, so one chest yields one lot of loot.
         this.#claim('chest', target.id);
         // The noise is not: you wrenched at it whether or not you were first,

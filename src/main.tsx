@@ -20,7 +20,8 @@ import { Net, makeLobbyCode, type RunStart } from './net/index';
 import { Save, type Options } from './save/index';
 import { VoiceChat } from './voice/index';
 import { Game } from './game/Game';
-import { Lobby } from './game/Lobby';
+import { Lobby, type LobbyTarget } from './game/Lobby';
+import { Tutorial } from './game/Tutorial';
 import { disposePortraits } from './render/portraits';
 import { mountVoiceIndicator } from './ui/hud/voiceIndicator';
 import { App, type ChatLine, type Screen, type UiCallbacks, type UiPush, type UiState } from './ui/App';
@@ -179,6 +180,8 @@ async function boot(): Promise<void> {
     options: save.options,
     optionRanges: save.ranges,
     buses: config.audio.buses,
+    menus: config.ui.menus,
+    tutorial: null,
     actions: input.actions(),
     localeToken: 0,
     voice: {
@@ -199,6 +202,21 @@ async function boot(): Promise<void> {
     Object.assign(state, patch);
     push(patch);
   };
+
+  /* --- tutorial ------------------------------------------------------------ */
+
+  /**
+   * The corner line. It is driven from here rather than from `Game` or `Lobby`
+   * because the moments worth teaching come from three places - the cabin's
+   * input, the start of a run, and the run itself - and only one of them is
+   * inside a world that would otherwise have to know the tutorial exists.
+   */
+  const tutorial = new Tutorial(config.ui.hud.tutorial, save, input, {
+    onTip: (view) => set({ tutorial: view }),
+    // It ran out of things to say. The switch is what a player sees for that,
+    // so the switch is what moves - through the same path as any other option.
+    onRetired: () => set({ options: save.setOptions({ tutorial: false }) }),
+  });
 
   /** Which map the local player is currently in, so escaping can be recorded. */
   let currentRun: RunStart | null = null;
@@ -316,6 +334,7 @@ async function boot(): Promise<void> {
     },
     onGiveUpProgress: (giveUpProgress) => set({ giveUpProgress }),
     onPlayerCountChange: (count) => set({ players: count }),
+    onTutorial: (id) => tutorial.note(id),
     onHealthChange: (health) => set({ health }),
     onRosterChange: (roster) => set({ roster }),
     // Fired again as late tallies arrive, so a column cannot sit at zero
@@ -329,13 +348,18 @@ async function boot(): Promise<void> {
 
   /* --- lobby -------------------------------------------------------------- */
 
+  /** What the cabin's look-ray is on, so a press can be told what it landed on. */
+  let lobbyTarget: LobbyTarget | null = null;
+
   const lobby: Lobby = new Lobby(config, renderer, input, net, audio, voice, save, {
-    onInteractTargetChange: (target) =>
+    onInteractTargetChange: (target) => {
+      lobbyTarget = target;
       set({
         promptVerbKey: target?.verbKey ?? null,
         promptItemKey: target?.nameKey ?? null,
         promptHold: false,
-      }),
+      });
+    },
     onViewChange: (view) => set({ lobby: view, players: view.players }),
     // The cabin has no item roster, so it hands the HUD locale keys directly
     // rather than item ids for `items.json` to name.
@@ -360,6 +384,7 @@ async function boot(): Promise<void> {
     net.setScene('lobby');
     closeChat();
     lobby.start(slot, enabledMapIds());
+    tutorial.enter('lobby');
     set({
       screen: 'lobby',
       optionsOpen: false,
@@ -457,6 +482,33 @@ async function boot(): Promise<void> {
     if (!worldBuilt || state.screen !== 'loading') return;
     set({ screen: 'run' });
     input.requestPointerLock();
+    // Here rather than in `beginRun`: the first thing anybody should be told is
+    // what they are in the map for, and behind the loading card nobody reads it.
+    tutorial.enter('run');
+    tutorial.note('exit');
+  }
+
+  /**
+   * The cabin's tutorial triggers, read straight off the input.
+   *
+   * They are not reported by `Lobby` because there would be nothing for it to
+   * add: every one of them is "the player pressed the key the tip is about",
+   * and routing that through the cabin would only be relaying it. Sprinting
+   * needs the movement too, exactly as `stepPlayer` does - holding the key
+   * standing still is not sprinting and should not tick the tip off.
+   *
+   * Called before `lobby.update`, so `lobbyTarget` is last tick's ray. That is
+   * what the prompt on screen was showing when the key went down, which is the
+   * thing the press was answering.
+   */
+  function noteCabinInput(): void {
+    const moving = input.axis('moveBack', 'moveForward') !== 0 || input.axis('moveLeft', 'moveRight') !== 0;
+    const crouching = input.isDown('crouch');
+
+    if (moving) tutorial.note('move');
+    if (crouching) tutorial.note('crouch');
+    if (moving && !crouching && input.isDown('sprint')) tutorial.note('sprint');
+    if (lobbyTarget?.kind === 'poster' && input.justPressed('interact')) tutorial.note('pick');
   }
 
   /** No host, no session: there is no migration, by design. */
@@ -500,6 +552,7 @@ async function boot(): Promise<void> {
     bankRun();
     game.end();
     lobby.end();
+    tutorial.enter(null);
     currentRun = null;
     net.leave();
     renderer.applyGraphics(config.graphics);
@@ -688,11 +741,15 @@ async function boot(): Promise<void> {
     onOptionsChange: (patch) => {
       const options = save.setOptions(patch);
       applyOptions(options);
+      // Not in `applyOptions`: switching the tutorial back on is what resets
+      // what it has already taught, and boot applies the saved options too.
+      tutorial.setEnabled(options.tutorial);
       set({ options });
     },
     onOptionsReset: () => {
       const options = save.resetOptions();
       applyOptions(options);
+      tutorial.setEnabled(options.tutorial);
       setLocale(options.locale ?? navigatorLocale());
       set({ options, ...bindingState(), ...localeState() });
     },
@@ -886,7 +943,9 @@ async function boot(): Promise<void> {
   // dropped into without walking the cabin first.
   if (import.meta.env.DEV) {
     Object.assign(window, {
-      __stranded: { config, renderer, game, lobby, net, input, audio, voice, save, state, set, startRun, enterLobby, THREE },
+      // `tutorial` is here so a tip can be fired without standing in front of
+      // the thing that fires it - `tutorial.note('seen')` beats being chased.
+      __stranded: { config, renderer, game, lobby, net, input, audio, voice, save, state, set, startRun, enterLobby, tutorial, THREE },
     });
   }
 
@@ -910,8 +969,16 @@ async function boot(): Promise<void> {
       if (game.active) {
         game.update(dt, state.screen === 'run' || state.screen === 'spectate', goGiven);
       } else if (lobby.active) {
+        // BEFORE the cabin is given the input, not after: a solo player pressing
+        // E on a poster starts the run from inside `lobby.update`, so by the
+        // time it returns the screen is the loading card and the press has been
+        // spent. Reading first is also the more honest question - what the
+        // player meant by pressing, rather than what the cabin did about it.
+        if (state.screen === 'lobby') noteCabinInput();
         lobby.update(dt, state.screen === 'lobby' || state.screen === 'wardrobe');
       }
+
+      tutorial.update(dt);
 
       // The microphone follows the SESSION, not the run: it opens when you enter
       // the cabin and stays open through the load into a map, so a conversation

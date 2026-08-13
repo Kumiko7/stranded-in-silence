@@ -490,7 +490,61 @@ export interface UiConfig {
     coins: { enabled: boolean; showWhenEmpty: boolean };
     /** Text chat: how much backlog is kept and how long a line stays on screen. */
     chat: { enabled: boolean; maxMessages: number; messageSeconds: number; maxLength: number };
+    /** The corner tutorial line. */
+    tutorial: TutorialConfig;
   };
+  menus: MenusConfig;
+}
+
+/**
+ * `ui.json -> hud.tutorial`. The order and dressing of the tips, not their
+ * triggers - those are code, and the id is what ties the two together.
+ */
+export interface TutorialConfig {
+  enabled: boolean;
+  /** How long a `flash` tip stays up. */
+  flashSeconds: number;
+  /** Quiet between one tip leaving and the next arriving. */
+  gapSeconds: number;
+  tips: TutorialTip[];
+}
+
+export interface TutorialTip {
+  /** Locale key suffix (`tutorial.<id>`) and the trigger the code reports. */
+  id: string;
+  /** Which world it belongs to. A tip is only ever offered in its own. */
+  scene: 'lobby' | 'run';
+  /** `task` waits to be done; `flash` shows on its trigger and fades. */
+  kind: 'task' | 'flash';
+  /** Action ids whose key caps fill the string's `{key}` gap. */
+  keys?: string[];
+}
+
+/** `ui.json -> menus`. Everything the main menu's backdrop and chrome read. */
+export interface MenusConfig {
+  /** `screenshots` runs the slideshow; anything else leaves the flat gradient. */
+  mainMenuBackground: string;
+  background: MenuBackgroundConfig;
+  confirmOnQuit: boolean;
+  showFpsCounter: boolean;
+  cursorStyle: string;
+}
+
+/**
+ * The main menu's cross-faded stills. `folder` is served out of `assets/`, so a
+ * different set is files on disk plus an edit to `images` - no code change.
+ */
+export interface MenuBackgroundConfig {
+  folder: string;
+  images: string[];
+  holdSeconds: number;
+  fadeSeconds: number;
+  /** How far a still creeps while it is up, as a fraction of its size. */
+  drift: number;
+  /** Black laid over the stills, 0..1. The menu's text contrast. */
+  dim: number;
+  /** Film grain over the whole backdrop, 0..1. `0` drops the layer. */
+  grain: number;
 }
 
 /**

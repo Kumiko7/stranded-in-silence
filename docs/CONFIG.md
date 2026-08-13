@@ -53,6 +53,8 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | How long a downed player holds before they die | `player.json` | `health.giveUpHoldSeconds` — long enough that it cannot be an accident, short enough that it is not a punishment for having decided |
 | How forgiving picking an item up is | `player.json` | `interaction.rayRadius` — items only. Doors and chests are big enough for an exact ray; a key on floorboards is not |
 | How much chat is kept, and for how long | `ui.json` | `hud.chat.enabled`, `.maxMessages`, `.messageSeconds`, `.maxLength` |
+| What the tutorial teaches, and in what order | `ui.json` | `hud.tutorial.tips` — each `id` is both a locale key (`tutorial.<id>`) and a trigger the code reports, so this orders and dresses the tips rather than inventing them. `keys` are action ids whose caps fill the string's `{key}` gap |
+| How long a tutorial tip stays up | `ui.json` | `hud.tutorial.flashSeconds`, `.gapSeconds` — `task` tips ignore both and wait to be done. `hud.tutorial.enabled` removes the feature; the player's own switch is `options.tutorial` in the save profile |
 | Which maps exist | `maps.json` | `maps.*` — `mansion`, `viscera`, `abyss`, `crypt`, and the `test` scaffold |
 | A map's lobby poster | `maps.json` | `maps.<id>.posterArtId` — an art id from `art/shared/index.ts`; unset or unregistered hangs a blank |
 | Lighting, fog, shadows, draw distance | `graphics.json` | top level |
@@ -87,6 +89,8 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | What the lobby wardrobe offers | `player.json` | `customisation.colours`, `.defaultColourId` |
 | Which hats the wardrobe sells, and for how much | `player.json` | `customisation.hats` — `artId` must resolve in `art/shared/index.ts`, `cost` is in banked coins and `0` means owned from the start. The order here is the order the shop lists them in, so it doubles as the price ladder |
 | UI colours, fonts, HUD layout | `ui.json` | `theme.*`, `hud.*` |
+| What is behind the main menu | `ui.json` | `menus.mainMenuBackground` — `screenshots` runs the slideshow, anything else leaves the flat gradient |
+| Which stills the main menu shows, and how they move | `ui.json` | `menus.background.*` — `images` are files in `assets/ui/menu/`, `holdSeconds`/`fadeSeconds` time the cross-fade, `drift` is the slow creep, `dim`/`grain` are the wash over them. See [`assets/ui/menu/README.md`](../assets/ui/menu/README.md) |
 | Difficulty modes | `difficulty.json` | `modes.*` — two ship: `normal` (the base config untouched) and `hard` |
 | Which difficulties the lobby lever offers | `difficulty.json` | `modes.<id>.enabled`, in the order the file lists them |
 | What a difficulty actually changes | `difficulty.json` | `modes.<id>.overrides` — a deep merge over `enemy`, `world` and `player`, applied at run start. Adding a mode is config only |

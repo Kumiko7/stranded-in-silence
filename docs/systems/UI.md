@@ -22,8 +22,8 @@ eats a click meant for the game.
 Menus are HTML/CSS but must read as a **video game**, not a web page:
 
 - Full-bleed, no scrollbars, no browser-default controls. Every input is custom.
-- Diegetic backdrop — the lobby 3D scene renders behind the main menu
-  (`ui.json → menus.mainMenuBackground`).
+- The main menu plays a **slideshow of the game** behind itself
+  (`ui.json → menus.mainMenuBackground`, and the section below).
 - Keyboard and mouse are equal citizens: arrows/WASD navigate, Enter confirms,
   Escape backs out. There is always a visible focus state.
 - Sound on every interaction (`ui.hover`, `ui.click`, `ui.back` in `config/audio.json`).
@@ -52,11 +52,53 @@ extreme. `vmin` rather than `vw` because a wide, short window is short on the ax
 that actually runs out. Panels additionally cap themselves (`width: min(48rem, 94vw)`)
 so a line of text never crosses a 32-inch monitor.
 
+**Nothing in the main menu is sized in `vw`/`vh`.** `#screen-root` carries a `zoom`
+(`updateUiScale()` in `main.tsx`), and zoom *multiplies* rendered viewport units —
+`94vw` comes out wider than the window on a large display. `rem` is the one unit
+that scales exactly once, through the base size above. The usable width works out
+at roughly **64 rem on any 16:9 display**, which is the budget every menu measure
+is picked against.
+
+## The main menu
+
+`src/ui/screens/MainMenu.tsx`. Three decisions carry it.
+
+**The backdrop is a slideshow of the game**, cross-faded, each still creeping
+slowly while it is up. The set lives in `assets/ui/menu/` and is named in
+`ui.json → menus.background`, so changing what the game shows off is dropping
+files in a folder — [`assets/ui/menu/README.md`](../../assets/ui/menu/README.md).
+The order is shuffled at boot. Only **two** layers ever exist: the incoming one
+animates its opacity and its drift, and the outgoing one sits underneath at full
+opacity, frozen at the transform every drift ends on. Fading both is what puts a
+dip of black through the middle of a cross-fade; freezing at the shared rest
+transform is what stops the outgoing still popping when it is handed over. The
+drift therefore has to complete in exactly one `holdSeconds`.
+
+Over the stills: a flat scrim at `dim`, then a fixed grade (a wash into the left
+where the lockup sits, a floor under the footer, a vignette) and film grain at
+`grain`. `dim` and `grain` are config because they are the contrast knob; the
+grade is not, because it is what makes six different rooms read as one menu.
+
+**The title is typeset, not drawn.** A baked wordmark would be English in all six
+languages, so the logo is a CSS treatment over `t('game.title')` — a gradient fill
+clipped to the glyphs, the same string again blurred underneath in the accent
+colour for the glow, an ornament rule and the tagline. `drop-shadow` rather than
+`text-shadow`: a text shadow paints behind the box, and clipped text would leak it.
+
+**The nav is a keyboard-first list.** Play, Join and Options as one left-aligned
+stack; focus lands on Play as soon as the lobby is up, arrows and W/S walk the
+list and wrap, and the selection marker is on `:focus` rather than
+`:focus-visible` because a game menu always shows where you are. Join opens a code
+field **in place** rather than on its own screen — it is one field, and Escape
+inside it closes the field and nothing else (it stops propagating, so it never
+reaches the escape stack in `main.tsx`). The body is anchored from the top rather
+than centred, so that drawer opening does not slide the lockup up the screen.
+
 ## Screens
 
 | Screen | Notes |
 | --- | --- |
-| `MainMenu` | Play / Options / Credits / Quit. **Play opens a lobby**; the code box next to it joins someone else's |
+| `MainMenu` | Play / Join / Options over the slideshow. **Play opens a lobby**; Join opens a code field in place and enters someone else's. The footer carries the connection state, your own code with a copy button, and the build |
 | `Join` | 6-digit code entry, auto-uppercase, per-character boxes, paste support |
 | `LobbyPanel` | The expedition readout, top right of the 3D lobby: what has been picked and by how many, the difficulty the lever is on, and the countdown. Picking happens **on the poster wall in the 3D lobby**, not here |
 | Lobby escape menu | Resume / code + copy / voice panel / leave to main menu. Reached by dropping pointer lock, exactly like the pause menu |
@@ -86,6 +128,7 @@ a config change.
 | Voice indicator | The pill under the roster: mode, whether the mic is open right now, and a five-segment input level. The one element written as **plain DOM** (`src/ui/hud/voiceIndicator.ts`) — the level moves every frame, so it must not go through the vdom |
 | Objective hint | Transient line, e.g. "This door needs a key" |
 | Downed panel | "Someone might come", and under it the give-up cap with its own hold ring. Both are true at once, so the second is a quieter line rather than a replacement |
+| Tutorial tip | Bottom right — the one corner the roster, the chat and the purse all leave alone. One line at a time, quiet, and never in the way. See "The tutorial" below |
 | Chat | Above the roster. Lines go quiet on a timer but are **not thrown away** — `fresh` goes false and they stay in the backlog, so a HUD with nothing recent has no chat element in the DOM at all while opening the box still answers "what did I miss" rather than showing a blank panel. `hud.chat.maxMessages` is what bounds it. The box is the one HUD element that re-enables pointer events, and opening it releases pointer lock on purpose — typing with the mouse captured and the movement keys live is how you walk into a wall mid-sentence. It is **not** a pause |
 
 The lobby draws a reduced set — crosshair, interact prompt, chat and the expedition
@@ -97,6 +140,52 @@ a plan gets agreed.
 has one flag for this (`setTextCapture`) and every action reads as unpressed while it
 is set, so there is no per-action opt-out to forget. Held keys are dropped in both
 directions, because the key that opened the box must not still be down when it closes.
+
+## The tutorial
+
+`src/game/Tutorial.ts`, drawn by the corner element above, configured in
+`ui.json → hud.tutorial`, one locale key per tip (`tutorial.<id>`).
+
+Deliberately **eight tips and no more**: how to move, that crouching is quiet and
+sprinting is not, how a run starts, what to look for once it has, and the two
+moments the hunter changes the situation. Anything a player can work out by
+trying it — what an item does, how a locker works, what a key opens — is not in
+here and should not be added. It is a nudge on the way in, not a manual.
+
+Two kinds, and they never compete:
+
+| Kind | Behaviour | Which |
+| --- | --- | --- |
+| `task` | Offered **in order** and stays up until the player does the thing | The cabin's four |
+| `flash` | Appears when its trigger fires and leaves after `flashSeconds` | The run's four |
+
+Four things are worth knowing.
+
+**Only ever one is on screen.** A tip that arrives while another is up waits its
+turn — including the hunter ones. A line that shoves another line aside teaches
+the player to distrust the corner, and the corner is the whole mechanism.
+
+**A task is ticked off whenever it happens**, not only while its own tip is up.
+Somebody who has already sprinted does not need to be told which key sprints, and
+telling them anyway is how a tutorial gets switched off.
+
+**It switches itself off.** When the last tip has been through, `options.tutorial`
+goes false through the same path as any other setting, and the switch in Options →
+Gameplay is what the player is left with. Turning it back on **once there is
+nothing left to teach** wipes the progress and starts again; toggling it off and
+on part way through keeps your place. That distinction is deliberate: the restart
+is decided from the progress, not from the switch having changed, because the
+flag and the option are two copies of one fact and an edge test does nothing
+whenever they disagree.
+
+**A tip does not own when it fires.** The id is the seam. `main.tsx` reports the
+cabin's four straight off the input — there is nothing `Lobby` could add to "the
+player pressed the key the tip is about" — and the start of a run. `Game` reports
+the chest and the two hunter moments through one `RunHooks.onTutorial(id)`, so
+neither world knows the tutorial exists. `heard` is any hunter leaving `calm` and
+`seen` is one chasing; on the **host** that is exact, and on a client only an
+alert level crosses the wire, so "chasing somebody" stands in for "chasing you".
+Both are identical in the solo and hosted runs somebody learning the game is in.
 
 ## Escape is one ordered stack
 

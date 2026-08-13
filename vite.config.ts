@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pkg from './package.json' with { type: 'json' };
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
@@ -55,6 +56,9 @@ export default defineConfig({
   root: '.',
   publicDir: 'assets',
   plugins: [roomshotSave()],
+  // The build stamp in the corner of the main menu. It comes from package.json
+  // rather than config/ because it describes the build, not the game.
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   resolve: {
     alias: {
       '@': r('./src'),

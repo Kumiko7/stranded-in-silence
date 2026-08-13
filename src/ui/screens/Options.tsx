@@ -86,6 +86,16 @@ export function Options({
                   options={availableLocales().map((locale) => ({ id: locale.code, label: locale.nativeName }))}
                   onChange={onLocale}
                 />
+                {/* Turning it back ON is what starts the tips again: they switch
+                    themselves off at the end, and this is the only place a
+                    player could ask for them a second time. */}
+                <Switch
+                  label={t('options.tutorial')}
+                  value={options.tutorial}
+                  onLabel={t('common.on')}
+                  offLabel={t('common.off')}
+                  onChange={(tutorial) => onChange({ tutorial })}
+                />
               </FieldGroup>
 
               <FieldGroup title={t('options.group.look')}>

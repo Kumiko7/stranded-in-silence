@@ -30,6 +30,10 @@ export function KeyCap({ code, size = 'normal' }: { code: string; size?: 'normal
 /**
  * A prompt line with the key cap inline. `params` covers any other placeholder
  * the string carries, exactly as `t()` would.
+ *
+ * `code` may be several bindings, which puts a cluster of caps in the one gap -
+ * that is what "{key} to move" is, and it keeps the string a single sentence
+ * with a single placeholder however many keys the action actually takes.
  */
 export function KeyLine({
   textKey,
@@ -38,16 +42,19 @@ export function KeyLine({
   size,
 }: {
   textKey: string;
-  code: string;
+  code: string | readonly string[];
   params?: Record<string, string | number>;
   size?: 'normal' | 'small';
 }) {
   const [before, after] = splitOnKey(t(textKey, params));
+  const codes = typeof code === 'string' ? [code] : code;
 
   return (
     <>
       {before}
-      <KeyCap code={code} size={size} />
+      {codes.map((one) => (
+        <KeyCap key={one} code={one} size={size} />
+      ))}
       {after}
     </>
   );

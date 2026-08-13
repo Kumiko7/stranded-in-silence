@@ -249,6 +249,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Add a language | `config/locales/<code>.json` + `manifest.json`, then `npm run validate:locales` — [`LOCALISATION.md`](LOCALISATION.md) |
 | Change how a key looks on screen | `config/input.json → keyLabels` for the word, `src/ui/keys.ts` for the shape |
 | Add a HUD element | `src/ui/hud/` + `config/ui.json → hud` |
+| Change what the tutorial teaches | `config/ui.json → hud.tutorial.tips` for the order and the key caps, `tutorial.*` locale keys for the words. A **new** tip also needs its trigger reported — `main.tsx` for the cabin, `RunHooks.onTutorial` for the run — see [`systems/UI.md`](systems/UI.md) → "The tutorial" |
 | Change net sync | `src/net/` + `src/shared/messages.ts` — [`systems/NETWORKING.md`](systems/NETWORKING.md) |
 | Add a sound | `config/audio.json → sounds` + a recipe in `src/audio/recipes.ts` or a file in `assets/audio/` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |
 | Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
