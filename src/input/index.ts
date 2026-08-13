@@ -18,6 +18,13 @@ export interface ActionInfo {
   rebindable: boolean;
 }
 
+/**
+ * How long Chromium refuses a pointer-lock request after the USER released the
+ * lock themselves. It is not documented as a number anywhere, so this is a
+ * little over the observed one.
+ */
+const RELOCK_COOLDOWN_MS = 1300;
+
 export class Input {
   #down = new Set<string>();
   #pressed = new Set<string>();
@@ -40,6 +47,11 @@ export class Input {
    * capture does not leave a phantom key held down.
    */
   #textCapture = false;
+
+  /** When the lock was last lost, so a request made too soon can wait it out. */
+  #unlockedAt = -Infinity;
+  /** A request being held back for the cooldown. At most one is ever pending. */
+  #relockTimer: ReturnType<typeof setTimeout> | null = null;
 
   lookDeltaX = 0;
   lookDeltaY = 0;
@@ -72,7 +84,11 @@ export class Input {
     const onBlur = () => this.#down.clear();
     const onPointerLock = () => {
       this.pointerLocked = document.pointerLockElement === this.#canvas;
-      if (!this.pointerLocked) this.#down.clear();
+      if (!this.pointerLocked) {
+        this.#down.clear();
+        // Starts Chromium's cooldown. `requestPointerLock` waits it out.
+        this.#unlockedAt = performance.now();
+      }
       this.onPointerLockChange?.(this.pointerLocked);
     };
 
@@ -92,6 +108,7 @@ export class Input {
       removeEventListener('mousemove', onMouseMove);
       removeEventListener('blur', onBlur);
       document.removeEventListener('pointerlockchange', onPointerLock);
+      this.#cancelRelock();
     };
   }
 
@@ -101,18 +118,55 @@ export class Input {
   }
 
   /**
+   * Asks for the mouse back, waiting out Chromium's cooldown if it has to.
+   *
+   * The cooldown is the whole reason this is not one line. Escape inside a run
+   * is spent by the browser exiting pointer lock, so the FIRST press opens the
+   * escape menu; the second press reaches the game and asks for the lock
+   * straight back - well inside the second or so during which Chromium refuses
+   * every request after a user-initiated exit. Without the wait that refusal
+   * lands on `pointerlockerror`, which puts the escape menu back up, and
+   * Escape stops being able to resume the game at all.
+   *
+   * Deferring keeps the gesture: transient activation from the keypress lasts
+   * several seconds, so the request is still allowed when it finally goes out.
+   */
+  requestPointerLock(): void {
+    if (this.#relockTimer !== null) return;
+
+    const wait = RELOCK_COOLDOWN_MS - (performance.now() - this.#unlockedAt);
+    if (wait <= 0) {
+      this.#lockNow();
+      return;
+    }
+
+    this.#relockTimer = setTimeout(() => {
+      this.#relockTimer = null;
+      this.#lockNow();
+    }, wait);
+  }
+
+  releasePointerLock(): void {
+    // Whatever wanted the mouse has been overtaken by something that does not.
+    this.#cancelRelock();
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+
+  /**
    * `requestPointerLock()` returns a promise in current browsers, and it rejects
    * whenever the call did not come from a user gesture. The rejection has to be
    * swallowed here: `pointerlockerror` already fires for the same failure and
    * the callers listen for that, so an unhandled rejection would be pure noise.
    */
-  requestPointerLock(): void {
+  #lockNow(): void {
     const result = this.#canvas.requestPointerLock() as unknown;
     if (result instanceof Promise) result.catch(() => {});
   }
 
-  releasePointerLock(): void {
-    if (document.pointerLockElement) document.exitPointerLock();
+  #cancelRelock(): void {
+    if (this.#relockTimer === null) return;
+    clearTimeout(this.#relockTimer);
+    this.#relockTimer = null;
   }
 
   /**

@@ -13,10 +13,12 @@
  *   flash  Appears when its trigger fires and leaves on a timer. The run's four
  *          are all flashes, because none of them is an instruction to carry out.
  *
- * **Only one is ever on screen.** A tip that arrives while another is up waits
- * its turn rather than replacing it - including the hunter ones, which is a
- * decision worth knowing: a line that shoves another line aside teaches the
- * player to distrust the corner.
+ * **Only one is ever on screen, and nothing waits in line.** A flash tip whose
+ * trigger fires while another tip is up is *dropped* - not queued, and not
+ * marked as taught - so it comes back the next time the same thing happens with
+ * the corner free. Both alternatives are worse: cutting the current tip short
+ * teaches the player to distrust the corner, and queueing puts "it has seen
+ * you" on screen eight seconds after it stopped being true.
  *
  * What a tip does NOT own is when it fires. The id is the seam: `note()` is
  * called with one from wherever the moment actually happens - `main.tsx` for
@@ -63,8 +65,6 @@ export class Tutorial {
   #showFor = 0;
   /** Seconds of quiet owed before the next tip may appear. */
   #gap = 0;
-  /** Flash tips whose trigger fired while something else was up. */
-  #queue: string[] = [];
 
   constructor(config: TutorialConfig, save: Save, input: Input, hooks: TutorialHooks) {
     this.#config = config;
@@ -122,10 +122,18 @@ export class Tutorial {
     const tip = this.#config.tips.find((candidate) => candidate.id === id);
     if (!tip || tip.scene !== this.#scene) return;
 
-    // Marked here rather than when it is shown: a trigger that fires twice
-    // while the first one is still queued must not queue it twice.
+    // A flash tip is about something happening NOW. If the corner is busy it is
+    // dropped whole - not shown, and not marked taught - so the next time the
+    // hunter hears you, or you force the next chest, it says so then.
+    if (tip.kind === 'flash') {
+      if (this.#current || this.#gap > 0) return;
+      this.#save.markTipSeen(id);
+      this.#show(tip, this.#config.flashSeconds);
+      this.#retire();
+      return;
+    }
+
     this.#save.markTipSeen(id);
-    if (tip.kind === 'flash') this.#queue.push(id);
 
     if (this.#current?.id === id) {
       this.#current = null;
@@ -156,21 +164,16 @@ export class Tutorial {
     }
 
     this.#advance();
+    this.#retire();
   }
 
-  /** Puts the next tip up, if there is one and the slot is free. */
+  /** Puts the next task up, if there is one and the slot is free. */
   #advance(): void {
     if (!this.#enabled || this.#current || this.#gap > 0 || !this.#scene) return;
 
-    const queued = this.#queue.shift();
-    if (queued) {
-      const tip = this.#config.tips.find((candidate) => candidate.id === queued);
-      if (tip) this.#show(tip, this.#config.flashSeconds);
-      return;
-    }
-
-    // Tasks are offered in the order the config lists them, and only ever in
-    // their own world.
+    // Only tasks are ever offered from here: a flash tip is shown by the
+    // trigger that fired it, or not at all. They are offered in the order the
+    // config lists them, and only ever in their own world.
     const next = this.#config.tips.find(
       (tip) => tip.kind === 'task' && tip.scene === this.#scene && !this.#save.hasSeenTip(tip.id),
     );
@@ -188,7 +191,9 @@ export class Tutorial {
 
   /** Nothing left to teach: go quiet, and let `main.tsx` move the switch. */
   #retire(): void {
-    if (!this.#complete()) return;
+    // Never while a tip is still on screen. Retiring clears the corner, and the
+    // last thing the tutorial ever says would be marked taught unread.
+    if (this.#current || !this.#complete()) return;
     this.#enabled = false;
     this.#clear();
     this.#hooks.onRetired();
@@ -200,7 +205,6 @@ export class Tutorial {
   }
 
   #clear(): void {
-    this.#queue = [];
     this.#showFor = 0;
     this.#gap = 0;
     if (!this.#current) return;

@@ -64,6 +64,22 @@ body {
   inset: 0;
   z-index: 10;
   font-size: clamp(14px, 0.78vmin + 10px, 20px);
+  /*
+   * Nothing in a game's chrome is meant to be selected, and dragging the mouse
+   * across it while crouch-walking leaves half the interface highlighted.
+   *
+   * `user-select` is inherited, so the two things that must stay selectable say
+   * so themselves: fields you type into (below), and the lobby code, which sets
+   * `user-select: all` where it is styled so one click takes the whole thing.
+   */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .layer--passthrough {

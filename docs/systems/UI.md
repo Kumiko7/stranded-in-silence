@@ -161,9 +161,17 @@ Two kinds, and they never compete:
 
 Four things are worth knowing.
 
-**Only ever one is on screen.** A tip that arrives while another is up waits its
-turn — including the hunter ones. A line that shoves another line aside teaches
-the player to distrust the corner, and the corner is the whole mechanism.
+**Only ever one is on screen, and nothing waits in line.** A flash tip whose
+trigger fires while another tip is up is *dropped whole* — not shown, and not
+marked as taught — so it comes back the next time the same thing happens with
+the corner free. Both alternatives are worse: cutting the current tip short
+teaches the player to distrust the corner, and queueing puts "it has seen you"
+on screen eight seconds after it stopped being true. A tip about something
+happening **now** is either timely or it is nothing.
+
+The one thing that never gets dropped is the **last** tip: retiring is held back
+while a tip is still on screen, or the final thing the tutorial ever says would
+be marked taught without being read.
 
 **A task is ticked off whenever it happens**, not only while its own tip is up.
 Somebody who has already sprinted does not need to be told which key sprints, and
@@ -178,11 +186,14 @@ is decided from the progress, not from the switch having changed, because the
 flag and the option are two copies of one fact and an edge test does nothing
 whenever they disagree.
 
-**A tip does not own when it fires.** The id is the seam. `main.tsx` reports the
-cabin's four straight off the input — there is nothing `Lobby` could add to "the
-player pressed the key the tip is about" — and the start of a run. `Game` reports
-the chest and the two hunter moments through one `RunHooks.onTutorial(id)`, so
-neither world knows the tutorial exists. `heard` is any hunter leaving `calm` and
+**A tip does not own when it fires.** The id is the seam, and both worlds report
+through one `onTutorial(id)` hook without knowing the tutorial exists. `main.tsx`
+reads **moving, crouching and sprinting** straight off the input, because there
+is nothing `Lobby` could add to "the player is holding the key the tip is about".
+**Picking a map is the cabin's**, and that is not a style choice: `justPressed`
+*consumes* the press, so a tutorial that asked it whether E was down would take E
+away from the poster the player was aiming at. Everything read from `main.tsx` is
+a peek. `heard` is any hunter leaving `calm` and
 `seen` is one chasing; on the **host** that is exact, and on a client only an
 alert level crosses the wire, so "chasing somebody" stands in for "chasing you".
 Both are identical in the solo and hosted runs somebody learning the game is in.
@@ -199,7 +210,15 @@ The subtlety is that **Escape inside a running run is never delivered as a key a
 all**: the browser spends it exiting pointer lock, and `onPointerLockChange` is what
 turns that into the escape menu. So the first press opens the menu and the second one
 — which does reach the handler, because there is no lock left to exit — closes it and
-puts you back in the game. Anything that releases pointer lock on purpose (the
+puts you back in the game.
+
+Which is exactly where Chromium's **pointer-lock cooldown** bites: for about a
+second after the *user* released the lock, every request for it back is refused.
+Escape-Escape lands inside that window, the refusal fires `pointerlockerror`, and
+the handler above puts the escape menu straight back up — so Escape stops being
+able to resume at all. `Input.requestPointerLock()` therefore **waits the
+cooldown out** rather than asking and failing. The keypress's transient
+activation outlives the wait, so the deferred request is still allowed. Anything that releases pointer lock on purpose (the
 wardrobe, the chat box) is not a pause, and the lock-change handler checks for it.
 
 The **hand slots and the use prompt are the run's**, and they appear the moment you
