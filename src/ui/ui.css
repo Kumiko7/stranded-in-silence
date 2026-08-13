@@ -126,40 +126,487 @@ body {
 
 /* --- main menu ----------------------------------------------------------- */
 
+/*
+ * NOTHING IN THIS SECTION IS SIZED IN vw/vh. `#screen-root` carries a `zoom`,
+ * which multiplies rendered viewport units - a `94vw` panel comes out wider than
+ * the window on a large display. `rem` scales exactly once, through the one base
+ * size on `.layer`, so it is the only unit the whole menu is built from.
+ */
+
 .menu {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  overflow: hidden;
+  /* What is behind the stills, and the whole backdrop when there are none. */
   background: radial-gradient(circle at 50% 40%, #0e1018f2 0%, #04050a 75%);
 }
 
-.menu__title {
-  font-family: var(--font-display);
-  font-size: clamp(2rem, 6vw, 3.4rem);
-  font-weight: 400;
-  letter-spacing: 0.3em;
-  text-indent: 0.3em;
-  margin: 0;
-  text-shadow: 0 0 40px #000, 0 0 8px #00000080;
+/* --- main menu: the backdrop --------------------------------------------- */
+
+.menu__stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
-.menu__tagline {
-  color: var(--c-text-dim);
-  font-size: 0.85rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  margin: 0 0 2.5rem;
+/*
+ * Inset past the frame so the drift never walks an edge into view: the still is
+ * always wider than the stage it is seen through.
+ */
+.menu__still {
+  position: absolute;
+  inset: -5%;
+  background-position: center;
+  background-size: cover;
 }
 
-.menu__panel {
+/*
+ * The outgoing still. It keeps full opacity underneath the incoming one until
+ * the next change replaces it - fading BOTH is what puts a dip of black through
+ * the middle of a cross-fade. Its transform is the value every drift ends on,
+ * so becoming the held layer is not a jump.
+ */
+.menu__still--held {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.menu__still--live {
+  opacity: 0;
+  will-change: opacity, transform;
+  animation: menu-fade var(--menu-fade) ease-out forwards, menu-drift-0 var(--menu-hold) linear forwards;
+}
+
+@keyframes menu-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Four drift starts, one shared rest, cycled so no two stills in a row move the
+   same way. Every one settles on `scale(1)`, which is what `--held` freezes at. */
+.menu__still--drift0 {
+  animation-name: menu-fade, menu-drift-0;
+}
+.menu__still--drift1 {
+  animation-name: menu-fade, menu-drift-1;
+}
+.menu__still--drift2 {
+  animation-name: menu-fade, menu-drift-2;
+}
+.menu__still--drift3 {
+  animation-name: menu-fade, menu-drift-3;
+}
+
+@keyframes menu-drift-0 {
+  from {
+    transform: scale(calc(1 + var(--menu-drift))) translate(1.7%, 1.1%);
+  }
+  to {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+@keyframes menu-drift-1 {
+  from {
+    transform: scale(calc(1 + var(--menu-drift))) translate(-1.7%, -1%);
+  }
+  to {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+@keyframes menu-drift-2 {
+  from {
+    transform: scale(calc(1 + var(--menu-drift))) translate(-1.5%, 1.3%);
+  }
+  to {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+@keyframes menu-drift-3 {
+  from {
+    transform: scale(calc(1 + var(--menu-drift))) translate(1.3%, -1.3%);
+  }
+  to {
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+/* Flat black at the strength `ui.json` asks for: the one knob that decides how
+   loud the game is allowed to be behind the type. */
+.menu__scrim {
+  position: absolute;
+  inset: 0;
+  background: #05060a;
+  opacity: var(--menu-dim);
+}
+
+/* The grade proper, and not config's business: a wash into the left where the
+   lockup sits, a floor for the footer, and a vignette. */
+.menu__grade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(100deg, #04050bf7 0%, #04050bdb 22%, #04050b8f 44%, #04050b26 66%, #04050b00 84%),
+    linear-gradient(0deg, #04050bfa 0%, #04050b91 13%, #04050b00 40%),
+    linear-gradient(180deg, #04050bcc 0%, #04050b00 22%),
+    radial-gradient(130% 110% at 50% 48%, #00000000 38%, #020308cc 100%);
+}
+
+/*
+ * Film grain. The tile is an SVG turbulence pattern shifted eight ways on a
+ * step timer - a compositor-only transform, so it costs a menu nothing.
+ */
+.menu__grain {
+  position: absolute;
+  inset: -3rem;
+  opacity: var(--menu-grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 7rem 7rem;
+  animation: menu-grain 0.7s steps(1) infinite;
+}
+
+@keyframes menu-grain {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  12.5% {
+    transform: translate3d(-1.2rem, 0.7rem, 0);
+  }
+  25% {
+    transform: translate3d(0.9rem, -1.1rem, 0);
+  }
+  37.5% {
+    transform: translate3d(-0.7rem, -0.9rem, 0);
+  }
+  50% {
+    transform: translate3d(1.3rem, 0.5rem, 0);
+  }
+  62.5% {
+    transform: translate3d(-1.1rem, 1.2rem, 0);
+  }
+  75% {
+    transform: translate3d(0.6rem, 1rem, 0);
+  }
+  87.5% {
+    transform: translate3d(1.1rem, -0.6rem, 0);
+  }
+}
+
+/* --- main menu: the lockup ----------------------------------------------- */
+
+/* Anchored from the top rather than centred: the join drawer opens in the
+   middle of this stack, and a centred block would slide the whole lockup up the
+   screen to make room for it. */
+.menu__body {
+  position: relative;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 9.5rem 4rem 0;
+}
+
+/* Wide enough that the title sets on one line on a 16:9 display - the usable
+   width is about 64 rem there, and this leaves the padding its share. A title
+   long enough to still wrap gets to; `text-wrap: balance` splits it evenly. */
+.logo {
+  margin: 0 0 1.9rem;
+  max-width: 56rem;
+}
+
+/*
+ * The title is typeset rather than drawn, because the game ships in six
+ * languages and a baked wordmark would be English in all of them. Both copies
+ * of the string share one grid cell so the glow sits exactly under the fill.
+ */
+.logo__lockup {
+  display: grid;
+}
+
+.logo__lockup > * {
+  grid-area: 1 / 1;
+  margin: 0;
+}
+
+.logo__word {
+  font-family: var(--font-display);
+  font-size: 4.1rem;
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.logo__word--fill {
+  background-image: linear-gradient(178deg, #fdf8ee 4%, #ded4be 34%, #a2967d 62%, #6b6253 88%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* drop-shadow rather than text-shadow: a text-shadow paints behind the box,
+     not behind the glyphs, and clipped text would leak it. */
+  filter: drop-shadow(0 0.06rem 0.03rem #000000c4) drop-shadow(0 0 1.6rem #00000096);
+}
+
+.logo__word--glow {
+  color: var(--c-accent);
+  filter: blur(0.85rem);
+  opacity: 0.55;
+  animation: logo-breathe 11s ease-in-out infinite;
+}
+
+/* Slow, and it never goes out. A menu that strobes is a menu you look away
+   from - this is a lamp with something wrong with it two rooms away. */
+@keyframes logo-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  34% {
+    opacity: 0.74;
+  }
+  38% {
+    opacity: 0.42;
+  }
+  41% {
+    opacity: 0.7;
+  }
+  70% {
+    opacity: 0.54;
+  }
+}
+
+.logo__rule {
+  display: flex;
   align-items: center;
+  gap: 0.7rem;
+  margin: 1.05rem 0 0.75rem;
+}
+
+.logo__rule i {
+  width: 0.34rem;
+  height: 0.34rem;
+  background: var(--c-accent);
+  transform: rotate(45deg);
+}
+
+.logo__rule::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  max-width: 18rem;
+  background: linear-gradient(90deg, #cbbfa8a6 0%, #cbbfa84d 45%, #cbbfa800 100%);
+}
+
+.logo__tagline {
+  margin: 0;
+  color: #a29d8d;
+  font-size: 0.86rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  text-shadow: 0 0 0.8rem #000000b3;
+}
+
+/* --- main menu: the nav --------------------------------------------------- */
+
+.menu__nav {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  padding-left: 1.5rem;
+  border-left: 1px solid #ffffff1f;
+}
+
+.menu__item {
+  position: relative;
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0.46rem 0;
+  font-family: var(--font-display);
+  font-size: 1.16rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #b9b2a3;
+  cursor: pointer;
+  /* A menu row is a control, not a paragraph: a click on it should never leave
+     half its label highlighted. */
+  user-select: none;
+  transition: color var(--transition), transform var(--transition);
+}
+
+/* The selection marker, in the nav's own gutter. It is on :focus and not only
+   :focus-visible on purpose: a game menu always shows where you are. */
+.menu__item::before {
+  content: '';
+  position: absolute;
+  left: -0.95rem;
+  top: 50%;
+  width: 0.36rem;
+  height: 0.36rem;
+  background: var(--c-accent);
+  opacity: 0;
+  transform: translate(-0.35rem, -50%) rotate(45deg);
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.menu__item:hover:not(:disabled),
+.menu__item:focus:not(:disabled) {
+  color: #f2ecdd;
+  outline: none;
+  transform: translateX(0.3rem);
+}
+
+.menu__item:hover:not(:disabled)::before,
+.menu__item:focus:not(:disabled)::before {
+  opacity: 1;
+  transform: translate(0, -50%) rotate(45deg);
+}
+
+.menu__item:disabled {
+  color: #55524a;
+  cursor: default;
+}
+
+.menu__item--primary {
+  font-size: 1.6rem;
+  letter-spacing: 0.18em;
+  color: var(--c-text);
+}
+
+.menu__item--primary::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0.24rem;
+  width: 0;
+  height: 1px;
+  background: linear-gradient(90deg, var(--c-accent), #b3462f00);
+  transition: width var(--transition);
+}
+
+.menu__item--primary:hover:not(:disabled)::after,
+.menu__item--primary:focus:not(:disabled)::after {
+  width: 100%;
+}
+
+/* Join opens in place rather than on its own screen: it is one field, and a
+   screen change to ask for six characters is a screen change too many. */
+.menu__drawer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0 0.75rem;
+  animation: menu-drawer 160ms ease-out;
+}
+
+@keyframes menu-drawer {
+  from {
+    opacity: 0;
+    transform: translateY(-0.3rem);
+  }
+}
+
+/* --- main menu: the footer ------------------------------------------------ */
+
+.menu__foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
-  min-width: min(28rem, 90vw);
+  padding: 0 4rem 2.2rem;
+}
+
+.menu__session {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.menu__dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  color: var(--c-warn);
+  background: currentColor;
+  box-shadow: 0 0 0.5rem currentColor;
+  animation: menu-pulse 1.8s ease-in-out infinite;
+}
+
+.menu__session--ready .menu__dot {
+  color: var(--c-good);
+  animation: none;
+}
+
+.menu__session--error .menu__dot {
+  color: var(--c-bad);
+  animation: none;
+}
+
+@keyframes menu-pulse {
+  50% {
+    opacity: 0.28;
+  }
+}
+
+.menu__state {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+}
+
+.menu__session--error .menu__state {
+  color: var(--c-bad);
+  text-transform: none;
+}
+
+/* The code is a second thought in this row, so it is fenced off from the
+   connection state rather than sitting flush against it. */
+.menu__session .menu__label {
+  margin-left: 0.6rem;
+  padding-left: 1.1rem;
+  border-left: 1px solid #ffffff1f;
+}
+
+.menu__session .menu__code {
+  font-size: 1rem;
+}
+
+.menu__version {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  color: #6d6a60;
+}
+
+/* A window narrow enough that the title would wrap into the nav. The base sizes
+   are rem off a vmin-driven root, so a landscape window of any size has room -
+   this only has to catch a genuinely narrow one. */
+@media (max-width: 560px) {
+  .logo__word {
+    font-size: 2.6rem;
+  }
+
+  .menu__body,
+  .menu__foot {
+    padding-inline: 2.2rem;
+  }
+
+  .menu__foot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
 }
 
 .menu__row {
@@ -197,37 +644,23 @@ body {
   border: 1px solid var(--c-border);
   border-radius: var(--radius);
   padding: 0.62rem 0.5rem;
-  width: 11rem;
+  width: 12rem;
+}
+
+/* The code itself is tracked wide because it is read out loud; the prompt is a
+   sentence, and in Japanese or Russian it does not survive that treatment. */
+.menu__input::placeholder {
+  font-family: var(--font-body);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: #6d6a60;
 }
 
 .menu__input:focus {
   outline: none;
   border-color: var(--c-accent);
-}
-
-.menu__status {
-  margin-top: 2rem;
-  min-height: 1.2em;
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--c-text-dim);
-}
-
-.menu__status--error {
-  color: var(--c-bad);
-}
-
-/* Play and Options are one stack of one width. A full-width Options bar under a
-   narrow Play button reads as the more important of the two, which it is not. */
-.menu__action {
-  min-width: 13rem;
-}
-
-/* The rows under them are a separate thought, so they get their own air. */
-.menu__panel .menu__row:first-of-type {
-  margin-top: 1rem;
+  box-shadow: 0 0 0 1px #b3462f4d;
 }
 
 /* --- in-run overlays ----------------------------------------------------- */
@@ -1803,6 +2236,48 @@ body {
   letter-spacing: 0.1em;
   color: var(--c-warn);
   text-shadow: 0 2px 8px #000;
+}
+
+/*
+ * The tutorial line, bottom right: the one corner the roster, the chat and the
+ * purse all leave alone. Quiet on purpose - it is a note in the margin, not an
+ * instruction, and a player who already knows this should be able to ignore it
+ * without effort. There is never more than one (`src/game/Tutorial.ts`).
+ */
+.tutorial {
+  position: absolute;
+  right: 1.6rem;
+  bottom: 1.6rem;
+  max-width: 22rem;
+  padding: 0.5rem 0.85rem;
+  background: #0a0c12a8;
+  border: 1px solid var(--c-border);
+  /* The one bit of colour, and it is an edge rather than a fill: enough to say
+     "this arrived" from the corner of an eye, not enough to be read as danger. */
+  border-left: 2px solid var(--c-accent);
+  border-radius: var(--radius);
+  animation: tutorial-in 220ms ease-out;
+}
+
+.tutorial__text {
+  display: block;
+  font-size: 0.76rem;
+  line-height: 1.7;
+  letter-spacing: 0.06em;
+  color: var(--c-text);
+  text-shadow: 0 2px 8px #000;
+}
+
+/* A cluster of caps is one glyph, not four words: WASD reads as a shape. */
+.tutorial__text .key + .key {
+  margin-left: -0.16em;
+}
+
+@keyframes tutorial-in {
+  from {
+    opacity: 0;
+    transform: translateX(0.6rem);
+  }
 }
 
 /* Two hands, two slots: left is LMB, right is RMB. */

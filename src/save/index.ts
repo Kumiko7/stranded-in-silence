@@ -40,6 +40,12 @@ export interface Profile {
    * shop is what spends them.
    */
   coins: number;
+  /**
+   * Tutorial tips this player has already been through. Progress rather than an
+   * option: the *switch* is in `options.tutorial`, and this is what it turns
+   * itself off at the end of, and what turning it back on wipes.
+   */
+  tutorialSeen: string[];
   /** Everything the options menu writes. Defaults come from `config/`. */
   options: Options;
 }
@@ -91,6 +97,7 @@ export class Save {
       hatId: null,
       ownedHats: [],
       coins: 0,
+      tutorialSeen: [],
       options: structuredClone(this.#defaults),
     };
   }
@@ -112,6 +119,9 @@ export class Save {
           ? parsed.ownedHats.filter((id): id is string => typeof id === 'string')
           : [],
         coins: Number.isFinite(parsed.coins) ? Math.max(0, Math.floor(parsed.coins as number)) : 0,
+        tutorialSeen: Array.isArray(parsed.tutorialSeen)
+          ? parsed.tutorialSeen.filter((id): id is string => typeof id === 'string')
+          : [],
         options: sanitiseOptions(parsed.options, this.#defaults, this.#ranges),
       };
     } catch (error) {
@@ -171,6 +181,25 @@ export class Save {
   addCoins(amount: number): void {
     if (amount <= 0) return;
     this.#profile.coins += Math.floor(amount);
+    this.#flush();
+  }
+
+  /* --- tutorial ------------------------------------------------------------- */
+
+  hasSeenTip(id: string): boolean {
+    return this.#profile.tutorialSeen.includes(id);
+  }
+
+  markTipSeen(id: string): void {
+    if (this.hasSeenTip(id)) return;
+    this.#profile.tutorialSeen.push(id);
+    this.#flush();
+  }
+
+  /** Back to knowing nothing. What switching the tutorial back on does. */
+  resetTips(): void {
+    if (!this.#profile.tutorialSeen.length) return;
+    this.#profile.tutorialSeen = [];
     this.#flush();
   }
 

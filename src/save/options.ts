@@ -39,6 +39,12 @@ export interface Options {
     invertY: boolean;
   };
   /**
+   * Whether the corner tutorial line is offered at all. It turns itself off
+   * once every tip has been seen, and turning it back on is what resets the
+   * progress that turned it off - see `Tutorial.setEnabled()`.
+   */
+  tutorial: boolean;
+  /**
    * Action id -> the raw code its PRIMARY key was moved to. Only overrides are
    * stored, never the full binding set, so a later build that adds an action or
    * changes a default is picked up rather than frozen out by an old profile.
@@ -85,6 +91,7 @@ export function defaultOptions(config: Config): Options {
       sensitivity: config.input.mouse.sensitivity,
       invertY: config.player.camera.invertY,
     },
+    tutorial: config.ui.hud.tutorial.enabled,
     binds: {},
   };
 }
@@ -137,6 +144,7 @@ export function sanitiseOptions(raw: unknown, defaults: Options, ranges: OptionR
       sensitivity: clamp(controls['sensitivity'], ranges.sensitivity, defaults.controls.sensitivity),
       invertY: bool(controls['invertY'], defaults.controls.invertY),
     },
+    tutorial: bool(source.tutorial, defaults.tutorial),
     binds,
   };
 }

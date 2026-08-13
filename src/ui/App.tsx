@@ -5,8 +5,9 @@
  * No user-visible string here is a literal - every one is a t() key.
  */
 import { useEffect, useState } from 'preact/hooks';
-import type { AudioConfig, GameConfig, HealthState, VoiceMode } from '@/config/types';
+import type { AudioConfig, GameConfig, HealthState, MenusConfig, VoiceMode } from '@/config/types';
 import type { RosterEntry, ScoreRow, SpectateView, UseView } from '@/game/Game';
+import type { TutorialView } from '@/game/Tutorial';
 import type { ActionInfo } from '@/input/index';
 import type { LobbyView } from '@/game/Lobby';
 import type { Options as OptionValues, OptionRanges } from '@/save/index';
@@ -78,6 +79,8 @@ export interface UiState {
   showEmptyCoins: boolean;
   /** Transient objective line, e.g. "This door needs a key." */
   hint: string | null;
+  /** The one tutorial tip on screen, or null. Never more than one. */
+  tutorial: TutorialView | null;
   health: HealthState;
   /** 0..1 while a downed player is holding the give-up key. */
   giveUpProgress: number;
@@ -109,6 +112,8 @@ export interface UiState {
   optionRanges: OptionRanges;
   /** `audio.json -> buses`. A bus with a `labelKey` gets a volume slider. */
   buses: AudioConfig['buses'];
+  /** `ui.json -> menus`: the main menu's backdrop and what it is dressed with. */
+  menus: MenusConfig;
   /** Every action and its live bindings, for the Controls tab. */
   actions: ActionInfo[];
   /**
@@ -243,6 +248,7 @@ function CurrentScreen({ state, callbacks }: { state: UiState; callbacks: UiCall
         code={state.code}
         status={state.netStatus}
         error={state.error}
+        menus={state.menus}
         onStart={callbacks.onStart}
         onJoin={callbacks.onJoin}
         onOptions={callbacks.onOpenOptions}
@@ -499,7 +505,29 @@ function LobbyHud({ state, callbacks }: { state: UiState; callbacks: UiCallbacks
 
       <Chat state={state} callbacks={callbacks} />
 
+      <TutorialTip view={state.tutorial} />
+
       {state.lobby && <LobbyPanel view={state.lobby} maxPlayers={state.maxPlayers} />}
+    </div>
+  );
+}
+
+/**
+ * The tutorial line, bottom right - the one corner neither the roster, the chat
+ * nor the purse claims. There is only ever one on screen: `Tutorial` queues the
+ * rest rather than stacking them.
+ *
+ * Keyed on the tip id so a new line animates in rather than the old one's text
+ * changing under the player.
+ */
+function TutorialTip({ view }: { view: TutorialView | null }) {
+  if (!view) return null;
+
+  return (
+    <div class="tutorial" key={view.id}>
+      <span class="tutorial__text">
+        {view.codes.length > 0 ? <KeyLine textKey={view.textKey} code={view.codes} size="small" /> : t(view.textKey)}
+      </span>
     </div>
   );
 }
@@ -591,6 +619,8 @@ function Hud({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
       {state.showRoster && <Roster entries={state.roster} voice={state.voice} />}
 
       <Chat state={state} callbacks={callbacks} />
+
+      <TutorialTip view={state.tutorial} />
 
       <div class="hud__hands">
         <HandSlot nameKey={state.hands.left} code={state.useLeftKey} />

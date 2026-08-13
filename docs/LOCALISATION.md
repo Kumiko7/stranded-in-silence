@@ -53,6 +53,7 @@ Flat, dot-namespaced, `lowerCamelCase` segments:
 | `item.*` | Item names (`item.<id>.name`) and descriptions (`item.<id>.desc`) |
 | `room.*` | Optional room names, `room.<packId>.<roomId>` |
 | `hud.*` | In-world prompts and HUD labels |
+| `tutorial.*` | The corner tutorial tips. One per `ui.json → hud.tutorial.tips` id |
 | `run.*` | Run outcome messages |
 | `scoreboard.*` | Scoreboard headings and category labels |
 | `options.*` | Options menu |
@@ -96,6 +97,12 @@ with `E` on it, or a mouse with the correct button lit (`src/ui/keys.ts`,
 Both work, and that is the point: the placeholder can sit anywhere in the
 sentence, so word order stays the translator's business. Japanese puts the key
 first and nothing in the code has to know.
+
+**One `{key}` may draw several caps.** `KeyLine` takes a list of bindings as
+readily as one, and puts the whole cluster in the single gap — `"{key} to move"`
+comes out as four caps reading `WASD`. So an action that takes more than one key
+is still one sentence with one placeholder, and a translator never has to know
+how many keys are involved.
 
 Two consequences worth knowing:
 

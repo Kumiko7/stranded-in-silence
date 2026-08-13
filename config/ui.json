@@ -45,11 +45,54 @@
       "messageSeconds": 12,
       "maxLength": 120
     },
-    "subtitles": { "enabled": false }
+    "subtitles": { "enabled": false },
+
+    "tutorial": {
+      "$doc": "The corner tutorial line. Deliberately only the essentials - anything a player can work out by trying it is not in here.",
+      "$kinds": "A `task` tip stays up until the player does the thing, and they are offered in the order listed. A `flash` tip appears when its trigger fires and goes away on its own. Only ever ONE is on screen; the rest wait.",
+      "$ids": "`id` is both the locale key (`tutorial.<id>`) and the trigger the code reports - the set is fixed, so this list orders and dresses the tips rather than inventing them. `keys` are action ids from input.json whose caps fill the string's {key} gap.",
+      "enabled": true,
+      "flashSeconds": 7,
+      "$gapSeconds": "Quiet between one tip leaving and the next arriving, so two in a row do not read as one line changing under you.",
+      "gapSeconds": 0.7,
+      "tips": [
+        { "id": "move", "scene": "lobby", "kind": "task", "keys": ["moveForward", "moveLeft", "moveBack", "moveRight"] },
+        { "id": "crouch", "scene": "lobby", "kind": "task", "keys": ["crouch"] },
+        { "id": "sprint", "scene": "lobby", "kind": "task", "keys": ["sprint"] },
+        { "id": "pick", "scene": "lobby", "kind": "task", "keys": ["interact"] },
+        { "id": "exit", "scene": "run", "kind": "flash" },
+        { "id": "chest", "scene": "run", "kind": "flash" },
+        { "id": "heard", "scene": "run", "kind": "flash" },
+        { "id": "seen", "scene": "run", "kind": "flash" }
+      ]
+    }
   },
 
   "menus": {
-    "mainMenuBackground": "lobby-scene",
+    "$doc": "The main menu's backdrop. `screenshots` runs the slideshow below; anything else leaves the menu on its flat gradient.",
+    "mainMenuBackground": "screenshots",
+
+    "background": {
+      "$doc": "Stills from the game, cross-faded behind the main menu. `folder` is served from assets/, so swapping the set is dropping files in assets/ui/menu/ and editing `images` - see assets/ui/menu/README.md. Order is shuffled at boot, so nobody gets the same first frame every launch.",
+      "folder": "/ui/menu/",
+      "images": [
+        "mansion-foyer.jpg",
+        "crypt-sepulchre.jpg",
+        "abyss-whalefall.jpg",
+        "viscera-eye.jpg",
+        "forge-lavafall.jpg",
+        "mansion-ballroom.jpg"
+      ],
+      "holdSeconds": 9,
+      "fadeSeconds": 2.4,
+      "$drift": "How far a still creeps while it is up, as a fraction of its size. 0 stops the drift entirely.",
+      "drift": 0.09,
+      "$dim": "How much black is laid over the stills, 0..1. The menu's text contrast lives here.",
+      "dim": 0.4,
+      "$grain": "Film grain over the whole backdrop, 0..1. 0 turns the layer off.",
+      "grain": 0.05
+    },
+
     "confirmOnQuit": true,
     "showFpsCounter": false,
     "cursorStyle": "game"
