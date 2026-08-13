@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { candleCluster, chair, cobwebs, curtains, debris, flicker, rug, sideboard } from '../kit/props';
+import { candleCluster, chair, cobwebs, curtains, debris, flicker, floorWash, oilLamp, rug, sideboard } from '../kit/props';
 
 /**
  * The Séance Parlour - the chairs are still pulled in and the glass is on the E.
@@ -48,9 +48,35 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   rug(room, 0, 0, 3.2, 3.2, 0.4);
 
-  // The round table, its cloth to the floor.
+  /*
+   * The round table, its cloth to the floor.
+   *
+   * The cloth used to be one smooth cone under a lamp hanging directly over the
+   * middle of it, which lights the top and nothing else: what came back was a
+   * bright disc floating on a black drum. It is broken into hanging folds now,
+   * with a valance and a braid at the hem, so the fall of the cloth has
+   * something for a candle to catch on its way down. The room's second light
+   * (below) is at table height and off to one side, which is the other half of
+   * the fix.
+   */
   room.geo('velvetGold', new THREE.CylinderGeometry(0.86, 1.02, 0.78, 20), poseMatrix([0, 0.39, 0]), {
     tile: 1.4,
+    consume: true,
+  });
+  for (let i = 0; i < 14; i++) {
+    const a = (i / 14) * Math.PI * 2;
+    const r = 0.99;
+    room.geo(
+      'velvetGold',
+      new THREE.CylinderGeometry(0.05, 0.075, 0.72, 5),
+      poseMatrix([Math.cos(a) * r, 0.36, Math.sin(a) * r]),
+      { tile: 0.7, consume: true },
+    );
+  }
+  room.geo('velvetRed', new THREE.TorusGeometry(1.01, 0.03, 4, 22), tiltMatrix([0, 0.06, 0], [Math.PI / 2, 0, 0]), {
+    consume: true,
+  });
+  room.geo('velvetRed', new THREE.TorusGeometry(0.94, 0.035, 4, 22), tiltMatrix([0, 0.7, 0], [Math.PI / 2, 0, 0]), {
     consume: true,
   });
   room.geo('velvetGold', new THREE.CylinderGeometry(0.92, 0.92, 0.04, 20), poseMatrix([0, 0.79, 0]), {
@@ -104,6 +130,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.geo('mirror', new THREE.PlaneGeometry(0.9, 0.5), poseMatrix([1.9, 1.1, 3.57]), { castShadow: false, consume: true });
 
   sideboard(room, 'north', 2.6, 1.4);
+  // The room's second light, at table height and well off to one side, so the
+  // fall of the cloth and the chair backs are lit across rather than from above.
+  oilLamp(room, [-3.15, 0.91, -3.5], true, 'velvetRed');
+  floorWash(room, 'warmWash', 0, 0, 2.6);
   room.geo('glass', new THREE.SphereGeometry(0.16, 12, 10), poseMatrix([-2.6, 1.06, -3.44]), { consume: true });
   room.geo('woodDark', new THREE.CylinderGeometry(0.13, 0.16, 0.06, 12), poseMatrix([-2.6, 0.95, -3.44]), {
     consume: true,

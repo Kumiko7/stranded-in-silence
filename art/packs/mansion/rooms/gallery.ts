@@ -87,9 +87,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.blockCircle(6.2, 2.8, 0.4);
   room.box('dustSheet', [1.4, 0.14, 1.0], [6.4, 0, -2.6], 0.5, { tile: 1.3 });
 
+  // Three lit, not two. A 2x1 has a budget of three and this room spent two of
+  // them, which left the middle bay - the whole length of the sightline the
+  // gallery exists for - below the ambient floor, with the portraits in it.
   sconce(room, 'north', -1.4, 2.1, true, [0, 0]);
   sconce(room, 'south', 1.4, 2.1, true, [1, 0]);
-  sconce(room, 'north', 1.6, 2.1, false, [1, 0]);
+  sconce(room, 'north', 1.6, 2.1, true, [1, 0]);
   sconce(room, 'south', -1.6, 2.1, false, [0, 0]);
 
   debris(room, 2.0, 2.4, 1.6, 10);

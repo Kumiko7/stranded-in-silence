@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { candle, candleCluster, cobwebs, debris, flicker, lightShaft } from '../kit/props';
+import { candle, candleCluster, cobwebs, debris, flicker, floorWash, lightShaft } from '../kit/props';
 
 /**
  * The Private Chapel - somebody has been keeping the candles lit.
@@ -63,21 +63,37 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     room.geo('brass', new THREE.CylinderGeometry(0.03, 0.09, 0.3, 8), poseMatrix([x, 1.29, -2.66]), { consume: true });
     candle(room, [x, 1.44, -2.66], 0.3);
   }
-  const altar = new THREE.PointLight(0xffc078, 11, 8, 2);
+  const altar = new THREE.PointLight(0xffc078, 16, 11, 2);
   altar.position.set(0, 1.7, -2.4);
   room.light(altar);
-  flicker(room, altar, 11, 0.22, 5.4);
+  flicker(room, altar, 16, 0.22, 5.4);
+  floorWash(room, 'warmWash', 0, -1.9, 3.0);
 
-  // Four pews, facing the altar, one shoved out of line.
+  /*
+   * Four pews, facing the altar, one shoved out of line.
+   *
+   * `wood` rather than `woodDark`. The only light in this room is at the altar
+   * end, so a pew is seen back-on from every doorway - and a near-black albedo
+   * seen from its unlit side is not a dark pew, it is a hole. Waxed oak at the
+   * same geometry reads as furniture from the door and still goes dark at the
+   * back of the nave, which is the whole difference between contrast and
+   * darkness (docs/art/ART_GUIDE.md §2).
+   */
   for (let i = 0; i < 4; i++) {
     const z = -1.2 + i * 0.95;
     const skew = i === 2 ? 0.16 : 0;
-    room.geo('woodDark', new THREE.BoxGeometry(4.4, 0.1, 0.42), tiltMatrix([0, 0.46, z], [0, skew, 0]), {
+    room.geo('wood', new THREE.BoxGeometry(4.4, 0.1, 0.42), tiltMatrix([0, 0.46, z], [0, skew, 0]), {
       tile: 1.6,
       consume: true,
     });
-    room.geo('woodDark', new THREE.BoxGeometry(4.4, 0.66, 0.09), tiltMatrix([0, 0.8, z + 0.2], [0, skew, 0]), {
+    room.geo('wood', new THREE.BoxGeometry(4.4, 0.6, 0.09), tiltMatrix([0, 0.77, z + 0.2], [0, skew, 0]), {
       tile: 1.6,
+      consume: true,
+    });
+    // A capping rail along the top of the back, which is what catches the altar
+    // light and gives four identical benches an edge to read against.
+    room.geo('woodDark', new THREE.BoxGeometry(4.44, 0.06, 0.14), tiltMatrix([0, 1.1, z + 0.2], [0, skew, 0]), {
+      tile: 1.2,
       consume: true,
     });
     for (const dx of [-1.95, 1.95]) {
@@ -86,6 +102,17 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       });
     }
     room.collider({ kind: 'box', center: [0, z + 0.1], halfExtents: [2.2, 0.3], rotationY: skew });
+  }
+  // Hymn books and a shawl left on the ends, so the nave is not four bare planks.
+  for (const [bx, bz, kind] of [
+    [-1.5, -1.1, 'bookRed'],
+    [1.7, 0.75, 'bookTan'],
+    [-1.1, 1.7, 'bookGreen'],
+  ] as const) {
+    room.geo(kind, new THREE.BoxGeometry(0.2, 0.05, 0.26), poseMatrix([bx, 0.54, bz], room.range(0, 0.6)), {
+      tile: 0.4,
+      consume: true,
+    });
   }
 
   // A prayer book left open on the back pew, and a votive stand by the door.

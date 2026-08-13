@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { cobwebs, debris, flicker, painting, rug, trunk } from '../kit/props';
+import { cobwebs, debris, flicker, floorWash, painting, rug, trunk } from '../kit/props';
 
 /**
  * The Nursery - boarded up from the inside.
@@ -120,10 +120,14 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // A nightlight nobody lit, still lit.
   room.box('brass', [0.12, 0.1, 0.12], [0.4, 0.0, -3.3]);
   room.box('flame', [0.05, 0.09, 0.05], [0.4, 0.1, -3.3], 0, { castShadow: false });
-  const night = new THREE.PointLight(0xffb070, 6, 6.5, 2);
+  // 12 at 9.5, not 6 at 6.5. A nightlight sitting on the floorboards is the
+  // right object and it lit a metre of skirting: the cot, the horse and the
+  // doll's house - everything the room is for - were all below the ambient floor.
+  const night = new THREE.PointLight(0xffb070, 12, 9.5, 2);
   night.position.set(0.4, 0.2, -3.2);
   room.light(night);
-  flicker(room, night, 6, 0.34, 5.5);
+  flicker(room, night, 12, 0.34, 5.5);
+  floorWash(room, 'warmWash', 0.4, -2.6, 2.8);
 
   debris(room, 1.0, 1.8, 1.4, 8);
   cobwebs(room, -3.2, -3.2, 0.8, 1.4);

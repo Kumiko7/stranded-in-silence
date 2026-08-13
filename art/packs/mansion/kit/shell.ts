@@ -249,8 +249,58 @@ export function addShell(
     }
 
     // The cornice sits above every opening the shell can cut, so it runs the
-    // whole length rather than breaking over each doorway.
-    if (options.cornice !== false) strip(0, cellSize, ceilingHeight - 0.16, 0.16, 0.11, ceilMat);
+    // whole length rather than breaking over each doorway. Two members rather
+    // than one: a bed mould set back under the cornice proper is what stops the
+    // wall/ceiling joint reading as a single chamfered strip.
+    if (options.cornice !== false) {
+      strip(0, cellSize, ceilingHeight - 0.16, 0.16, 0.12, ceilMat);
+      strip(0, cellSize, ceilingHeight - 0.23, 0.07, 0.055, ceilMat);
+    }
+  }
+
+  /**
+   * A moulded surround round a doorway: jambs, a head, a cornice shelf over it
+   * and a carved paterae block in the middle.
+   *
+   * This is the pack's one repeatable trick, and it is in the shell rather than
+   * in the rooms for the reason ART_PACK_CHECKLIST.md gives - it costs six boxes
+   * an opening, it goes into the room's existing trim batch, and it is in *every
+   * view of every room*, because a contact sheet stands the camera in a doorway
+   * and a player meets a room the same way. A cut hole in plaster reads as a
+   * greybox; a cut hole with an architrave round it reads as a house.
+   */
+  function doorSurround(side: Side, cx: number, cz: number): void {
+    const runsAlongX = side === 'north' || side === 'south';
+    const wallPos = side === 'north' ? cz - off : side === 'south' ? cz + off : side === 'west' ? cx - off : cx + off;
+    const inward = INWARD[side];
+    const sign = runsAlongX ? inward[1] : inward[0];
+
+    // Stone and brick rooms get a stone surround; everywhere else it is joinery.
+    const style = options.wall ?? 'damaskGreen';
+    const surroundMat = style === 'stone' || style === 'brick' ? stoneMat : trimMat;
+    const surroundTile = style === 'stone' || style === 'brick' ? tex.STONE_TILE : 1.2;
+
+    /** `depth` is how far the member stands proud of the plaster. */
+    const member = (offset: number, width: number, y: number, height: number, depth: number): void => {
+      const near = wallPos + sign * (wallThickness / 2 + depth / 2);
+      const size: [number, number, number] = runsAlongX ? [width, height, depth] : [depth, height, width];
+      const position: [number, number, number] = runsAlongX
+        ? [cx + offset, y + height / 2, near]
+        : [near, y + height / 2, cz + offset];
+      batch.add(surroundMat, boxGeometry(size[0], size[1], size[2]), poseMatrix(position), {
+        tile: surroundTile,
+        castShadow: false,
+      });
+    };
+
+    // Jambs, clear of the 1.2 m opening on both sides so nothing narrows it.
+    for (const s of [-1, 1]) {
+      member(s * (doorWidth / 2 + 0.09), 0.18, 0, doorHeight + 0.09, 0.06);
+    }
+    // Head, the cornice shelf over it, and the paterae in the middle of it.
+    member(0, doorWidth + 0.36, doorHeight + 0.09, 0.15, 0.06);
+    member(0, doorWidth + 0.56, doorHeight + 0.24, 0.07, 0.11);
+    member(0, 0.16, doorHeight + 0.1, 0.13, 0.09);
   }
 
   /** Frame, mullions, glass and whatever is left of the panes. */
@@ -326,10 +376,21 @@ export function addShell(
 
     if (spec.light) {
       const cold = kind === 'stained' ? 0xbfa06a : 0xa8c4e8;
-      const lamp = new THREE.PointLight(cold, kind === 'boarded' ? 5 : 13, cellSize * 1.6, 2);
+      const lamp = new THREE.PointLight(cold, kind === 'boarded' ? 9 : 17, cellSize * 2.1, 2);
       lamp.position.set(...at(0, opening.y0 + h * 0.62, 0.45));
       extra.add(lamp);
       lights.push(lamp);
+      // Moonlight on the floorboards under the window. A window was only ever
+      // visible as a pale rectangle in the wall; the pool on the floor is what
+      // makes it read as a light source, which is the whole reason a room
+      // declares one. Additive and masked, so it fades out rather than ending on
+      // an edge - see materials.ts → `coldWash`.
+      batch.add(
+        ctx.materials.get('coldWash'),
+        new THREE.PlaneGeometry(opening.width * 2.3, opening.width * 2.3),
+        tiltMatrix(at(0, 0.02, opening.width * 0.75), [-Math.PI / 2, 0, 0]),
+        { castShadow: false, receiveShadow: false, consume: true },
+      );
     }
 
     windowAnchors.push({ position: centre, side });
@@ -421,6 +482,7 @@ export function addShell(
       for (const slab of slabs) wallSlab(side, cx, cz, slab);
       wallTrim(side, cx, cz, slabs, window !== undefined);
 
+      if (hasDoor) doorSurround(side, cx, cz);
       if (window && opening) buildWindow(window, side, cx, cz, opening);
     }
   }

@@ -79,13 +79,42 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('woodDark', [2.2, 0.1, 0.1], [bx, 2.5, bz + 1.1]);
   room.box('woodDark', [0.1, 0.1, 2.3], [bx - 1.0, 2.5, bz]);
   room.box('woodDark', [0.1, 0.1, 2.3], [bx + 1.0, 2.5, bz]);
-  // Drapes: closed on the head and both sides, open toward the room.
-  room.box('velvetRed', [2.2, 1.9, 0.1], [bx, 0.6, bz - 1.12], 0, { tile: 1.4 });
-  for (const dx of [-1.02, 1.02]) {
-    room.box('velvetRed', [0.12, 1.9, 2.3], [bx + dx, 0.6, bz], 0, { tile: 1.4 });
+  /*
+   * Drapes, hung as separate falls off the four posts rather than as three solid
+   * walls of velvet.
+   *
+   * Curtained right round, the bed came back on the contact sheet as a 2.2 x 2.5
+   * metre red box standing in the middle of the room with no reading on it at
+   * all - it was the largest single object in the manor and the least legible.
+   * What makes a four-poster frightening is the *gap* between the hangings and
+   * the fact that you cannot see all of what is behind them, which needs there
+   * to be gaps. The head end stays closed; that is the half you cannot check.
+   */
+  room.box('velvetGold', [2.28, 0.32, 2.38], [bx, 2.18, bz], 0, { tile: 1.2 });
+  // A scalloped pelmet under the tester, and the head curtain in four falls with
+  // real gaps between them. Three panels at 6 cm apart is arithmetically a gap
+  // and visually a wall: from the north doorway - which opens right beside the
+  // bed head - the whole thing still read as one sheet of red.
+  for (let i = 0; i < 6; i++) {
+    room.geo('velvetGold', new THREE.SphereGeometry(0.2, 8, 6), poseMatrix([bx - 0.95 + i * 0.38, 2.16, bz - 1.16]), {
+      tile: 0.8,
+      consume: true,
+    });
   }
-  room.box('velvetRed', [0.34, 1.9, 0.16], [bx - 0.82, 0.6, bz + 1.08], 0, { tile: 1 });
-  room.box('velvetRed', [0.34, 1.9, 0.16], [bx + 0.82, 0.6, bz + 1.08], 0, { tile: 1 });
+  for (let i = 0; i < 4; i++) {
+    const dx = -0.78 + i * 0.52;
+    room.box('velvetRed', [0.4, 1.86, 0.1], [bx + dx, 0.28, bz - 1.1 + (i % 2) * 0.07], 0, { tile: 1.2 });
+    room.box('velvetRed', [0.09, 1.8, 0.12], [bx + dx - 0.16, 0.32, bz - 1.03 + (i % 2) * 0.07], 0, { tile: 0.7 });
+  }
+  for (const dx of [-1.0, 1.0]) {
+    for (const dz of [-0.86, 0.86]) {
+      room.box('velvetRed', [0.22, 1.9, 0.36], [bx + dx, 0.26, bz + dz], 0, { tile: 1 });
+      // Gathers down the leading edge, so a fall is not a flat slab either.
+      for (let i = 0; i < 3; i++) {
+        room.box('velvetRed', [0.08, 1.8, 0.1], [bx + dx - 0.08 + i * 0.08, 0.3, bz + dz + 0.2], 0, { tile: 0.7 });
+      }
+    }
+  }
 
   // The vanity, mirror turned to the wall.
   room.solid('wood', [1.3, 0.62, 0.5], [-2.6, 0, 1.2], -Math.PI / 2, { tile: 1.2 });

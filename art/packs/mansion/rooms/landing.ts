@@ -102,9 +102,13 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('brass', [0.06, 0.1, 0.5], [2.6, 0.24, 10.4], 0.3);
   room.box('bookTan', [0.24, 0.05, 0.3], [-1.9, 0.0, 15.4], 0.7);
 
+  // All three lit. A 1x3 has a budget of four and this hall spent two of them on
+  // twenty-four metres of corridor: it was the darkest room in the pack by a
+  // wide margin, and it is the one the manor is laid out around. The window
+  // takes the fourth.
   sconce(room, 'west', 0.4, 2.1, true, [0, 0]);
-  sconce(room, 'west', -1.6, 2.1, false, [0, 1]);
-  sconce(room, 'east', 1.6, 2.1, false, [0, 2]);
+  sconce(room, 'west', -1.6, 2.1, true, [0, 1]);
+  sconce(room, 'east', 1.6, 2.1, true, [0, 2]);
 
   debris(room, 1.4, 12.6, 1.8, 12);
   debris(room, -1.6, 3.4, 1.4, 8);

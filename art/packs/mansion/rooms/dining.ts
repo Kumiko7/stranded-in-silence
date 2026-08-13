@@ -48,7 +48,28 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   table(room, 0, 0, 4.6, 1.5, 0.78, 0);
 
   // Laid for a dinner that never happened.
-  room.box('linen', [4.5, 0.02, 1.44], [0, 0.78, 0], 0, { tile: 1.6 });
+  //
+  // The cloth has a drop over the edges rather than being a 2 cm slab laid on
+  // the top. A flat white rectangle on a dark table is the brightest and the
+  // flattest thing in the room at the same time - under two chandeliers it read
+  // as a plank of white card floating on a black box. The overhang is what turns
+  // it into linen: the sides catch the candles at a different angle from the top.
+  room.box('linen', [4.7, 0.02, 1.62], [0, 0.78, 0], 0, { tile: 1.6 });
+  for (const [w, d, dx, dz] of [
+    [4.7, 0.04, 0, 0.81],
+    [4.7, 0.04, 0, -0.81],
+    [0.04, 1.62, 2.35, 0],
+    [0.04, 1.62, -2.35, 0],
+  ] as const) {
+    room.box('linen', [w, 0.34, d], [dx, 0.46, dz], 0, { tile: 1.2 });
+  }
+  // Folds down the drop, so the hem is not four straight edges.
+  for (let i = 0; i < 12; i++) {
+    const x = -2.2 + i * 0.4;
+    for (const z of [0.83, -0.83]) {
+      room.box('linen', [0.06, 0.32, 0.05], [x, 0.46, z], 0, { tile: 0.8 });
+    }
+  }
   for (let i = 0; i < 6; i++) {
     const x = -1.9 + i * 0.76;
     for (const z of [-0.44, 0.44]) {

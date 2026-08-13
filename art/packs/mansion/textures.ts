@@ -15,7 +15,7 @@
  * the fog, not because the wallpaper is black.
  */
 import type * as THREE from 'three';
-import { colorTexture, dataTexture, fbm, hash1, mix, normalTexture, rgb, shade, type RGB } from '../../lib/textures';
+import { clamp255, colorTexture, dataTexture, fbm, hash1, mix, normalTexture, rgb, shade, type RGB } from '../../lib/textures';
 
 const SIZE = 256;
 
@@ -163,7 +163,12 @@ export const wallTile = (): THREE.Texture =>
 export const wallTileNormal = (): THREE.Texture =>
   normalTexture('mansion.tileN', SIZE, (x, y) => (tileAt(x, y).grout ? 0 : 1), 2.4);
 
-export const BRICK_TILE = 2.2;
+/**
+ * 1.05 m, not 2.2. At 2.2 a course was 20 cm high and half a metre long, which
+ * renders as blockwork rather than as brick - the cellar and the boiler room both
+ * read as a stack of breeze blocks. A tile size is a look, not a setting.
+ */
+export const BRICK_TILE = 1.05;
 const BRICK_W = 64;
 const BRICK_H = 24;
 
@@ -215,7 +220,8 @@ export const walnut = (): THREE.Texture =>
     return shade(base, (0.88 + grain * 0.22) * grime(x, y, size, 66, 0.35));
   });
 
-export const DAMASK_TILE = 1.4;
+/** 1.05 m gives a 26 cm motif. At 1.4 the repeat was 35 cm and read as stencilling. */
+export const DAMASK_TILE = 1.05;
 
 /**
  * Damask wallpaper, half-drop repeat, peeling. `plasterUnder` shows through
@@ -254,17 +260,81 @@ export const damaskGreen = damaskRecipe('mansion.damaskGreen', 0x5f6b52, 0xa39a6
 export const damaskRed = damaskRecipe('mansion.damaskRed', 0x7a4a45, 0xb09566, 340);
 export const damaskBlue = damaskRecipe('mansion.damaskBlue', 0x4f5b6b, 0x9aa3a8, 470);
 
-export const PLASTER_TILE = 2.6;
+export const PLASTER_TILE = 2.0;
 
-/** Cracked lime plaster. Every room that has lost its paper. */
+/**
+ * Cracked lime plaster, and the shared height field that gives it relief.
+ *
+ * The first version drew its cracks as one contour of a *low*-frequency noise
+ * field: a single continuous line meandering across two thirds of a metre, which
+ * on a wall reads as a worm rather than as a crack. Three things fix it, and all
+ * three matter:
+ *
+ * - the contour is taken at a much higher frequency, so a crack is centimetres
+ *   long rather than metres;
+ * - it is **gated** by a separate low-frequency "where this wall has failed"
+ *   mask, so crazing clusters in patches with sound plaster between them
+ *   instead of covering every surface evenly;
+ * - it is soft-shouldered rather than a hard 0.55 step, so it reads as a line
+ *   scored into a surface and not as ink drawn on one.
+ *
+ * `plasterAt` is shared by the colour and the normal pass so the relief lands
+ * exactly on the crack rather than near it.
+ */
+function plasterAt(x: number, y: number, size: number): { mottle: number; crack: number; blown: number } {
+  const mottle = n2(x, y, size, 9, 130, 4);
+  // Where the surface has gone at all: 0 over most of the wall.
+  const failure = Math.min(1, Math.max(0, n2(x, y, size, 2, 771, 3) - 0.46) * 3.6);
+  const field = n2(x, y, size, 16, 555, 4);
+  const line = Math.max(0, 1 - Math.abs(field - 0.5) / 0.03);
+  const crack = line * line * failure;
+  // Patches blown right off, showing the lath behind.
+  const blown = Math.max(0, n2(x, y, size, 6, 777, 3) - 0.63) * 5;
+  return { mottle, crack, blown };
+}
+
 export const plaster = (): THREE.Texture =>
   colorTexture('mansion.plaster', SIZE, (x, y, size) => {
-    const mottle = n2(x, y, size, 8, 130, 4);
-    const crackField = n2(x, y, size, 4, 555, 3);
-    const crack = Math.abs(crackField - 0.5) < 0.012 ? 0.55 : 1;
-    const patch = n2(x, y, size, 2, 777, 2) > 0.62 ? 0.9 : 1;
-    return shade(mix(rgb(0x8f8a7c), rgb(0xafa899), mottle), crack * patch * (0.9 + mottle * 0.18) * grime(x, y, size, 130, 0.7));
+    const { mottle, crack, blown } = plasterAt(x, y, size);
+    let base = mix(rgb(0x8f8a7c), rgb(0xafa899), mottle);
+    // Lath: horizontal battens with shadow between them, only inside a blown patch.
+    if (blown > 0.02) {
+      const batten = y % 11 < 7 ? rgb(0x6b5a41) : rgb(0x3f382d);
+      base = mix(base, batten, Math.min(0.85, blown));
+    }
+    return shade(base, (1 - crack * 0.45) * (0.9 + mottle * 0.18) * grime(x, y, size, 130, 0.7));
   });
+
+/**
+ * Relief for the plaster. Candles rake across a wall at a very shallow angle in
+ * this map, which is exactly the light a normal map is most visible under - a
+ * flat plaster wall under a sconce was the single most obviously untextured
+ * surface in the pack.
+ */
+export const plasterNormal = (): THREE.Texture =>
+  normalTexture(
+    'mansion.plasterN',
+    SIZE,
+    (x, y, size) => {
+      const { mottle, crack, blown } = plasterAt(x, y, size);
+      return 0.55 + mottle * 0.45 - crack * 0.8 - Math.min(0.6, blown) * 0.5;
+    },
+    1.4,
+  );
+
+/** The same, for ashlar: the joints go in, the faces stay proud and pitted. */
+export const stoneNormal = (): THREE.Texture =>
+  normalTexture(
+    'mansion.stoneN',
+    SIZE,
+    (x, y, size) => {
+      const row = Math.floor(y / 48);
+      const jitter = hash1(row, 8, 4409) * 64;
+      const joint = (x + jitter) % 96 < 3 || y % 48 < 3;
+      return joint ? 0 : 0.7 + n2(x, y, size, 24, 88, 4) * 0.3;
+    },
+    1.8,
+  );
 
 export const CEILING_TILE = 3.0;
 
@@ -333,6 +403,27 @@ export const stainedGlass = (): THREE.Texture =>
     const jewel: RGB =
       pick === 0 ? rgb(0xc4433f) : pick === 1 ? rgb(0x3f6bb0) : pick === 2 ? rgb(0xd8a63c) : pick === 3 ? rgb(0x3f8f6a) : rgb(0xb9b0a0);
     return shade(jewel, 0.82 + n2(x, y, size, 32, 313, 2) * 0.3);
+  });
+
+/* --- masks for the things that are LIGHT rather than surface ------------------- */
+
+/**
+ * A radial falloff, white in the middle and black at the rim.
+ *
+ * Every additive wash in this pack carries it as its `map`. Additive blending
+ * already drops the dark half of a decal so a pool of light does not bring its
+ * own black background with it - but additive does nothing at all about the
+ * *edge*, and a flat disc of colour ends on a hard circle wherever you stop it.
+ * The mask is the difference between a pool of light and a disc of paint, and it
+ * is one 128 px texture for the whole pack.
+ */
+export const radialFalloff = (): THREE.Texture =>
+  colorTexture('mansion.falloff', 128, (x, y, size) => {
+    const d = Math.hypot(x / size - 0.5, y / size - 0.5) * 2;
+    const v = Math.pow(Math.max(0, 1 - d), 2.2);
+    // A little structure, so a big pool is not a perfect airbrushed gradient.
+    const k = clamp255(v * (0.84 + n2(x, y, size, 4, 6101, 3) * 0.32) * 255);
+    return [k, k, k];
   });
 
 /** Mildewed canvas: dust sheets, sacking, the tarpaulins in the attic. */

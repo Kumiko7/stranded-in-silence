@@ -125,6 +125,13 @@ wall and cuts a recess with something in it — a corpse shelf, a stack of skull
 hooded figure — into any wall the generator cannot open. All of them cost nothing
 per room and all of them are the reason their set holds together.
 
+`mansion` is the quietest of them and was the last to get one: a **moulded
+architrave** round every doorway the shell cuts - jambs, a head, a cornice shelf
+and a paterae block, six boxes into the trim batch the room already pays for.
+It is worth knowing as the cheapest possible version of this idea, because a
+doorway is the one thing *every* view of *every* room in a pack contains: a
+contact sheet stands its cameras in the doorways, and so does a player.
+
 `forge` runs a **heat register** round the base of every wall — a machined vent
 channel with a lit line at its mouth and ember crust behind it on the built side,
 a raw fissure on the rock side, and an arc-white service light in the handful of

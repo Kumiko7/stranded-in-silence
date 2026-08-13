@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { armchair, cobwebs, debris, fireplace, rug, sconce, table } from '../kit/props';
+import { armchair, cobwebs, debris, fireplace, rug, sconce, table, wallWash } from '../kit/props';
 
 /**
  * The Trophy Room - forty pairs of eyes and none of them blink.
@@ -39,17 +39,29 @@ export const trophy: RoomBlueprint = {
 function trophyHead(room: Room, x: number, y: number, z: number, rotationY: number, antlers: boolean): void {
   const out = (d: number): [number, number, number] => [x - Math.sin(rotationY) * d, y, z - Math.cos(rotationY) * d];
 
-  room.geo('woodDark', new THREE.BoxGeometry(0.44, 0.5, 0.06), poseMatrix([x, y, z], rotationY), { tile: 0.4, consume: true });
-  room.geo('fur', new THREE.SphereGeometry(0.16, 10, 8), poseMatrix(out(0.14), rotationY), { consume: true });
-  room.geo('fur', new THREE.CylinderGeometry(0.06, 0.11, 0.3, 8), tiltMatrix(out(0.3), [Math.PI / 2 - 0.2, rotationY, 0]), {
+  // Half again the size it was, and with ears. A head at 0.16 m was a fist on a
+  // plaque from across a room, which is not what "forty pairs of eyes" means.
+  room.geo('woodDark', new THREE.BoxGeometry(0.56, 0.64, 0.06), poseMatrix([x, y, z], rotationY), { tile: 0.4, consume: true });
+  room.geo('gilt', new THREE.BoxGeometry(0.6, 0.68, 0.03), poseMatrix(out(0.02), rotationY), { tile: 0.4, consume: true });
+  room.geo('fur', new THREE.SphereGeometry(0.22, 10, 8), poseMatrix(out(0.18), rotationY), { consume: true });
+  room.geo('fur', new THREE.CylinderGeometry(0.08, 0.15, 0.4, 8), tiltMatrix(out(0.4), [Math.PI / 2 - 0.2, rotationY, 0]), {
     consume: true,
   });
-  const eyes = out(0.28);
-  for (const s of [-0.08, 0.08]) {
+  for (const s of [-1, 1]) {
+    const ear = out(0.16);
+    room.geo(
+      'fur',
+      new THREE.BoxGeometry(0.06, 0.16, 0.11),
+      tiltMatrix([ear[0] + Math.cos(rotationY) * s * 0.21, y + 0.14, ear[2] - Math.sin(rotationY) * s * 0.21], [0, rotationY, s * 0.7]),
+      { consume: true },
+    );
+  }
+  const eyes = out(0.36);
+  for (const s of [-0.1, 0.1]) {
     room.geo(
       'ironBlack',
-      new THREE.SphereGeometry(0.028, 6, 5),
-      poseMatrix([eyes[0] + Math.cos(rotationY) * s, y + 0.06, eyes[2] - Math.sin(rotationY) * s]),
+      new THREE.SphereGeometry(0.035, 6, 5),
+      poseMatrix([eyes[0] + Math.cos(rotationY) * s, y + 0.08, eyes[2] - Math.sin(rotationY) * s]),
       { consume: true },
     );
   }
@@ -128,6 +140,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('silver', [0.2, 0.26, 0.2], [-2.4, 1.51, 3.48], 0.2);
 
   sconce(room, 'north', 0.6, 2.15, true);
+  // Both real lights are spent (hearth + sconce), so the heads get washes rather
+  // than lamps: additive, masked, and free of the light budget. Without them the
+  // three walls the fire does not reach kept their trophies in the dark.
+  wallWash(room, 'warmWash', 'west', -1.0, 1.72, 2.2);
+  wallWash(room, 'warmWash', 'east', 0.6, 1.74, 2.2);
+  wallWash(room, 'warmWash', 'south', -2.6, 1.75, 2.0);
 
   debris(room, -1.0, 2.6, 1.4, 8);
   cobwebs(room, 3.2, 3.2, 3.9, 1.2);

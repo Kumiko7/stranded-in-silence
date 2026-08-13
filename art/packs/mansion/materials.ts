@@ -66,6 +66,29 @@ const glow = (color: number, opacity = 1): (() => THREE.Material) => () =>
     fog: true,
   });
 
+/**
+ * Light landing ON something, rather than a surface.
+ *
+ * Additive drops the dark half of the material entirely so only the net
+ * brightness lands - painted as an ordinary emissive decal, a pool of firelight
+ * brings its own black background and lays it over the floorboards. The `map` is
+ * a radial falloff, because additive fixes the background and does nothing about
+ * the hard edge: without one, every hearth in the manor had an orange pancake in
+ * front of it. See docs/art/ROOM_REVIEW.md.
+ */
+const additive = (color: number, opacity: number, map?: () => THREE.Texture): (() => THREE.Material) => () => {
+  const material = new THREE.MeshBasicMaterial({
+    color,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    depthWrite: false,
+    opacity,
+    fog: true,
+  });
+  if (map) material.map = map();
+  return material;
+};
+
 export function createMaterials(): MaterialLibrary {
   return materialLibrary({
     /* --- floors ----------------------------------------------------------- */
@@ -75,13 +98,13 @@ export function createMaterials(): MaterialLibrary {
     'surface.carpet': standard(0xffffff, { map: tex.carpet, roughness: 1 }),
     'surface.tile': standard(0xffffff, { map: tex.wallTile, normalMap: tex.wallTileNormal, roughness: 0.35 }),
     'surface.brick': standard(0xffffff, { map: tex.brick, normalMap: tex.brickNormal, roughnessMap: true }),
-    'surface.stone': standard(0xffffff, { map: tex.stone, roughnessMap: true }),
+    'surface.stone': standard(0xffffff, { map: tex.stone, normalMap: tex.stoneNormal, roughnessMap: true }),
 
     /* --- walls ------------------------------------------------------------ */
     'surface.damaskGreen': standard(0xffffff, { map: tex.damaskGreen, roughnessMap: true }),
     'surface.damaskRed': standard(0xffffff, { map: tex.damaskRed, roughnessMap: true }),
     'surface.damaskBlue': standard(0xffffff, { map: tex.damaskBlue, roughnessMap: true }),
-    'surface.plaster': standard(0xffffff, { map: tex.plaster, roughnessMap: true }),
+    'surface.plaster': standard(0xffffff, { map: tex.plaster, normalMap: tex.plasterNormal, roughnessMap: true }),
     'surface.panel': standard(0xffffff, { map: tex.walnut, roughnessMap: true, roughness: 0.68 }),
     'surface.ceiling': standard(0xffffff, { map: tex.ceilingPlaster, roughness: 0.98 }),
 
@@ -91,12 +114,23 @@ export function createMaterials(): MaterialLibrary {
     woodDark: standard(0x6a4b30, { roughness: 0.8 }),
     beam: standard(0x6d5637, { roughness: 0.95, flat: true }),
 
-    /* --- metals ----------------------------------------------------------- */
-    brass: standard(0xb8964e, { roughness: 0.34, metalness: 0.85 }),
-    iron: standard(0x74777e, { roughness: 0.62, metalness: 0.6 }),
-    ironBlack: standard(0x54565d, { roughness: 0.78, metalness: 0.45 }),
-    silver: standard(0xc2c6cc, { roughness: 0.24, metalness: 0.9 }),
-    copper: standard(0xa9663c, { roughness: 0.42, metalness: 0.8 }),
+    /**
+     * --- metals -----------------------------------------------------------
+     *
+     * Every one of these is around `metalness` 0.45, not the 0.85-1.0 they were
+     * authored at. There is no environment map in this renderer, so a full metal
+     * can only show what it reflects and it has nothing to reflect: the manor's
+     * brass - which is every chandelier arm, every sconce, every candelabrum and
+     * every door fitting in the map - rendered as dark grey under its own
+     * candles. Half-metals still take diffuse light, so they read as metal
+     * because of their highlight rather than instead of one. Same finding as the
+     * Necropolis gold, docs/art/ROOM_REVIEW.md.
+     */
+    brass: standard(0xc9a45c, { roughness: 0.4, metalness: 0.45 }),
+    iron: standard(0x7d8087, { roughness: 0.6, metalness: 0.35 }),
+    ironBlack: standard(0x5d5f67, { roughness: 0.74, metalness: 0.3 }),
+    silver: standard(0xcbcfd5, { roughness: 0.28, metalness: 0.5 }),
+    copper: standard(0xb4703f, { roughness: 0.42, metalness: 0.45 }),
     rust: standard(0x8a5636, { roughness: 0.98, roughnessMap: true }),
 
     /* --- soft furnishing -------------------------------------------------- */
@@ -104,30 +138,51 @@ export function createMaterials(): MaterialLibrary {
     velvetGreen: standard(0x47604f, { roughness: 0.96 }),
     velvetGold: standard(0x9a7f42, { roughness: 0.94 }),
     leather: standard(0x6c4a34, { roughness: 0.66 }),
-    dustSheet: standard(0xffffff, { map: tex.dustCanvas, roughness: 1 }),
-    linen: standard(0xb4ae9d, { roughness: 1 }),
+    /**
+     * Both double-sided, because rooms hang them as bare planes - a towel on a
+     * rail, a sheet slipping off a covered mirror - and a plane's front face is
+     * +Z where every wall pose in this pack points -Z. Fixing the two kit helpers
+     * (`painting`, `wallMirror`) is not enough on its own; this is what stops the
+     * next room hanging something back-to-front and nobody noticing.
+     */
+    dustSheet: standard(0xffffff, { map: tex.dustCanvas, roughness: 1, side: THREE.DoubleSide }),
+    linen: standard(0xb4ae9d, { roughness: 1, side: THREE.DoubleSide }),
     /**
      * Hanging cloth. Double-sided because a sheet on a line is one plane with a
      * player on either side of it, and faintly self-lit because real linen with a
      * lamp behind it glows rather than going black - which is what a backlit
      * single-sided plane does, and it reads as a hole in the room.
+     *
+     * The self-lighting is *much* lower than it was, and the cloth is thin. A
+     * flat grey plane at 0.3 emissive is lit the same on both faces wherever it
+     * stands, which is exactly why the laundry's lines came back reading as
+     * sheets of hardboard: nothing about them changed as you walked round. At
+     * 0.14 and 0.86 opacity a lamp behind a sheet shows through it, the shadowed
+     * face falls off, and it moves as you do.
      */
-    sheetLinen: standard(0xb4ae9d, {
+    sheetLinen: standard(0xc2bba7, {
       map: tex.dustCanvas,
       roughness: 1,
       side: THREE.DoubleSide,
-      emissive: 0x6b6455,
-      emissiveIntensity: 0.3,
+      emissive: 0x584f3e,
+      emissiveIntensity: 0.14,
+      transparent: 0.86,
     }),
 
     /* --- surfaces you look at closely ------------------------------------- */
     porcelain: standard(0xd2d2c9, { roughness: 0.22 }),
     marbleWhite: standard(0xbdb8ab, { roughness: 0.38 }),
     marbleBlack: standard(0x5a5860, { roughness: 0.34 }),
-    gilt: standard(0xc0a05a, { roughness: 0.3, metalness: 0.75 }),
+    gilt: standard(0xcaa860, { roughness: 0.34, metalness: 0.45 }),
     paper: standard(0xa9a394, { roughness: 1 }),
     portrait: standard(0xffffff, { map: tex.portraits, roughness: 0.62 }),
-    mirror: standard(0x8d94a0, { roughness: 0.08, metalness: 1 }),
+    /**
+     * Glass with something dark behind it, not a mirror: there is no reflection
+     * pass here. At `metalness` 1 it had nothing to reflect and every looking
+     * glass in the manor - and the standing water in the bathroom - came out as a
+     * black hole in the wall. It reads now by its highlight.
+     */
+    mirror: standard(0xa4adb8, { roughness: 0.14, metalness: 0.4 }),
     glass: standard(0x9fb0b8, { roughness: 0.06, metalness: 0.1, transparent: 0.22 }),
     stained: standard(0xffffff, {
       map: tex.stainedGlass,
@@ -141,7 +196,10 @@ export function createMaterials(): MaterialLibrary {
     soil: standard(0x5f4f3f, { roughness: 1 }),
     deadLeaf: standard(0x6e6642, { roughness: 1, side: THREE.DoubleSide }),
     ivy: standard(0x4d5c42, { roughness: 1, side: THREE.DoubleSide }),
-    fur: standard(0x6d573c, { roughness: 1 }),
+    // Lifted from 0x6d573c. Mounted heads hang above the light in every room
+    // that has them, so they are lit from underneath at best - at the old value
+    // the trophy room's forty pairs of eyes were forty dark smudges.
+    fur: standard(0x8a7150, { roughness: 1 }),
     bone: standard(0xbdb49c, { roughness: 0.8 }),
     wax: standard(0xd8cdb2, { roughness: 0.6 }),
     cobweb: standard(0xc8c8c8, { transparent: 0.16, side: THREE.DoubleSide, roughness: 1 }),
@@ -155,10 +213,40 @@ export function createMaterials(): MaterialLibrary {
     /* --- light sources (unlit, so they read in the dark) ------------------- */
     flame: glow(0xffb45a),
     emberGlow: glow(0xff7a33, 0.85),
-    lampShade: standard(0xd9b98a, { emissive: 0xffcf95, emissiveIntensity: 0.9, roughness: 0.9, transparent: 0.92 }),
+    /**
+     * Milk glass with a flame behind it. Tuned against the lamp it is fitted to,
+     * not on its own: at 0.9 the shade was brighter than the practical inside it
+     * and every pendant in the manor read as a white flower stuck to the ceiling
+     * rather than as a lamp (docs/art/ROOM_REVIEW.md - judge an emissive against
+     * the room's actual lights).
+     */
+    lampShade: standard(0xd9b98a, { emissive: 0xffcf95, emissiveIntensity: 0.4, roughness: 0.9, transparent: 0.92 }),
     bulb: glow(0xffe4b0),
-    moonShaft: glow(0x9fb6d8, 0.055),
-    warmShaft: glow(0xffc98a, 0.06),
+    /**
+     * Shafts through a window are **additive**, not alpha. Light in the air is
+     * scattering, not a surface: alpha-blended, a shaft lays a grey film over
+     * whatever is behind it at any opacity you can actually see, which is what
+     * put a pane of haze across the middle of the ballroom and the conservatory.
+     */
+    moonShaft: additive(0x9fb6d8, 0.075),
+    warmShaft: additive(0xffc98a, 0.085),
+
+    /**
+     * --- what a practical throws on the wall and the floor ------------------
+     *
+     * A candle sconce is worth 13 candela at 2 m and nothing at all at 6, so in
+     * a room lit only by practicals the *fitting* is visible and the wall around
+     * it is not. These wash the surface a lamp is standing against, which is
+     * what makes a sconce read as illuminating something rather than as a bright
+     * speck floating in a dark room. They are a seasoning: at anything above
+     * ~0.3 every room in the pack goes the same shade of orange and there is no
+     * darkness left to be afraid of.
+     */
+    warmWash: additive(0xffb877, 0.22, tex.radialFalloff),
+    /** The hearth's own, wider and redder - a fire lights a floor, not a wall. */
+    fireWash: additive(0xff8c3c, 0.34, tex.radialFalloff),
+    /** Moonlight on a sill or a floorboard. The only cold wash in the manor. */
+    coldWash: additive(0x9ec0ea, 0.22, tex.radialFalloff),
 
     /* --- names shared art requires (docs/art/SHARED_ART.md §3.1) ----------- */
     door: standard(0xffffff, { map: tex.walnut, roughness: 0.7 }),
@@ -170,19 +258,19 @@ export function createMaterials(): MaterialLibrary {
     exitGlow: glow(0x7fe8ad, 0.18),
 
     chest: standard(0x6f4f31, { roughness: 0.82 }),
-    chestTrim: standard(0xb8964e, { roughness: 0.36, metalness: 0.8 }),
+    chestTrim: standard(0xc0a057, { roughness: 0.4, metalness: 0.45 }),
     locker: standard(0x7d715e, { roughness: 0.72, metalness: 0.15 }),
     lockerVent: standard(0x4a4740, { roughness: 0.9 }),
 
     /* --- the item roster -------------------------------------------------- */
-    itemMetal: standard(0xc4b072, { roughness: 0.34, metalness: 0.85 }),
-    itemSteel: standard(0x8d9199, { roughness: 0.42, metalness: 0.75 }),
+    itemMetal: standard(0xcbb87c, { roughness: 0.38, metalness: 0.5 }),
+    itemSteel: standard(0x969aa2, { roughness: 0.44, metalness: 0.45 }),
     itemWood: standard(0x7c5a38, { roughness: 0.86 }),
     itemCloth: standard(0xd8cfb8, { roughness: 1 }),
     itemAccent: standard(0x9c2f28, { roughness: 0.68 }),
-    itemBrass: standard(0xbe9a4c, { roughness: 0.28, metalness: 0.9 }),
+    itemBrass: standard(0xc6a253, { roughness: 0.32, metalness: 0.5 }),
     itemEnamel: standard(0xe6dfc9, { roughness: 0.42 }),
-    itemGold: standard(0xc9a13a, { roughness: 0.26, metalness: 0.95 }),
+    itemGold: standard(0xd2ac48, { roughness: 0.3, metalness: 0.5 }),
     itemTar: standard(0x0e0f13, { roughness: 0.16, metalness: 0.25 }),
     itemGlass: () =>
       new THREE.MeshStandardMaterial({

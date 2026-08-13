@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { armchair, bookcase, chair, cobwebs, fireplace, painting, rug, table } from '../kit/props';
+import { armchair, bookcase, chair, cobwebs, fireplace, floorWash, painting, rug, table } from '../kit/props';
 
 /**
  * The Study - the last room anyone used.
@@ -69,16 +69,19 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     consume: true,
   });
   room.geo('bulb', new THREE.SphereGeometry(0.05, 8, 6), poseMatrix([-1.9, 1.04, -2.15]), { consume: true });
-  const lamp = new THREE.PointLight(0xffe0a8, 10, 6.5, 2);
+  const lamp = new THREE.PointLight(0xffe0a8, 15, 10, 2);
   lamp.position.set(-1.9, 1.0, -2.15);
   room.light(lamp);
+  floorWash(room, 'warmWash', -2.0, -2.0, 2.4);
 
   bookcase(room, 'east', 2.4, 2.2, 4);
   bookcase(room, 'south', -2.5, 1.7, 3);
 
   // A globe on a stand, and the chair somebody sat in to look at it.
   room.geo('woodDark', new THREE.CylinderGeometry(0.04, 0.22, 0.6, 10), poseMatrix([1.3, 0.3, 1.6]), { consume: true });
-  room.geo('paper', new THREE.SphereGeometry(0.26, 14, 10), poseMatrix([1.3, 0.88, 1.6]), { consume: true });
+  // `bookTan`, not `paper`: a near-white sphere is the loudest thing in a dark
+  // room, and this one read as a floating grey ball from two of the four doors.
+  room.geo('bookTan', new THREE.SphereGeometry(0.26, 14, 10), poseMatrix([1.3, 0.88, 1.6]), { consume: true });
   room.geo('brass', new THREE.TorusGeometry(0.29, 0.014, 4, 16), tiltMatrix([1.3, 0.88, 1.6], [0, 0.4, 0.4]), {
     consume: true,
   });

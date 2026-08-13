@@ -51,6 +51,43 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (const anchor of windowAnchors) {
     lightShaft(room, [anchor.position[0], 2.6, anchor.position[2]], [anchor.position[0] * 0.4, 0, 1.4], 1.9);
   }
+
+  /*
+   * A glazed roof, hung under the ceiling.
+   *
+   * The room's whole identity is that it is made of glass, and it was reading as
+   * a plaster box with two planters in it: the only glass in the room was the
+   * one window the shell cuts. This is a run of glazing bars with panes between
+   * them and a ridge down the middle, so the ceiling is the first thing that
+   * tells you where you are. It is decoration hung *under* the real ceiling
+   * slab, because there is no hole in that slab and there cannot be one.
+   */
+  const { ceilingHeight } = ctx.dims;
+  room.box('woodPale', [0.16, 0.2, 7.4], [0, ceilingHeight - 0.22, 0], 0, { tile: 1.2 });
+  for (let i = 0; i < 9; i++) {
+    const z = -3.4 + i * 0.85;
+    room.box('woodPale', [7.4, 0.12, 0.09], [0, ceilingHeight - 0.34, z], 0, { tile: 1.2 });
+  }
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 8; i++) {
+      const z = -3.0 + i * 0.85;
+      room.geo(
+        'glass',
+        new THREE.PlaneGeometry(3.5, 0.78),
+        tiltMatrix([side * 1.85, ceilingHeight - 0.3, z], [Math.PI / 2, Math.PI / 2, 0]),
+        { castShadow: false, receiveShadow: false, consume: true },
+      );
+    }
+  }
+  // Two cast-iron ribs carrying it, down the walls the generator never opens.
+  for (const side of [-1, 1]) {
+    room.geo('ironBlack', new THREE.CylinderGeometry(0.05, 0.06, ceilingHeight - 0.4, 8), poseMatrix([side * 3.3, (ceilingHeight - 0.4) / 2, -3.3]), {
+      consume: true,
+    });
+    room.geo('ironBlack', new THREE.TorusGeometry(0.5, 0.04, 4, 10, Math.PI / 2), tiltMatrix([side * 3.3, ceilingHeight - 0.9, -3.3], [0, side > 0 ? Math.PI : Math.PI / 2, side > 0 ? Math.PI / 2 : 0]), {
+      consume: true,
+    });
+  }
   creeper(room, 0, 2.1, -3.5, 1.7, 22);
   creeper(room, -1.4, 0.6, -3.4, 0.9, 10);
 

@@ -386,6 +386,88 @@ shows, both of which cost more time than any of the above:
   can see it; what catches it is reading the failure as *geometry in the wrong
   place* rather than as *anchor in the wrong place*.
 
+### And the ones the manor's SECOND pass caught
+
+Ravenhollow was the first pack built and it was reviewed before four of the five
+lessons above existed. Going back to it with the report *"some rooms are too dark,
+and it wants more detail"* turned up one outright bug that had been invisible for
+three plan steps, and a set of failures that are really one failure wearing
+different hats: **the room was lit, and nothing in it was.**
+
+- **Every wall-hung plane in the pack was facing into the plaster.** Props here
+  are authored facing `-Z` and `FACE[side]` turns them out of the wall, but a
+  `PlaneGeometry`'s front face is `+Z` - so the exact rotation that points a
+  sconce into the room points a canvas into the wall behind it. Every portrait in
+  the manor, every mirror and both bathroom towels were hung back-to-front. The
+  Long Gallery, a room whose entire identity is sixteen metres of people watching
+  you walk, was a corridor of empty gilt frames and nobody had noticed. This is
+  the abyss's monitors and cryo-pod window, one pack earlier and never fixed
+  there. **Fixing the two kit helpers is not enough** - `linen` and `dustSheet`
+  are double-sided now as well, because the next room to hang a bare plane will
+  make the same mistake.
+- **Rooms were not spending the light budget they had.** The 1x3 stair hall and
+  the L-shaped attic get *four* lights each and used two; the 2x1 gallery gets
+  three and used two; the 2x2 ballroom gets four and used two. The stair hall is
+  the room the whole manor is laid out around and it was the darkest space in the
+  game. A budget is not a target, but a 24 m corridor lit by one sconce is not a
+  design decision either - **check `ctx.lightBudget` against what the room
+  actually builds before concluding a room is atmospheric.**
+- **A practical lights itself and about a metre of what it is bolted to.** Point
+  lights fall off fast enough here that a lit sconce reads as a bright speck in a
+  black box; the fitting is legible and the wall behind it is not. Every
+  practical in the pack now lays an **additive, masked wash** on the surface it
+  stands against, which costs nothing against the light budget and is the whole
+  difference between "there is a lamp here" and "this room is lit". It is the
+  forge's `heatWash` doing a quieter job.
+- **Half-metals, again.** Every brass fitting in the manor - which is every
+  chandelier arm, every sconce, every candelabrum and every door handle - was
+  `metalness` 0.85 with no environment map to reflect, so the most decorated
+  surfaces in the map rendered as dark grey. This is written down twice already
+  for the Necropolis gold. Everything metal came down to about 0.45.
+- **The crack in the plaster was a worm.** The cracks were one contour of a
+  *low*-frequency noise field, which gives you a single continuous line
+  meandering across two thirds of a metre. On a wall that does not read as a
+  crack, it reads as something crawling. Cracks want to be **short, fine, and
+  gated by a separate low-frequency mask** so they cluster in failed patches with
+  sound plaster in between - and the same height field should drive a normal map,
+  because a candle rakes across a wall at exactly the angle that shows relief.
+- **Brick at a 2.2 m tile is blockwork.** A course came out 20 cm high and half a
+  metre long. This is the crypt's "a tile size is a look, not a setting" for the
+  third time in this file; the cellar and the boiler room were built out of
+  breeze blocks and it took one number to fix both.
+- **A shade lit from inside is brighter than the lamp it is on.** The pendant's
+  milk-glass gallery was at `emissiveIntensity` 0.9 and read as a white flower
+  stuck to the ceiling. Judge it against the practical it is fitted to.
+- **A dark cloth over a light is a black drum, and a white cloth is a plank.**
+  Two versions of the same mistake in one pack. The séance table's cloth hung
+  smooth under a lamp directly above it, so all that read was a bright disc
+  floating on a black cylinder; the dining table's cloth was a 2 cm slab laid on
+  the top, so all that read was a white rectangle on a black box. Both wanted the
+  same thing: **a drop with folds in it**, so the fall of the cloth catches the
+  light at a different angle from the top of it.
+- **A four-poster curtained on three sides is a box.** It was the largest single
+  object in the manor and the least legible - 2.2 x 2.5 m of flat velvet. What
+  makes a four-poster frightening is the *gaps* between the hangings and not
+  being able to check all of what is behind them, which requires there to be
+  gaps. Three panels 6 cm apart is arithmetically a gap and visually a wall.
+- **A prop that carries a collider has to be placed against the LANES, not
+  against the walls.** Two rooms' worth of new furniture went in checking
+  `|x| < 1.5` and forgetting that the west door cares about `|z|`;
+  `validate:art` came back with the cellar cut into pieces in eight different
+  ways. In a room offering all four walls with all four container anchors taken,
+  there is genuinely nowhere left a solid prop may stand - so **the cellar's
+  dressing is deliberately collider-free**, hung on the walls and laid flat on
+  the floor, which is a shape worth reaching for before fighting the flood fill.
+
+And the one thing this pass added rather than fixed: the manor finally has a
+**repeatable trick in its shell**, which every other pack has had since viscera.
+Every doorway now gets a moulded architrave - jambs, a head, a cornice shelf and
+a paterae block. Six boxes an opening, into the trim batch the room is already
+paying for, and it is in *every view of every room in the pack*, because a
+contact sheet stands the camera in a doorway and that is how a player meets a
+room too. A cut hole in plaster reads as a greybox; the same hole with an
+architrave round it reads as a house.
+
 ### And the ones the shared-art pass caught
 
 Characters and props are not rooms, but they get reviewed the same way — a

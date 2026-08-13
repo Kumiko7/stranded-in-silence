@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { armchair, bookcase, bookRow, candelabra, chair, cobwebs, fireplace, rug, table } from '../kit/props';
+import { armchair, bookcase, bookRow, candelabra, chair, cobwebs, fireplace, oilLamp, rug, table } from '../kit/props';
 
 /**
  * The Library - every wall is books, and the ladder is on the wrong side.
@@ -51,7 +51,35 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   rug(room, 0, 0.1, 3.4, 2.8, 0.04);
   table(room, 0, 0.35, 1.9, 1.0, 0.76, 0.05);
   candelabra(room, [-0.55, 0.78, 0.3], 3);
+  // The room's second light. A library lit by its hearth alone is a fire in a
+  // black box: the four walls of books - the only reason the room exists - were
+  // below the ambient floor from three of its four doorways.
+  oilLamp(room, [0.62, 0.78, 0.1], true, 'velvetGreen');
   room.box('paper', [0.42, 0.03, 0.3], [0.05, 0.78, 0.6], 0.3);
+
+  // A reading stand with an atlas open on it, and the piles nobody reshelved.
+  // South-east corner: clear of the door lanes AND of the 1.6 m a chest wants in
+  // front of it, which is the constraint that actually decides where this goes.
+  room.geo('woodDark', new THREE.CylinderGeometry(0.05, 0.22, 0.9, 8), poseMatrix([2.45, 0.45, 2.2]), { consume: true });
+  room.geo('woodDark', new THREE.BoxGeometry(0.5, 0.04, 0.4), tiltMatrix([2.45, 0.94, 2.2], [-0.35, 2.5, 0]), { consume: true });
+  room.geo('paper', new THREE.BoxGeometry(0.44, 0.03, 0.34), tiltMatrix([2.45, 0.98, 2.18], [-0.35, 2.5, 0]), { consume: true });
+  room.blockCircle(2.45, 2.2, 0.26);
+  for (const [px, pz] of [
+    [3.05, 0.9],
+    [-2.9, -1.2],
+  ] as const) {
+    let y = 0;
+    for (let i = 0; i < 6; i++) {
+      const w = room.range(0.2, 0.28);
+      room.geo(
+        room.pick(['bookRed', 'bookGreen', 'bookTan'] as const),
+        new THREE.BoxGeometry(w, room.range(0.04, 0.07), w * 0.78),
+        poseMatrix([px + room.range(-0.04, 0.04), y, pz + room.range(-0.04, 0.04)], room.range(0, 0.5)),
+        { tile: 0.4, consume: true },
+      );
+      y += 0.07;
+    }
+  }
   chair(room, -0.1, 1.4, Math.PI + 0.2);
   chair(room, 0.35, -0.8, 0.1);
   armchair(room, 2.4, -1.4, -Math.PI / 2 - 0.2);

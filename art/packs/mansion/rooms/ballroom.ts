@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { chair, chandelier, cobwebs, column, curtains, debris, lightShaft, rug, sheetedShape } from '../kit/props';
+import { candelabra, chair, chandelier, cobwebs, column, curtains, debris, lightShaft, oilLamp, rug, sheetedShape } from '../kit/props';
 
 /**
  * The Ballroom (2x2) - two hundred and fifty square metres of nothing.
@@ -124,10 +124,44 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.solid('wood', [1.6, 0.86, 0.5], [6.0, 0, -3.4], 0, { tile: 1.4 });
   room.box('woodDark', [1.7, 0.05, 0.56], [6.0, 0.86, -3.4]);
 
-  // A dais at the far end where the band would have been.
+  // A dais at the far end where the band would have been, with the music stands
+  // still on it and a branch of candles somebody lit and left.
   room.box('surface.carpet', [5.0, 0.18, 2.2], [4.0, 0, 10.6], 0, { tile: 2.4 });
   room.collider({ kind: 'box', center: [4.0, 10.6], halfExtents: [2.5, 1.1] });
+  for (const [sx, sz] of [
+    [2.6, 10.2],
+    [5.4, 10.9],
+  ] as const) {
+    // A tripod and a shaft, not one tall cone - a `CylinderGeometry` tapering
+    // from 0.02 to 0.18 over a metre is, at ballroom scale, a traffic cone.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.4;
+      room.geo(
+        'ironBlack',
+        new THREE.CylinderGeometry(0.012, 0.016, 0.34, 5),
+        tiltMatrix([sx + Math.cos(a) * 0.1, 0.32, sz + Math.sin(a) * 0.1], [0.55, -a, 0]),
+        { consume: true },
+      );
+    }
+    room.geo('ironBlack', new THREE.CylinderGeometry(0.016, 0.024, 1.0, 6), poseMatrix([sx, 0.68, sz]), { consume: true });
+    room.geo('ironBlack', new THREE.BoxGeometry(0.44, 0.3, 0.02), tiltMatrix([sx, 1.28, sz + 0.05], [-0.5, 0.2, 0]), {
+      consume: true,
+    });
+    room.geo('paper', new THREE.BoxGeometry(0.34, 0.24, 0.01), tiltMatrix([sx, 1.31, sz + 0.02], [-0.5, 0.2, 0]), {
+      consume: true,
+    });
+  }
   rug(room, 4.0, 4.0, 6.0, 4.0);
+
+  // The third and fourth lights. Two chandeliers over two hundred and fifty
+  // square metres left the dais and the whole north-east quarter dark, and a 2x2
+  // is the one footprint in the pack that gets a budget of four.
+  candelabra(room, [4.0, 0.18, 10.4], 5);
+  const branch = new THREE.PointLight(0xffd09a, 15, 10, 2);
+  branch.position.set(4.0, 0.75, 10.4);
+  room.light(branch);
+  // Clear of the item anchor at 6.0, which is the other end of the same table.
+  oilLamp(room, [6.55, 0.91, -3.4], true);
 
   curtains(room, 'north', 2.4, 2.4, 3.0, [0, 0]);
   curtains(room, 'south', 2.4, 2.4, 3.0, [1, 1]);

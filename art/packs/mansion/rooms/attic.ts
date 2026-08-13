@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { cobwebs, debris, lightShaft, pendantLamp, sheetedShape, trunk } from '../kit/props';
+import { cobwebs, debris, lightShaft, oilLamp, pendantLamp, sheetedShape, trunk } from '../kit/props';
 
 /**
  * The Attic (L-shaped) - everything the family stopped wanting.
@@ -127,7 +127,14 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.geo('woodDark', new THREE.CylinderGeometry(0.24, 0.24, 0.04, 12), poseMatrix([-2.9, 0.02, 3.4]), { consume: true });
   room.blockCircle(-2.9, 3.4, 0.3);
 
+  // Four lights, which is the whole budget an L-shaped three-cell room gets. One
+  // bulb on a flex is the right *idea* for an attic and it left both of the far
+  // bays black: a room a player cannot cross is not atmospheric, it is broken.
+  // The other two are a hurricane lamp somebody carried up here and left on a
+  // trunk, and a second bulb round the corner in the return.
   pendantLamp(room, 0.4, 0.4, true);
+  pendantLamp(room, 7.4, 0.2, true);
+  oilLamp(room, [-1.2, 0.5, 9.6], true, 'rust');
 
   debris(room, 4.0, 1.4, 2.2, 16);
   debris(room, -0.6, 6.4, 1.8, 10);

@@ -79,11 +79,17 @@ export function wallPose(
  * grow for as long as the tab is open. Register every cache added here.
  */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
-function cyl(rTop: number, rBot: number, h: number, seg = 10): THREE.CylinderGeometry {
-  const key = `${rTop},${rBot},${h},${seg}`;
+/**
+ * `open` drops the end caps. Worth having for anything hollow seen from below - a
+ * lamp shade with a cap on it is a solid plug, and a horizontal cap is also the
+ * brightest face on a cylinder, which is how a bowl of coals becomes a bowl of
+ * soup (docs/art/ROOM_REVIEW.md).
+ */
+function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THREE.CylinderGeometry {
+  const key = `${rTop},${rBot},${h},${seg},${open ? 1 : 0}`;
   let geo = cylCache.get(key);
   if (!geo) {
-    geo = new THREE.CylinderGeometry(rTop, rBot, h, seg);
+    geo = new THREE.CylinderGeometry(rTop, rBot, h, seg, 1, open);
     cylCache.set(key, geo);
   }
   return geo;
@@ -138,6 +144,66 @@ function post(
   room.geo(material, cyl(rTop, rBot, h, seg), poseMatrix([p[0], p[1] + h / 2, p[2]]), { tile: 0.6, ...options });
 }
 
+/* --- light landing on things ---------------------------------------------------- */
+
+/**
+ * The pool a practical throws on the floor under it.
+ *
+ * Additive and masked (`materials.ts` → `warmWash`), so it adds brightness
+ * without bringing a dark background or a hard rim with it. This exists because
+ * a point light in this renderer falls off fast enough that a sconce lights
+ * *itself* and very little else: the fitting reads and the wall it is bolted to
+ * does not, which is what made half the manor come back as bright specks in
+ * black boxes. The wash is what makes a lamp look like it is lighting something.
+ */
+export function floorWash(room: Room, material: string, x: number, z: number, radius: number, y = 0.015): void {
+  room.geo(material, quad(radius * 2, radius * 2), tiltMatrix([x, y, z], [-Math.PI / 2, 0, 0]), {
+    castShadow: false,
+    receiveShadow: false,
+  });
+}
+
+/** The same, on the wall a lamp is mounted to. `size` is the patch's full width. */
+export function wallWash(room: Room, material: string, side: Side, along: number, y: number, size: number, cell: Cell = [0, 0]): void {
+  const { position, rotationY } = wallPose(room, side, along, 0.03, cell);
+  // `+ Math.PI` for the same reason `painting()` needs it: a plane faces +Z.
+  room.geo(material, quad(size, size), poseMatrix([position[0], y, position[2]], rotationY + Math.PI), {
+    castShadow: false,
+    receiveShadow: false,
+  });
+}
+
+/**
+ * The plaster rose a ceiling fixture hangs out of. Four rings and a hollow,
+ * built by `chandelier()` and `pendantLamp()` themselves so that every room with
+ * a hanging light gets one without having to remember.
+ */
+export function ceilingRose(room: Room, x: number, z: number, radius = 0.52): void {
+  const { ceilingHeight } = room.ctx.dims;
+  room.geo('surface.ceiling', cyl(radius, radius * 0.86, 0.05, 18), poseMatrix([x, ceilingHeight - 0.025, z]), {
+    tile: 1.2,
+    ...NO_SHADOW,
+  });
+  room.geo('surface.ceiling', cyl(radius * 0.7, radius * 0.62, 0.045, 18), poseMatrix([x, ceilingHeight - 0.07, z]), {
+    tile: 1.2,
+    ...NO_SHADOW,
+  });
+  room.geo('surface.ceiling', ring(radius * 0.84, 0.028, 18), tiltMatrix([x, ceilingHeight - 0.06, z], [Math.PI / 2, 0, 0]), NO_SHADOW);
+  // Acanthus: eight short lobes round the hollow, which is what stops the rose
+  // reading as two discs stuck to the ceiling. Kept shallow - a lamp hangs a
+  // metre below them, and a sphere lit from directly underneath at any real size
+  // turns the rose into a white daisy.
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    room.geo(
+      'surface.ceiling',
+      ball(radius * 0.09, 6),
+      poseMatrix([x + Math.cos(a) * radius * 0.52, ceilingHeight - 0.055, z + Math.sin(a) * radius * 0.52]),
+      NO_SHADOW,
+    );
+  }
+}
+
 /* --- light sources ------------------------------------------------------------- */
 
 /** A candle stub with a flame. No real light - it is the glow that sells it. */
@@ -184,10 +250,14 @@ export function sconce(room: Room, side: Side, along: number, y = 1.95, lit = fa
   room.geo('brass', ring(0.1, 0.012, 12), tiltMatrix([x + fwd[0] * 0.5, y + 0.34, z + fwd[2] * 0.5], [Math.PI / 2, rotationY, 0]));
 
   if (lit) {
-    const lamp = new THREE.PointLight(0xffc98a, 9, 7.5, 2);
+    // 14 at 10 m, not 9 at 7.5. A sconce is very often the *only* thing lighting
+    // a room in this pack, and at the old numbers it lit the metre of wall it was
+    // screwed to and left the far side of an 8 m room below the ambient floor.
+    const lamp = new THREE.PointLight(0xffc98a, 14, 10, 2);
     lamp.position.set(x + fwd[0], y + 0.32, z + fwd[2]);
     room.light(lamp);
-    flicker(room, lamp, 9, 0.16);
+    flicker(room, lamp, 14, 0.16);
+    wallWash(room, 'warmWash', side, along, y + 0.15, 2.6, cell);
   }
 }
 
@@ -204,6 +274,8 @@ export function chandelier(
   const { ceilingHeight } = room.ctx.dims;
   // Low enough to feel oppressive, high enough that nobody walks into it.
   const hang = ceilingHeight - 0.88;
+
+  ceilingRose(room, x, z, Math.min(0.62, radius * 0.9));
 
   // None of the fixture casts a shadow: the room's one shadow-casting light sits
   // inside it, so a shadow-casting stem or ring paints a hard black bar right
@@ -230,7 +302,8 @@ export function chandelier(
   }
 
   if (lit) {
-    const lamp = new THREE.PointLight(0xffd7a0, 26, room.ctx.dims.cellSize * 1.9, 2);
+    floorWash(room, 'warmWash', x, z, radius * 4.2);
+    const lamp = new THREE.PointLight(0xffd7a0, 30, room.ctx.dims.cellSize * 2.2, 2);
     lamp.position.set(x, hang + 0.1, z);
     // At most one shadow-casting light per room (ROOM_FORMAT.md §7), and the
     // manor is static - so render the shadow map once and stop paying for it.
@@ -241,7 +314,7 @@ export function chandelier(
       lamp.shadow.needsUpdate = true;
     }
     room.light(lamp);
-    flicker(room, lamp, 26, 0.07);
+    flicker(room, lamp, 30, 0.07);
     sway(room, lamp, 0.02);
   }
 }
@@ -250,16 +323,53 @@ export function chandelier(
 export function pendantLamp(room: Room, x: number, z: number, lit = true): void {
   const { ceilingHeight } = room.ctx.dims;
   const y = ceilingHeight - 0.85;
-  room.geo('ironBlack', cyl(0.06, 0.06, 0.06, 8), poseMatrix([x, ceilingHeight - 0.03, z]));
-  post(room, 'ironBlack', 0.008, 0.008, ceilingHeight - y - 0.03, [x, y, z], 5);
-  room.geo('ironBlack', cyl(0.24, 0.06, 0.16, 12), poseMatrix([x, y - 0.02, z]));
-  room.geo('bulb', ball(0.05, 8), poseMatrix([x, y - 0.11, z]));
+  ceilingRose(room, x, z, 0.3);
+  room.geo('ironBlack', cyl(0.06, 0.06, 0.06, 8), poseMatrix([x, ceilingHeight - 0.1, z]), NO_SHADOW);
+  post(room, 'ironBlack', 0.008, 0.008, ceilingHeight - y - 0.1, [x, y, z], 5, NO_SHADOW);
+  // The shade is a cone: `open` so it has no cap, and back-faced would hide the
+  // bulb, so it stays two-sided and the bulb sits proud of its mouth.
+  room.geo('ironBlack', cyl(0.26, 0.05, 0.18, 12), poseMatrix([x, y - 0.02, z]), NO_SHADOW);
+  // A milk-glass gallery round the rim, which is what makes it read as a lamp
+  // rather than as a funnel.
+  room.geo('lampShade', cyl(0.24, 0.19, 0.07, 12, true), poseMatrix([x, y - 0.12, z]), NO_SHADOW);
+  room.geo('bulb', ball(0.055, 8), poseMatrix([x, y - 0.15, z]), NO_SHADOW);
 
   if (lit) {
-    const lamp = new THREE.PointLight(0xffdca8, 15, room.ctx.dims.cellSize * 1.5, 2);
-    lamp.position.set(x, y - 0.14, z);
+    floorWash(room, 'warmWash', x, z, 2.6);
+    const lamp = new THREE.PointLight(0xffdca8, 20, room.ctx.dims.cellSize * 1.9, 2);
+    lamp.position.set(x, y - 0.2, z);
     room.light(lamp);
-    flicker(room, lamp, 15, 0.1);
+    flicker(room, lamp, 20, 0.1);
+  }
+}
+
+/**
+ * A table oil lamp: reservoir, a glass chimney and a shade. The cheapest way to
+ * put a second practical into a room that has run out of walls to hang one on,
+ * and the only fitting in the kit that stands on furniture.
+ */
+export function oilLamp(room: Room, p: Vec3, lit = true, shade = 'lampShade'): void {
+  const [x, y, z] = p;
+  // A wide foot and a stem, so the lamp is anchored to whatever it stands on.
+  // The first version was a shade on a thin dark stalk and read as a lit cone
+  // floating a foot above the sideboard.
+  post(room, 'brass', 0.09, 0.13, 0.03, [x, y, z], 12);
+  post(room, 'brass', 0.05, 0.09, 0.07, [x, y + 0.03, z], 12);
+  post(room, 'brass', 0.035, 0.035, 0.05, [x, y + 0.1, z], 8);
+  // The reservoir, with oil still in it.
+  room.geo('glass', ball(0.085, 12), poseMatrix([x, y + 0.2, z]), NO_SHADOW);
+  room.geo('brass', cyl(0.05, 0.055, 0.045, 10), poseMatrix([x, y + 0.28, z]), NO_SHADOW);
+  // The chimney: open-ended, so it is a tube of glass and not a bottle.
+  room.geo('glass', cyl(0.048, 0.062, 0.2, 10, true), poseMatrix([x, y + 0.4, z]), NO_SHADOW);
+  room.geo('flame', cyl(0.004, 0.024, 0.1, 6), poseMatrix([x, y + 0.36, z]), NO_SHADOW);
+  room.geo(shade, cyl(0.17, 0.08, 0.13, 12, true), poseMatrix([x, y + 0.55, z]), NO_SHADOW);
+  room.geo('brass', ring(0.08, 0.008, 10), tiltMatrix([x, y + 0.5, z], [Math.PI / 2, 0, 0]), NO_SHADOW);
+
+  if (lit) {
+    const lamp = new THREE.PointLight(0xffc98a, 13, 9, 2);
+    lamp.position.set(x, y + 0.38, z);
+    room.light(lamp);
+    flicker(room, lamp, 13, 0.14, 6.4);
   }
 }
 
@@ -300,17 +410,44 @@ export function fireplace(room: Room, side: Side, along: number, lit = true, cel
   room.box('ash', [1.0, 0.09, 0.42], [grate[0], 0, grate[2]], rotationY);
 
   if (lit) {
-    for (let i = 0; i < 7; i++) {
-      const p = side3(room.range(-0.4, 0.4), room.range(0.02, 0.22));
-      room.box('emberGlow', [room.range(0.05, 0.12), 0.05, room.range(0.05, 0.1)], [p[0], 0.08, p[2]], rotationY, {
+    // Logs across the grate, then embers on top of them - a bed of coals sunk
+    // inside the basket is invisible from anywhere but directly in front of it.
+    for (const [s, d, r] of [
+      [-0.12, 0.1, 0.075],
+      [0.1, 0.16, 0.065],
+      [-0.02, 0.08, 0.06],
+    ] as const) {
+      const p = side3(s, d);
+      room.geo('woodDark', cyl(r, r, 0.72, 6), tiltMatrix([p[0], 0.22, p[2]], [0, rotationY, Math.PI / 2]), {
+        tile: 0.5,
+        ...NO_SHADOW,
+      });
+    }
+    for (let i = 0; i < 9; i++) {
+      const p = side3(room.range(-0.4, 0.4), room.range(0.02, 0.24));
+      room.box('emberGlow', [room.range(0.05, 0.12), 0.05, room.range(0.05, 0.1)], [p[0], room.range(0.1, 0.28), p[2]], rotationY, {
         castShadow: false,
       });
     }
+    // Flame, and the light it throws on the hearth, the surround and the floor.
+    for (let i = 0; i < 5; i++) {
+      const p = side3(room.range(-0.26, 0.26), room.range(0.06, 0.18));
+      room.geo('flame', cyl(0.004, room.range(0.05, 0.09), room.range(0.16, 0.3), 5), poseMatrix([p[0], 0.34, p[2]]), NO_SHADOW);
+    }
     const f = fwd(0.1);
-    const lamp = new THREE.PointLight(0xff9a4a, 13, 8.5, 2);
-    lamp.position.set(f[0], 0.42, f[2]);
+    const pool = fwd(0.55);
+    floorWash(room, 'fireWash', pool[0], pool[2], 2.5);
+    room.geo('fireWash', quad(1.3, 1.1), poseMatrix([back[0], 0.6, back[2]], rotationY + Math.PI), {
+      castShadow: false,
+      receiveShadow: false,
+    });
+    // 18 at 11 m, not 13 at 8.5. A hearth is the only light in several of these
+    // rooms and at the old figure it lit the hearthrug and gave up: the library,
+    // the study and the trophy room all came back as a bright fire in a black box.
+    const lamp = new THREE.PointLight(0xff9a4a, 18, 11, 2);
+    lamp.position.set(f[0], 0.6, f[2]);
     room.light(lamp);
-    flicker(room, lamp, 13, 0.3, 3.1);
+    flicker(room, lamp, 18, 0.3, 3.1);
   } else {
     const f = fwd(0.1);
     room.box('ash', [1.0, 0.12, 0.4], [f[0], 0.06, f[2]], rotationY);
@@ -379,7 +516,13 @@ export function painting(
     y + h / 2,
     z - Math.cos(rotationY) * 0.035,
   ];
-  room.geo('portrait', canvas, tiltMatrix(out, rot), { castShadow: false, consume: true });
+  // `+ Math.PI`: props in this pack are authored facing -Z and `FACE[side]` turns
+  // them out of the wall, but a `PlaneGeometry` faces +Z - so the same rotation
+  // that points a sconce into the room points a canvas into the plaster. Every
+  // portrait in the manor was hung back-to-front, which is why a gallery whose
+  // entire identity is its paintings came back as a corridor of black
+  // rectangles. Same finding as the abyss's monitors, docs/art/ROOM_REVIEW.md.
+  room.geo('portrait', canvas, tiltMatrix(out, [rot[0], rot[1] + Math.PI, -rot[2]]), { castShadow: false, consume: true });
 }
 
 /** A tall mirror, or what is left of one. */
@@ -388,7 +531,8 @@ export function wallMirror(room: Room, side: Side, along: number, y: number, w =
   const [x, , z] = position;
   room.box('gilt', [w + 0.14, h + 0.14, 0.06], [x, y, z], rotationY, { tile: 0.4 });
   const out: Vec3 = [x - Math.sin(rotationY) * 0.04, y + h / 2, z - Math.cos(rotationY) * 0.04];
-  room.geo('mirror', quad(w, h), poseMatrix(out, rotationY), { castShadow: false });
+  // Faced out of the wall, not into it - see `painting()`.
+  room.geo('mirror', quad(w, h), poseMatrix(out, rotationY + Math.PI), { castShadow: false });
 }
 
 /** Velvet drapes with a pelmet. Put them beside a window, or over a blank wall. */
@@ -835,15 +979,27 @@ export function creeper(room: Room, x: number, y: number, z: number, spread = 1,
  */
 export function hangingSheet(room: Room, x: number, z: number, width: number, height: number, rotationY = 0): void {
   const { ceilingHeight } = room.ctx.dims;
-  const y = height / 2 + (ceilingHeight - height) * 0.5;
+  const top = ceilingHeight - 0.85;
 
-  room.geo('sheetLinen', quad(width, height), poseMatrix([x, y, z], rotationY), NO_SHADOW);
-  // Folds either side, so it is not obviously one flat plane.
-  for (const s of [-width * 0.3, width * 0.3]) {
-    const px = x + Math.cos(rotationY) * s;
-    const pz = z - Math.sin(rotationY) * s;
-    room.geo('sheetLinen', quad(width * 0.28, height * 0.96), tiltMatrix([px, y, pz], [0, rotationY, 0], [1, 1, 1]), NO_SHADOW);
+  // Built as a run of narrow panels rather than one plane, for two reasons the
+  // first contact sheet made obvious. A single quad has a *sawn* bottom edge,
+  // and a wobbly edge is not a torn one - so every panel hangs to its own
+  // length. And a single quad is lit identically all the way across, which is
+  // what made a line of washing read as a row of grey hoardings: panels set at
+  // slightly different depths catch a lamp differently and the sheet moves as
+  // you walk past it.
+  const panels = Math.max(2, Math.round(width / 0.3));
+  const pw = width / panels;
+  for (let i = 0; i < panels; i++) {
+    const s = -width / 2 + pw * (i + 0.5);
+    const h = height * room.range(0.84, 1.0);
+    const depth = Math.sin((i / panels) * Math.PI * 3 + 0.7) * 0.05;
+    const px = x + Math.cos(rotationY) * s - Math.sin(rotationY) * depth;
+    const pz = z - Math.sin(rotationY) * s - Math.cos(rotationY) * depth;
+    room.geo('sheetLinen', quad(pw + 0.03, h), tiltMatrix([px, top - h / 2, pz], [0, rotationY, room.range(-0.04, 0.04)]), NO_SHADOW);
   }
+  // The peg line the whole run is folded over.
+  room.geo('linen', cyl(0.02, 0.02, width, 5), tiltMatrix([x, top + 0.01, z], [0, rotationY, Math.PI / 2]), NO_SHADOW);
 }
 
 /** A shaft of light: a long, faint, unlit wedge. Cheap god-rays. */
