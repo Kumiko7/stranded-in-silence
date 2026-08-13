@@ -1,4 +1,17 @@
-/** Build-time constants substituted by Vite (`vite.config.ts` -> `define`). */
+/** Things that exist outside the module graph. */
 
-/** `package.json -> version`. Shown in the corner of the main menu. */
-declare const __APP_VERSION__: string;
+/**
+ * The desktop shell's bridge (`electron/preload.cjs`), or `undefined` in a
+ * browser. Its presence is the ONLY thing the game can tell about being
+ * packaged, and it is deliberately the only thing it needs to.
+ */
+interface StrandedShell {
+  save: {
+    read(): string | null;
+    write(value: string): void;
+  };
+}
+
+interface Window {
+  strandedShell?: StrandedShell;
+}

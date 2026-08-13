@@ -38,6 +38,8 @@ stranded/
 ├─ config/             ALL tunable values + localisation. No code.
 ├─ assets/             Raw media only (audio, textures, UI images). Served as /.
 ├─ art/                All 3D content, written in three.js. Never imports src/.
+├─ electron/           The desktop shell. A window, a way to serve dist/ to it,
+│                      and the profile file. Never imported by src/.
 ├─ tools/              Dev-only tools. Not shipped; may import both art/ and src/.
 ├─ docs/               These documents.
 └─ src/                All logic.
@@ -255,6 +257,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
 | Add a difficulty, or change what one does | `config/difficulty.json` only — plus a `difficulty.<id>.name` key per language |
 | Change how many hunters a difficulty puts on the map | `config/enemy.json → archetypes.<id>.spawn.regions`, overridden per mode in `difficulty.json` |
+| Change the desktop shell — window, permissions, where saves go | `electron/` — see "The desktop build" in §10. The browser build must keep working; `src/` may not learn it is packaged |
 | Add a save field | `src/save/index.ts`; an *options* field is `src/save/options.ts` plus a control in `src/ui/screens/Options.tsx` and a line in `applyOptions()` in `src/main.tsx` |
 | Add a scoreboard stat | `src/world/runStats.ts` (`STAT_IDS`), a `#count()` call in `src/game/Game.ts`, a category in `game.json → scoring`, a `scoreboard.category.*` locale key |
 | Change what a run pays out | `config/items.json → items.coinPile / items.diamond`; the exit-door half is `Game.#cashInTreasure()`, and the purse is banked by `bankRun()` in `src/main.tsx` when a player who escaped actually leaves the run |
@@ -280,7 +283,57 @@ mic picking up small sounds cannot give you away. Full detail in
 | Gameplay feedback (alert wash, heartbeat, damage flash, health vignette) | **A DOM compositing layer** (`src/render/feedback.ts`), not an `EffectComposer` post stack | Every effect the design asks for is a full-screen blend. A DOM layer costs no render targets and no extra passes, and there is no *general* post-processing stack to justify one (see "Deliberately NOT built"). `render/` still owns it. If an effect ever needs the depth buffer, that is the moment to introduce a composer. |
 | Pathfinding | **A\* over the room graph + per-room waypoints** | The world is already a graph of rooms; hierarchical pathing on it is cheaper and more controllable than a navmesh, and makes "search a nearby room" trivial to express. |
 | State sync | **Seed + snapshots**, not full world replication | The map is a pure function of `(mapId, seed)`, so only entity state crosses the wire. |
-| Persistence | **`localStorage`**, adapter-swapped for OS save dir when packaged | No backwards-compat requirement yet; the adapter seam is what matters. |
+| Persistence | **`localStorage`** in a browser, a **file in the OS save directory** when packaged | One `Storage` adapter in `src/save/index.ts` with two implementations, picked by whether the desktop shell is there. No backwards-compat requirement yet; the seam is what matters. |
+| Desktop build | **Electron + electron-builder**, serving the *same* bundle over a custom `game://` scheme | The browser build stays the product; the shell adds a window and a save file and nothing else. The custom scheme rather than `file://` is not cosmetic — see "The desktop build" below. |
+
+### The desktop build
+
+`electron/main.cjs` (the window, the bundle, the profile file) and
+`electron/preload.cjs` (the one bridge). Both are CommonJS: a preload script
+cannot be ESM while `sandbox` is on, and the two halves matching is worth more
+than the syntax.
+
+| Command | Does |
+| --- | --- |
+| `npm run electron:dev` | Opens the shell on the **dev server** — run `npm run dev` first. `STRANDED_DEV_URL` overrides the port Vite fell back to |
+| `npm run electron:dist` | Builds, then opens the shell on the **built bundle**. The way to test the packaged loading path without packaging |
+| `npm run electron:build` | Builds, then `electron-builder` → `release/` (NSIS installer + portable exe on Windows) |
+
+**Nothing in `src/` knows it is packaged**, with one exception it cannot avoid:
+`window.strandedShell` exists or it does not, and `src/save/` picks its storage
+adapter on that. There is no desktop-only code path anywhere else.
+
+Four decisions worth knowing.
+
+**The bundle is served over a custom `game://` scheme, not `file://`.** Two
+things break under `file://` and both are fatal: it is not a **secure context**
+in Chromium, so `getUserMedia` is refused and the entire voice system — the
+point of the game — never opens a microphone; and an **absolute asset path**
+(`/ui/menu/…`, which is how everything in `assets/` is addressed) has no meaning
+under it. A privileged standard scheme fixes both with no local HTTP server.
+The handler refuses anything resolving outside `dist/`.
+
+**The renderer keeps every default that isolates it** — context isolation on,
+no Node integration, Chromium sandbox on — because it talks to arbitrary peers
+over WebRTC. That is why the profile is read and written by the *main* process:
+a sandboxed preload has no `fs`, and the renderer never learns the path. The
+read is synchronous (`ipcRenderer.sendSync`) because `Save.load()` is, and
+`Save.load()` is synchronous because the chosen language lives in the profile
+and i18n is initialised from it before anything is drawn.
+
+**`backgroundThrottling` is off.** Chromium throttles timers and rAF in a window
+that is not in front; the host simulates the run for everybody, so a host who
+alt-tabs must not stop the game for the other three.
+
+**There is no single-instance lock**, deliberately: two copies on one machine is
+how the multiplayer is tested.
+
+The save file is `<userData>/profile.json`, written to a temporary name and
+renamed over the top — a rename is atomic, so a crash mid-write cannot leave a
+half-profile behind, which the game would treat as a fresh one. `userData` is
+named from **top-level `productName`** in `package.json`; `app.getName()` does
+not see the copy inside the `build` block, and moving it later would silently
+strand every existing save.
 
 ### Deliberately NOT built
 

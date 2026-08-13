@@ -2,7 +2,6 @@ import { defineConfig, type Plugin } from 'vite';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import pkg from './package.json' with { type: 'json' };
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
@@ -56,9 +55,6 @@ export default defineConfig({
   root: '.',
   publicDir: 'assets',
   plugins: [roomshotSave()],
-  // The build stamp in the corner of the main menu. It comes from package.json
-  // rather than config/ because it describes the build, not the game.
-  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   resolve: {
     alias: {
       '@': r('./src'),
@@ -71,6 +67,12 @@ export default defineConfig({
     // PORT lets a second dev server run alongside the first without a clash.
     port: Number(process.env['PORT']) || 5173,
     strictPort: false,
+    // The watcher takes a handle on every directory under the root, and on
+    // Windows an open directory handle makes a directory un-renameable -
+    // which is exactly what electron-builder does to `release/` half way
+    // through packaging. A dev server left running would otherwise fail the
+    // desktop build with an EPERM nobody could place.
+    watch: { ignored: ['**/release/**', '**/dist-electron/**'] },
   },
   build: {
     outDir: 'dist',
