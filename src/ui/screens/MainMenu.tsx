@@ -21,6 +21,11 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { MenuBackgroundConfig, MenusConfig } from '@/config/types';
 import { t } from '@/i18n/index';
+// The build stamp in the corner. A plain named import rather than a Vite
+// `define`, because a define is substituted in the BUILD and not by the dev
+// server - which left `npm run dev` throwing on this line while every
+// production bundle was fine. The named import is tree-shaken to the string.
+import { version } from '../../../package.json';
 
 interface Props {
   code: string;
@@ -158,7 +163,7 @@ export function MainMenu({ code, status, error, menus, onStart, onJoin, onOption
           </button>
         </div>
 
-        <div class="menu__version">{t('menu.version', { version: __APP_VERSION__ })}</div>
+        <div class="menu__version">{t('menu.version', { version })}</div>
       </footer>
     </div>
   );

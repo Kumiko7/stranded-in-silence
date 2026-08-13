@@ -51,9 +51,9 @@ export interface Profile {
 }
 
 /**
- * The seam. Swapped for a file-backed adapter when the game is packaged; a
- * browser with storage disabled falls through to an in-memory profile rather
- * than failing to boot.
+ * The seam. A browser with storage disabled falls through to an in-memory
+ * profile rather than failing to boot, and the packaged build swaps the whole
+ * thing for a file in the OS's per-user application data directory.
  */
 interface Storage {
   read(): string | null;
@@ -77,13 +77,41 @@ const browserStorage: Storage = {
   },
 };
 
+/**
+ * The desktop build's store: a real file, written by the main process
+ * (`electron/main.cjs`). The game does not know the path and does not want to -
+ * `window.strandedShell` being there at all is the whole of "am I packaged".
+ */
+const shellStorage: Storage = {
+  read: () => {
+    try {
+      return window.strandedShell?.save.read() ?? null;
+    } catch (error) {
+      console.warn('[save] could not read profile', error);
+      return null;
+    }
+  },
+  write: (value) => {
+    try {
+      window.strandedShell?.save.write(value);
+    } catch (error) {
+      console.warn('[save] could not persist profile', error);
+    }
+  },
+};
+
+/** A file when the shell offers one, `localStorage` when it does not. */
+function defaultStorage(): Storage {
+  return typeof window !== 'undefined' && window.strandedShell ? shellStorage : browserStorage;
+}
+
 export class Save {
   #profile: Profile;
   readonly #defaults: Options;
   readonly #ranges: OptionRanges;
   readonly #storage: Storage;
 
-  constructor(config: Config, storage: Storage = browserStorage) {
+  constructor(config: Config, storage: Storage = defaultStorage()) {
     this.#defaults = defaultOptions(config);
     this.#ranges = optionRanges(config);
     this.#storage = storage;
