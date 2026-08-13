@@ -286,6 +286,8 @@ export interface ItemsConfig {
 }
 
 export interface GraphicsConfig {
+  /** Whether the game starts fullscreen. The player's switch is in the profile. */
+  fullscreen: boolean;
   pixelRatioCap: number;
   antialias: boolean;
   exposure: number;

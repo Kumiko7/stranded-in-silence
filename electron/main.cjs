@@ -93,10 +93,12 @@ function createWindow() {
   win.webContents.setVisualZoomLevelLimits(1, 1).catch(() => {});
 
   // Nothing else can open devtools once the menu is gone, and a desktop build
-  // with no way in is its own kind of problem. Dev only.
+  // with no way in is its own kind of problem. Dev only, and deliberately NOT
+  // F11 - that is the game's fullscreen bind, and swallowing it here would take
+  // it off the page.
   if (!app.isPackaged) {
     win.webContents.on('before-input-event', (event, input) => {
-      if (input.type !== 'keyDown' || input.key !== 'F12') return;
+      if (input.type !== 'keyDown' || input.key !== 'I' || !input.control || !input.shift) return;
       event.preventDefault();
       win.webContents.toggleDevTools();
     });
@@ -154,6 +156,16 @@ ipcMain.on('save:write', (_event, value) => {
     console.error('[shell] could not write the profile', error);
   }
 });
+
+/* --- the window ----------------------------------------------------------- */
+
+ipcMain.on('window:fullscreen', (event, on) => {
+  BrowserWindow.fromWebContents(event.sender)?.setFullScreen(Boolean(on));
+});
+
+// The main menu's Quit. `app.quit()` rather than closing the window, so macOS
+// leaves too - a game that vanishes but stays in the dock has not quit.
+ipcMain.on('window:quit', () => app.quit());
 
 /* --- lifecycle ------------------------------------------------------------ */
 

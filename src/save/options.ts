@@ -33,6 +33,12 @@ export interface Options {
     /** Multiplies `graphics.json -> exposure`. 1 is exactly what the map asks for. */
     brightness: number;
     shadows: boolean;
+    /**
+     * Whether the game is fullscreen. Unlike everything else in this block it
+     * is a *window* state rather than a value handed to a subsystem, so
+     * `applyOptions()` does not touch it - see `main.tsx`.
+     */
+    fullscreen: boolean;
   };
   controls: {
     sensitivity: number;
@@ -86,6 +92,7 @@ export function defaultOptions(config: Config): Options {
       fovDegrees: config.player.camera.fovDegrees,
       brightness: 1,
       shadows: config.graphics.shadows.enabled,
+      fullscreen: config.graphics.fullscreen,
     },
     controls: {
       sensitivity: config.input.mouse.sensitivity,
@@ -139,6 +146,7 @@ export function sanitiseOptions(raw: unknown, defaults: Options, ranges: OptionR
       fovDegrees: clamp(graphics['fovDegrees'], ranges.fov, defaults.graphics.fovDegrees),
       brightness: clamp(graphics['brightness'], ranges.brightness, defaults.graphics.brightness),
       shadows: bool(graphics['shadows'], defaults.graphics.shadows),
+      fullscreen: bool(graphics['fullscreen'], defaults.graphics.fullscreen),
     },
     controls: {
       sensitivity: clamp(controls['sensitivity'], ranges.sensitivity, defaults.controls.sensitivity),

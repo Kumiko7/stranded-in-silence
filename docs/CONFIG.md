@@ -58,6 +58,7 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Which maps exist | `maps.json` | `maps.*` — `mansion`, `viscera`, `abyss`, `crypt`, and the `test` scaffold |
 | A map's lobby poster | `maps.json` | `maps.<id>.posterArtId` — an art id from `art/shared/index.ts`; unset or unregistered hangs a blank |
 | Lighting, fog, shadows, draw distance | `graphics.json` | top level |
+| Whether the game starts fullscreen | `graphics.json` | `fullscreen` — the default only. The player's own switch is `options.graphics.fullscreen` in the save profile, and it is restored at boot in the packaged build alone: a browser may not go fullscreen without a gesture |
 | How many lights are on at once | `graphics.json` | `maxActiveLights` and `shadows.maxCastingLights` — a fixed **budget**, not a cap: the renderer always enables exactly this many, nearest first, because a light count that changes recompiles every shader mid-run. See [`systems/RENDERING.md`](systems/RENDERING.md) |
 | How gently a lamp takes or loses one of those slots | `graphics.json` | `lightFadeSeconds` — a switch is a light visibly coming on as you walk up to it |
 | How much of the map is drawn | `graphics.json` | `renderDistanceRooms` for the hard limit, `culling.*` for the portal flood inside it |

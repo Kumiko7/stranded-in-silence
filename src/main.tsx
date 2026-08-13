@@ -124,6 +124,33 @@ async function boot(): Promise<void> {
 
   applyOptions(save.options);
 
+  /* --- the window --------------------------------------------------------- */
+
+  /**
+   * The desktop shell's window controls, or null in a browser. Fullscreen and
+   * quitting are the two things a page cannot do for itself - `requestFullscreen`
+   * needs a user gesture, and a tab cannot close itself at all.
+   */
+  const shellWindow = window.strandedShell?.window ?? null;
+
+  function setFullscreen(on: boolean): void {
+    if (shellWindow) {
+      shellWindow.setFullscreen(on);
+      return;
+    }
+    if (on) void document.documentElement.requestFullscreen().catch(() => {});
+    else if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+  }
+
+  // Restored only where it CAN be. The shell can put its own window fullscreen
+  // with nobody having touched anything; a browser cannot, so rather than leave
+  // the switch claiming something untrue, the saved value is corrected to what
+  // is actually on screen and the player turns it back on when they want it.
+  if (shellWindow) setFullscreen(save.options.graphics.fullscreen);
+  else if (save.options.graphics.fullscreen) {
+    save.setOptions({ graphics: { ...save.options.graphics, fullscreen: false } });
+  }
+
   bootRoot?.remove();
 
   /* --- ui state ----------------------------------------------------------- */
@@ -181,6 +208,7 @@ async function boot(): Promise<void> {
     optionRanges: save.ranges,
     buses: config.audio.buses,
     menus: config.ui.menus,
+    canQuit: shellWindow !== null,
     tutorial: null,
     actions: input.actions(),
     localeToken: 0,
@@ -202,6 +230,23 @@ async function boot(): Promise<void> {
     Object.assign(state, patch);
     push(patch);
   };
+
+  /** Flips fullscreen and writes the new state through, so the switch agrees. */
+  function toggleFullscreen(): void {
+    const fullscreen = !save.options.graphics.fullscreen;
+    setFullscreen(fullscreen);
+    set({ options: save.setOptions({ graphics: { ...save.options.graphics, fullscreen } }) });
+  }
+
+  // Leaving fullscreen by any other route - Escape, the browser's own F11 - has
+  // to move the switch too, or it goes on lying the first time it happens. The
+  // shell's window is not the document's business, so it is exempt.
+  addEventListener('fullscreenchange', () => {
+    if (shellWindow) return;
+    const fullscreen = document.fullscreenElement !== null;
+    if (fullscreen === save.options.graphics.fullscreen) return;
+    set({ options: save.setOptions({ graphics: { ...save.options.graphics, fullscreen } }) });
+  });
 
   /* --- tutorial ------------------------------------------------------------ */
 
@@ -652,6 +697,9 @@ async function boot(): Promise<void> {
       net.hostLobby(config.difficulty.default);
       enterLobby(0);
     },
+    // Only ever reached from the desktop shell: `state.canQuit` is what draws
+    // the row, and a browser tab cannot close itself.
+    onQuit: () => shellWindow?.quit(),
     onJoin: (code) => {
       set({ netStatus: 'connecting', error: null });
       net
@@ -736,9 +784,11 @@ async function boot(): Promise<void> {
     onOptionsChange: (patch) => {
       const options = save.setOptions(patch);
       applyOptions(options);
-      // Not in `applyOptions`: switching the tutorial back on is what resets
-      // what it has already taught, and boot applies the saved options too.
+      // Neither of these belongs in `applyOptions`, which runs at boot too:
+      // switching the tutorial back on is what resets what it has taught, and
+      // fullscreen is a window state that a browser may not enter unasked.
       tutorial.setEnabled(options.tutorial);
+      if (patch.graphics) setFullscreen(options.graphics.fullscreen);
       set({ options });
     },
     onOptionsReset: () => {
@@ -954,6 +1004,9 @@ async function boot(): Promise<void> {
       // Read before anything is suppressed, because opening the box is what
       // suppresses it. Closing it again is the box's own business.
       if (input.justPressed('chat')) openChat();
+
+      // Read in every screen, including the menu: fullscreen is not the run's.
+      if (input.justPressed('toggleFullscreen')) toggleFullscreen();
 
       // A world that is built but still behind the loading card presents but
       // does not run: the hunter must not have a head start on whoever loaded
