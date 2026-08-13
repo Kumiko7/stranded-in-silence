@@ -101,6 +101,16 @@ survive being seen three times:
   and lay it over whatever they touch. A `MeshBasicMaterial` with
   `blending: THREE.AdditiveBlending` drops the dark half and adds only the
   bright, which is what light does.
+- **And it still needs a mask.** Additive fixes the dark background; it does
+  nothing about the *edge*. A flat-coloured disc ends on a hard circle and a quad
+  of haze has four corners, so an unmasked wash reads as a pancake of paint
+  however faint you make it. Give every wash a radial falloff and every plume a
+  soft-sided one as its `map` - one small texture serves a whole pack, and it is
+  the difference between a pool of light and a decal.
+- **Vapour is additive too.** Steam, gas, heat shimmer and dust are light
+  scattering, not a grey surface: alpha-blended they lay a film over whatever is
+  behind them at any opacity you can still see. Added and masked, they can be
+  several times stronger and never grey anything out.
 - **Water in a container is `side: THREE.BackSide`.** A tank is a cylinder and a
   front-faced cylinder of water is an opaque wall between the eye and everything
   floating in it. Back-faced, only the far wall draws and the contents read.

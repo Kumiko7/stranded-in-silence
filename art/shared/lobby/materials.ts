@@ -151,6 +151,13 @@ export function createLobbyMaterials(): MaterialLibrary {
       emissiveIntensity: 0.12,
       roughness: 0.95,
     }),
+    'poster.forge': standard(0xffffff, {
+      map: tex.posterForge,
+      emissive: 0xffffff,
+      emissiveMap: tex.posterForge,
+      emissiveIntensity: 0.12,
+      roughness: 0.95,
+    }),
     'poster.test': standard(0xffffff, {
       map: tex.posterTest,
       emissive: 0xffffff,

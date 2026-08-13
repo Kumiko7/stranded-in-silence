@@ -229,14 +229,14 @@ headings, over several seeds.
 Measured with `tools/leakcheck.html?rooms=1&props=1`, every door open, 48 camera
 poses spread over the grid. Nothing here is a leak — it is what the packs are.
 
-| | mansion | viscera | abyss | crypt |
-| --- | --- | --- | --- | --- |
-| Triangles standing in the map | 155k | ~230k | **429k** | 413k |
-| Triangles drawn, average pose | 5–7k | 11–16k | **22–38k** | 22–23k |
-| Draw calls, average pose | 60–68 | 59–65 | **83–104** | 87–93 |
-| Worst room | library, 9.1k | ribcage, 18k | **archive, 23.9k** | ossuary, 22.2k |
-| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** | 7–11 |
-| World build | 95–300 ms | 150–750 ms | **230–1200 ms** | 1.6–1.7 s |
+| | mansion | viscera | abyss | crypt | forge |
+| --- | --- | --- | --- | --- | --- |
+| Triangles standing in the map | 155k | ~230k | **429k** | 413k | 249k |
+| Triangles drawn, average pose | 5–7k | 11–16k | **22–38k** | 22–23k | 18–23k |
+| Draw calls, average pose | 60–68 | 59–65 | **83–104** | 87–93 | 81–87 |
+| Worst room | library, 9.1k | ribcage, 18k | **archive, 23.9k** | ossuary, 22.2k | tube, 12.8k (3 cells) |
+| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** | 7–11 | 22–25 |
+| World build | 95–300 ms | 150–750 ms | **230–1200 ms** | 1.6–1.7 s | 340–1700 ms |
 
 Every abyss room is inside the per-room budget in
 [`../art/ROOM_FORMAT.md`](../art/ROOM_FORMAT.md) §7 — that budget is 40k
@@ -275,6 +275,25 @@ Two findings from that pack generalise, and both are in
   the crypt's was the votive lamp station, 80k triangles over 1,932 of them,
   three quarters of it in 7 × 6 spheres on two-centimetre flames. Five-segment
   flames gave back 50k triangles and look identical.
+
+**Vulcan's Anvil is the first pack built with all of that already written down**,
+and it shows in the shape of the numbers rather than in any one of them: 249k
+standing against abyss's 429k, no 1x1 over 10.2k, and the whole map inside the
+25k per-room budget without a single argued exception. What it cost instead is
+**shadow casters** - 22 to 25 of them declared, more than any other pack - because
+almost every room has one baked lamp and the pack's silhouettes (a crucible, a
+cutter head, a rack bank, an ash cast) are what earn casting. Only two are lit at
+once, so that is a load-time cost at `warmUp()` and nothing per frame.
+
+Its `?props=1` line item is the same one the crypt had, in the same place, for
+the same reason: **the shell's own trim is the biggest single spender.** `strip()`
+- the kick plate, the heat register, the band stiffeners and the cornice - is
+18.5 % of the map over 4,260 calls at twelve triangles each. That is already the
+cheapest geometry that reads (a box), so unlike the crypt's votive flames there
+is nothing to give back; the lesson is only that **a course that runs round every
+wall of every room is a fifth of your map before you have placed a prop**, and
+that it should be costed on the day it is written rather than after twenty rooms
+are built on top of it.
 
 `?props=1` charges every batched triangle to the art function that added it,
 which is where the budget conversation should start rather than with a room. It

@@ -323,6 +323,69 @@ first pass had not:
   `0x9ce0d4` and intensity 7 are brighter *and* the rock is grey again: what
   floods a room is the saturation, not the brightness.
 
+### And the ones the Vulcan's Anvil pass caught
+
+Fifth pack, and the first one built with every lesson above already written
+down — which is exactly why the failures it did hit are worth having. Two of
+them are **new classes**, three are old lessons arriving through a door nobody
+had watched, and one turned out not to be a bug at all.
+
+- **An additive wash still needs a MASK.** "Light on a surface is additive" is
+  already in this file twice, and the first sheet of this pack still came back
+  with beige pancakes on every floor: additive fixes the *dark background*, it
+  does nothing about the *hard edge*. A `disc()` of flat colour ends on a circle
+  wherever you stop it, and a quad of haze has four corners. Every wash and every
+  plume in the pack now carries a radial or a plume-shaped falloff as its `map`,
+  which costs one 128px texture for the whole pack and is the difference between
+  a pool of light and a disc of paint.
+- **Vapour should be additive too.** Steam, gas and heat shimmer began as
+  alpha-blended grey at 0.055 — already following the "translucent volume wants
+  to be thin" rule — and still read as a pane of fog standing in front of the
+  lavafall, because *any* alpha grey lays a film over what is behind it. Vapour
+  in a dark room is light scattering, not a surface: switched to additive with
+  the same mask it can be four times as strong and never greys anything out.
+- **A shadow-casting lamp near a big caster paints the room black.** The drill
+  chamber has a four-metre cutter head against one wall, and its warm practical
+  stood two metres in front of it: three of five views were solid black with a
+  rim of orange. The fix is not smaller geometry, it is that the room's ONE baked
+  lamp has to be the one with nothing enormous between it and the room — here the
+  cold work lamp in the far corner — and that a set piece that size never casts.
+- **A black wedge across a raised view is the ceiling, not a bug**, and this pack
+  spent an hour re-learning it. The corner cameras on a contact sheet sit at
+  roughly beam height, so an eight-metre I-beam a hand's breadth from the lens
+  blacks out most of the frame. It is the same finding as the crypt's groin
+  vaults. **The cheapest way to settle it is to render the room once with the
+  ceiling style swapped**, which is one reload and answers the question outright.
+- **Concentric anything on a floor is a bullseye.** Flow banding in the obsidian
+  field was drawn as arcs about a point, which is geologically right and reads as
+  a target painted on the deck — the same failure one dimension up from the
+  four-segment torus that read as a cross. Banding runs in ONE direction.
+- **A second lamp of the same colour is not a second lamp.** Three Mountain rooms
+  had two warm practicals each and came out as three versions of the same orange
+  cave. Giving the glass field a pale violet as its second light — the only cold
+  lamp on that side of the map — separated it from the other two at a glance
+  without changing a single prop.
+
+And two that are about the *shape of the work* rather than about what a sheet
+shows, both of which cost more time than any of the above:
+
+- **Put every collider-bearing prop 1.5 m clear of a door lane, and prefer props
+  that carry no collider at all.** `boulders()` scatters its rocks from the
+  seeded RNG, so a heap of them near a doorway seals it on some seeds and not
+  others — `npm run validate:art` caught eleven separate instances of this across
+  the Mountain half, each one a different room. The pack now has a `rubble()` that
+  is visually identical and places nothing, and `boulders()` is reserved for
+  corners with a metre and a half of margin. This is the crypt's finding again,
+  and the general form of it is: **a prop that places random colliders is a prop
+  you have to think about, so most props should not.**
+- **A helper whose third argument is a yaw will be passed a coordinate.**
+  `workLamp(room, x, z, rotationY)` got `(room, 2.4, 2.9, -2.4)` and parked a
+  tripod, with its collider, precisely where a locker had to open. It validated
+  as "the approach is unreachable", which is the correct message and the least
+  helpful possible place to start looking. Neither the compiler nor the validator
+  can see it; what catches it is reading the failure as *geometry in the wrong
+  place* rather than as *anchor in the wrong place*.
+
 ### And the ones the shared-art pass caught
 
 Characters and props are not rooms, but they get reviewed the same way — a

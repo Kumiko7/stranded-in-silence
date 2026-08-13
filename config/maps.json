@@ -115,6 +115,29 @@
       },
       "ambienceTrack": "ambience/mansion_loop",
       "musicTrack": "music/mansion_tension"
+    },
+
+    "forge": {
+      "nameKey": "map.forge.name",
+      "descKey": "map.forge.desc",
+      "artPack": "forge",
+      "posterArtId": "poster.forge",
+      "enabled": true,
+      "enemies": ["ghost"],
+      "$note": "The temperature split here is INVERTED from the other maps and the ambient is what makes it work. The facility lights itself cold - arc white and cyan, red where a circuit failed - and the only warm light anywhere is the mountain leaking in, so the fill has to be cold too or the Works stops reading as a different place from the Mountain and the whole map goes one colour. The fog is a warm near-black: ash and sulphur rather than sea water, which is what closes down a sixteen-metre caldera at the far end and what keeps a lava lake reading as a surface rather than as a lamp. Ambient is a shade lower than abyss because half of what you navigate by here is emissive - the heat register round every wall, the crack network in a hot floor, a rack of status lights - and the fill is only doing the corners.",
+      "overrides": {
+        "world": {
+          "grid": { "width": 6, "height": 6 },
+          "doors": { "lockedDoorCount": 2 }
+        },
+        "graphics": {
+          "fog": { "color": "#0b0705", "density": 0.05 },
+          "ambientColor": "#22334f",
+          "ambientIntensity": 1.15
+        }
+      },
+      "ambienceTrack": "ambience/mansion_loop",
+      "musicTrack": "music/mansion_tension"
     }
   }
 }

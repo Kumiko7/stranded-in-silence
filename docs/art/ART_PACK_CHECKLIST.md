@@ -101,13 +101,19 @@ rhythm of temperature changes rather than twenty variations on one idea;
 amber against cyan, straight lines against none; `crypt` is a consecrated
 medieval crypt against the dynastic tomb it was built on top of, grey limestone
 against ochre sandstone, tallow against oil, pointed arches against post and
-lintel; the manor does the same thing more quietly with its grand rooms and its
-service rooms. Give the two halves different palettes, different light colours
+lintel; `forge` is a weapons black site against the volcano it was drilled into,
+machined graphite and hazard chevron against pahoehoe and ash - and it inverts
+the usual temperature rule to do it, because the only warm light in that map is
+the mountain leaking into the building and the *facility* is the cold half; the
+manor does the same thing more quietly with its grand rooms and its service
+rooms. Give the two halves different palettes, different light colours
 and different floor materials, and put one hinge room in the set that is honestly
 both — it is the one that makes the transition read as deliberate. (`crypt` has a
 third, smaller family for the thing eating both halves: two rooms of fungus and
-root, violet where everything else is flame. A third strand works as long as it
-is *small* and it is the one that crosses the boundary.)
+root, violet where everything else is flame. `forge` does the same with two rooms
+of the thing the site grew, in a green that belongs to neither temperature — one
+on each side of the boundary, which is what makes the pair land. A third strand
+works as long as it is *small* and it is the one that crosses the boundary.)
 
 **Find the pack's one repeatable trick and put it in the shell.** Every pack has
 a single detail that does most of the work of making twenty rooms feel like one
@@ -119,8 +125,14 @@ wall and cuts a recess with something in it — a corpse shelf, a stack of skull
 hooded figure — into any wall the generator cannot open. All of them cost nothing
 per room and all of them are the reason their set holds together.
 
-Two things the crypt pass learned about that trick, both worth knowing before you
-write one:
+`forge` runs a **heat register** round the base of every wall — a machined vent
+channel with a lit line at its mouth and ember crust behind it on the built side,
+a raw fissure on the rock side, and an arc-white service light in the handful of
+rooms that are refrigerated. One object, three materials, and it is the whole
+reason a torchless player can always find the doors in that map.
+
+Three things the crypt and forge passes learned about that trick, all worth
+knowing before you write one:
 
 - **A wall course of lights is the whole lighting design, so cost it early.**
   Three stations a wall, four walls, twenty-two rooms is nineteen hundred of them,
@@ -132,6 +144,17 @@ write one:
   masonry for its recesses, and a recess that starts at floor level leaves the
   wall with no collider across the middle - `npm run validate:art` caught it in
   eight rooms at once. One collider across the whole wall run fixes every kind.
+  The cheap version of this fix is to give every port an opening whose `y0` is
+  above the floor, which is what `forge` does: the wall then keeps its blocking
+  slab under the hole and nothing special is needed.
+- **A register a player cannot see is not doing its job, whatever it costs.**
+  Forge's first pass buried the glow at the back of a louvred channel, which is
+  physically right and invisible: the Works half of the map had no navigation
+  light at all and every room came back on the contact sheet as a dark box. The
+  lit line moved to the *mouth* of the channel with the dark recess behind it, and
+  the fins were spaced to let more light past than they stop. Build the trick, then
+  **look at it from a doorway at the map's real exposure** before you write the
+  rooms - it is the one detail every room in the pack inherits.
 
 Two practical rules that decide half the layout before you start decorating:
 
@@ -144,6 +167,39 @@ Two practical rules that decide half the layout before you start decorating:
 - **Containers need their approach.** A chest wants 1.6 m clear in front of it
   and a locker 1.2 m, measured along its own facing, which in a four-door 1x1
   leaves exactly four places a container can go. Place those four first.
+
+### The layout rule that falls out of both
+
+Vulcan's Anvil wrote all twenty-two rooms to one sentence, and it is the single
+most useful thing that pack learned:
+
+> **Offer three walls, and put the room's set piece in the band against the
+> fourth.**
+
+A 1x1 offering north, east and west has to keep a `T` clear — the strip
+`|x| < 1.1` from the north wall to the middle, and `|z| < 1.1` across the whole
+width. Everything on the far side of that `T`, the band `z > 1.2` running the
+full eight metres, is *guaranteed* free floor for the rest of the run. That is
+where the console bank goes, or the cutting bed, or the rack row, or the three
+containment tanks. The corners either side of the `T` take the containers, and
+the middle stays bare deck, which is also where you want the negative space.
+
+It composes with everything else in this file: the omitted wall is the one wall
+guaranteed solid, so it is also the only wall that may carry a window, a port or
+a niche — the set piece and the view end up on the same wall, facing the room,
+for free. Two or three rooms per pack should still offer all four walls (the
+generator needs them), and those are the rooms whose props live entirely in the
+four corners.
+
+Two numbers to lay out against rather than the bare `1.1`:
+
+- keep anything with a **collider** outside `|x| < 1.5`, not `1.1`. The flood
+  fill walks a 0.32 m circle and the validator voxelises, so a prop whose edge
+  lands at 1.2 blocks a lane it does not visibly touch.
+- a gap narrower than **0.7 m** is a wall. Rails, benches and rack rows all have
+  to leave a real way round them, or half the room becomes an unreachable pocket
+  — which `validate:art` reports as `only 0/5497 of the free floor is reachable`
+  rather than as anything about the bench you just moved.
 
 Rooms are rotated in 90° steps to fit their slot, so count shapes, not
 orientations: one `2x1` corridor, not a `2x1` and a `1x2`; one one-door dead end,

@@ -516,6 +516,101 @@ export const posterCrypt = (): THREE.Texture =>
   });
 
 /**
+ * Vulcan's Anvil's poster: a figure on a gantry over a lava lake, from behind.
+ *
+ * The whole composition is one silhouette against one bright thing. The lake
+ * fills the bottom half and is the only saturated colour on the print; the
+ * mountain's inner wall closes over the top of the frame; and between them is a
+ * catwalk with a person standing on it in a heat suit, small, with their back to
+ * you. Same flat two-colour print as the rest of the wall, so it reads as one
+ * more expedition rather than as a different kind of picture.
+ *
+ * The figure is deliberately about a twentieth of the frame. What makes a lava
+ * lake read as big is not the lake - it is having something human-sized in front
+ * of it that is clearly not big enough.
+ */
+export const posterForge = (): THREE.Texture =>
+  colorTexture('lobby.posterForge', 256, (x, y, size) => {
+    const u = x / size;
+    const v = y / size;
+    const paper = paperAt(x, y, size);
+    if (u < 0.08 || u > 0.92 || v < 0.2 || v > 0.94) return paper;
+
+    const grain = n2(x, y, size, 8, 9301, 3);
+
+    /* --- the roof ----------------------------------------------------------- */
+    // The inner wall of the cone, closing in from both sides at the top. Two
+    // sagging curves rather than straight lines: a straight edge up there reads
+    // as a ceiling, and this has to read as rock.
+    const roof = 0.86 - Math.pow(Math.abs(u - 0.5) * 2, 1.6) * 0.2;
+    if (v > roof) return shade(mix(rgb(0x2a2420), rgb(0x40372f), grain * 0.9), 0.9);
+    // Lavacicles hanging off it, at three lengths.
+    const drip = Math.abs(((u * 13) % 1) - 0.5);
+    if (v > roof - 0.05 - (1 - drip * 2) * 0.055 * ((Math.floor(u * 13) % 3) + 1) * 0.5) {
+      return shade(mix(rgb(0x241f1c), rgb(0x352d28), grain), 0.9);
+    }
+
+    /* --- the lake ----------------------------------------------------------- */
+    // A crust of dark plates with incandescence between them. The value runs
+    // brightest at the horizon and cools toward the viewer, which is what gives
+    // the print its depth without perspective lines.
+    const horizon = 0.52;
+    if (v < horizon) {
+      const near = (horizon - v) / (horizon - 0.2);
+      // Plate boundaries: a warped stripe field, coarser close to the viewer.
+      const warp = n2(x, y, size, 3.4, 9311, 3) * 2.4;
+      const plate = Math.abs(((u * (5 + near * 5) + warp + v * 4) % 1) - 0.5);
+      const crack = Math.max(0, 1 - plate / (0.1 + near * 0.09));
+      let lake = mix(rgb(0x2a1a14), rgb(0x140e0c), Math.pow(near, 0.8));
+      lake = mix(lake, rgb(0xd8621e), Math.pow(crack, 1.3) * (1 - near * 0.4));
+      lake = mix(lake, rgb(0xffd07a), Math.max(0, crack - 0.72) * 3.2 * (1 - near * 0.55));
+      // A band of pure heat right at the horizon, where the crust has not formed.
+      lake = mix(lake, rgb(0xffb04a), Math.max(0, 1 - (horizon - v) / 0.045));
+      return lake;
+    }
+
+    /* --- the far wall ------------------------------------------------------- */
+    // Between the lake and the roof: the far side of the chamber, lit from below
+    // and going black as it rises.
+    const up = (v - horizon) / (roof - horizon);
+    let wall = mix(rgb(0x7a3a18), rgb(0x1a1512), Math.pow(up, 0.7));
+    wall = mix(wall, rgb(0x2e2622), grain * 0.4);
+
+    /* --- the gantry --------------------------------------------------------- */
+    // A catwalk across the lower third of the wall band, with two hangers going
+    // up out of frame and a handrail. All of it black.
+    const deck = horizon + (roof - horizon) * 0.3;
+    if (Math.abs(v - deck) < 0.014) return rgb(0x0a0908);
+    if (Math.abs(v - (deck + 0.05)) < 0.006 && u > 0.14 && u < 0.86) return rgb(0x0a0908);
+    for (const hx of [0.3, 0.72] as const) {
+      if (Math.abs(u - hx) < 0.008 && v > deck) return rgb(0x0a0908);
+    }
+    // Stanchions on the rail, so it is a rail and not a scratch.
+    if (Math.abs(v - deck - 0.026) < 0.026 && ((u * 22) % 1) < 0.09) return rgb(0x0a0908);
+
+    /* --- the figure --------------------------------------------------------- */
+    // Standing on the deck, left of centre, back to the viewer. Head, shoulders
+    // wider than the waist, two legs with a gap between them: what makes a
+    // silhouette a person is that it is not a rectangle.
+    const fx = u - 0.44;
+    const foot = deck + 0.006;
+    const head = foot + 0.075;
+    if (v > foot && v < head) {
+      const t = (v - foot) / (head - foot);
+      const halfW = t > 0.78 ? 0.011 : t > 0.6 ? 0.023 : 0.016 + t * 0.008;
+      // The gap between the legs, in the bottom third only.
+      const legGap = t < 0.34 && Math.abs(fx) < 0.005;
+      if (Math.abs(fx) < halfW && !legGap) return rgb(0x080706);
+    }
+    // The one bright mark on the whole print: the reflection off the back of the
+    // suit's hood, which is what makes the figure read as silvered rather than
+    // as a hole in the picture.
+    if (Math.hypot((fx + 0.004) * 1.6, v - head + 0.012) < 0.006) return rgb(0xffcf8a);
+
+    return shade(wall, 0.92 + grain * 0.16);
+  });
+
+/**
  * The random-map poster: a question mark on a sunburst, in the same flat print
  * style as the rest of the wall so it reads as one more expedition rather than
  * as a UI element that wandered into the room.
