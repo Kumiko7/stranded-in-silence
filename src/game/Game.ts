@@ -1009,11 +1009,13 @@ export class Game {
 
     chest.opened = true;
     
-    const idx = this.#world.raycastTargets.indexOf(chest.object);
-    if (idx >= 0) this.#world.raycastTargets.splice(idx, 1);
-    chest.object.traverse((child) => {
-      delete child.userData['chestId'];
-    });
+    if (this.#world) {
+      const idx = this.#world.raycastTargets.indexOf(chest.object);
+      if (idx >= 0) this.#world.raycastTargets.splice(idx, 1);
+      chest.object.traverse((child) => {
+        delete child.userData['chestId'];
+      });
+    }
     
     if (!chest.contents) return;
 
