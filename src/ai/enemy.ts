@@ -240,7 +240,7 @@ function perceive(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
   const { sight } = ctx.config;
   if (witnessLockerEntry(enemy, ctx)) return;
 
-  const seen = look(enemy, ctx.targets, ctx.config, ctx.collision);
+  const seen = look(enemy, ctx.targets, ctx.config, ctx.collision, ctx.graph);
 
   if (seen) {
     enemy.seenFor += dt;

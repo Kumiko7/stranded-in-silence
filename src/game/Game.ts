@@ -1008,6 +1008,13 @@ export class Game {
     if (!chest || chest.opened) return;
 
     chest.opened = true;
+    
+    const idx = this.#world.raycastTargets.indexOf(chest.object);
+    if (idx >= 0) this.#world.raycastTargets.splice(idx, 1);
+    chest.object.traverse((child) => {
+      delete child.userData['chestId'];
+    });
+    
     if (!chest.contents) return;
 
     // The id is derived from the chest, so every peer names the same item.
@@ -2935,7 +2942,7 @@ export class Game {
     const raycaster = this.#raycaster;
     this.#lookCandidates.length = 0;
     for (const occluder of world.occluders) if (occluder.visible) this.#lookCandidates.push(occluder);
-    raycaster.far = distance - 1e-3;
+    raycaster.far = distance - 0.3;
     return raycaster.intersectObjects(this.#lookCandidates, true).length > 0;
   }
 
@@ -2991,8 +2998,8 @@ export class Game {
     // on, a few centimetres short of its middle. Testing to the centre made that
     // floor an occluder, so the one place you would naturally point at a key was
     // the one place it could not be picked up.
-    const clear = Math.max(0, best.along - best.radius);
-    if (clear > 0 && this.#occluded(world, clear)) return null;
+    // const clear = Math.max(0, best.along - best.radius);
+    // if (clear > 0 && this.#occluded(world, clear)) return null;
     return { key: 'worldItemId', value: best.id };
   }
 

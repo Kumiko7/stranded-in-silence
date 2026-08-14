@@ -40,6 +40,7 @@ export function look(
   targets: readonly PerceptionTarget[],
   config: EnemyArchetype,
   collision: CollisionWorld,
+  graph?: RoomGraph,
 ): SightResult | null {
   const { sight } = config;
   let best: SightResult | null = null;
@@ -47,12 +48,17 @@ export function look(
   for (const target of targets) {
     if (target.hidden) continue;
     if (target.downed && config.attack.ignoresDownedPlayers) continue;
+    
+    const sameRoomStanding =
+      graph !== undefined &&
+      !target.crouching &&
+      graph.cellAt(enemy.x, enemy.z) === graph.cellAt(target.x, target.z);
 
     let range = sight.range;
     if (target.crouching) range *= sight.crouchedTargetRangeMultiplier;
     if (target.inDarkness) range *= sight.darknessRangeMultiplier;
 
-    if (!inSight(enemy, target.x, target.z, range, config, collision)) continue;
+    if (!sameRoomStanding && !inSight(enemy, target.x, target.z, range, config, collision)) continue;
 
     const distance = Math.hypot(target.x - enemy.x, target.z - enemy.z);
     if (!best || distance < best.distance) best = { target, distance };
