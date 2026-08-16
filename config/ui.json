@@ -34,6 +34,13 @@
       "showWhenEmpty": false
     },
     "healthState": { "enabled": true, "mode": "vignette-only" },
+    "nameplates": {
+      "$doc": "The name above a teammate's head. Line of sight is checked before one is drawn, so a nameplate never tells you where somebody is through a wall - it only names whoever you can already see.",
+      "enabled": true,
+      "maxDistance": 18,
+      "fadeDistance": 12,
+      "heightOffset": 0.35
+    },
     "teammateList": { "enabled": true, "position": "bottom-left", "showVoiceIndicator": true },
     "voiceIndicator": { "enabled": true, "position": "bottom-left", "showLevelMeter": true },
     "objectiveHint": { "enabled": true, "durationSeconds": 5 },

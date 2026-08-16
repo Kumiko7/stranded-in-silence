@@ -51,6 +51,9 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | How loud a thrown item is | `player.json` | `noise.throwImpact`, `.alarm`, `.blast`, `.wreck` |
 | Whether the run purse shows on the HUD | `ui.json` | `hud.coins.enabled`, `.showWhenEmpty` |
 | How long a downed player holds before they die | `player.json` | `health.giveUpHoldSeconds` — long enough that it cannot be an accident, short enough that it is not a punishment for having decided |
+| **How long a downed player has** | `player.json` | `health.downedBleedOutSeconds`, gated by `health.downedBleedOut`. The clock stops while a teammate is reviving them, so it prices a *slow* rescue rather than a failed one. `downedBleedOut: false` puts the floor back to having no clock at all |
+| How long a player's name may be | `net.json` | `identity.nameMaxLength` — the name itself lives in the save profile (Options → Gameplay), but it is the only free text in the protocol besides chat, so its cap belongs with the wire and is applied to what a peer sends as well as to what you type |
+| Whether names float over teammates, and how far | `ui.json` | `hud.nameplates.enabled`, `.maxDistance`, `.fadeDistance`, `.heightOffset` — line of sight is checked before one is drawn, so this tunes a label rather than a tracker |
 | How forgiving picking an item up is | `player.json` | `interaction.rayRadius` — items only. Doors and chests are big enough for an exact ray; a key on floorboards is not |
 | How much chat is kept, and for how long | `ui.json` | `hud.chat.enabled`, `.maxMessages`, `.messageSeconds`, `.maxLength` |
 | What the tutorial teaches, and in what order | `ui.json` | `hud.tutorial.tips` — each `id` is both a locale key (`tutorial.<id>`) and a trigger the code reports, so this orders and dresses the tips rather than inventing them. `keys` are action ids whose caps fill the string's `{key}` gap |

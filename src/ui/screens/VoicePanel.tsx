@@ -14,6 +14,7 @@ import { KeyLine } from '../components/KeyCap';
 import { Slider } from '../components/Controls';
 import type { RosterEntry } from '@/game/Game';
 import { t } from '@/i18n/index';
+import { playerLabel } from '../playerLabel';
 import { modeLabelKey } from '@/voice/modes';
 import { MicIcon, type VoiceUiState } from '../App';
 
@@ -109,7 +110,7 @@ export function VoicePanel({
                   }`}
                   muted={muted}
                 />
-                <span class="voice-panel__name">{t('hud.player.name', { n: entry.index })}</span>
+                <span class="voice-panel__name">{playerLabel(entry.name, entry.index)}</span>
                 <button class="btn btn--small" onClick={() => onMutePeer(entry.id)}>
                   {t(muted ? 'pause.voiceUnmute' : 'pause.voiceMute')}
                 </button>

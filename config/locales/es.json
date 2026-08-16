@@ -323,6 +323,8 @@
   "options.category.voice": "Voz",
   "options.category.system": "Sistema",
   "options.category.other": "Otros",
+  "options.playerName": "Nombre",
+  "options.playerNamePlaceholder": "Sin nombre",
   "options.language": "Idioma",
   "options.tutorial": "Consejos del tutorial",
   "options.fov": "Campo de visión",
@@ -390,6 +392,8 @@
   "run.wiped": "No ha salido nadie.",
   "run.partial": "Han salido {escaped} de {total}.",
   "run.downedHint": "No hagas ruido. Puede que venga alguien.",
+  "run.bleedOut": "Te desangras - {seconds}",
+  "run.beingRevived": "Alguien te está atendiendo",
   "run.giveUpHint": "Mantén {key} para rendirte",
 
   "scoreboard.title": "Informe de la incursión",

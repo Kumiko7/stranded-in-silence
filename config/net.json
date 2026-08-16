@@ -16,6 +16,11 @@
     "gatheringTimeoutSeconds": 5
   },
 
+  "identity": {
+    "$doc": "A player's name is the only free text in the protocol other than chat, so its cap lives here rather than with the interface that draws it: it is applied to what this player types AND to whatever a peer sends.",
+    "nameMaxLength": 16
+  },
+
   "simulation": {
     "$doc": "Host runs the authoritative sim. Clients predict their own movement and reconcile.",
     "tickRateHz": 30,

@@ -27,11 +27,13 @@ run something you have to *solve*. Slice 3 makes it something you can lose:
   lockers, chases on sight and attacks. Waits `doors.openSeconds` at every closed
   door and cannot pass a locked one at all: doors are the whole tactical layer.
 - **Injury** — healthy → injured → downed, injured is slower and much louder,
-  downed is immobile, hold `E` on a teammate to revive them to injured.
+  downed is immobile and on a 30-second clock that **stops while somebody is
+  reviving you**, hold `E` on a teammate to revive them to injured.
 - **The warning layer** — the ghost burns a different colour per alert level and
   carries that light with it; the screen answers with an edge wash, a heartbeat
   that ramps with proximity, a damage flash and health vignettes.
-- **Wipe** — everyone down ends the run.
+- **Wipe** — nobody left on their feet ends the run, whether that is everybody down
+  or the last of them down while a teammate is already out through the door.
 - Enemy transform, alert level, noise, hits, health and revives replicated.
 
 - **Sound** (step 34) — the whole game is audible: every effect synthesised in
@@ -222,7 +224,7 @@ the simulation is written host-authoritative from the start.*
 **Goal:** stakes.
 **Touches:** `src/entities/health.ts`, `src/world/runState.ts`.
 **Details:** healthy → injured → downed ladder, injured speed and noise penalties, downed immobility and camera drop, hold-E revive to injured, invulnerability windows, lose condition.
-**Still missing:** nothing. Give-up → dead → spectate landed with step 39.
+**Still missing:** nothing. Give-up → dead → spectate landed with step 39. Downed later gained a **bleed-out clock** (`health.downedBleedOutSeconds`, 30 s) that stops while a teammate is reviving you — the reviver announces the edges of their hold (`reviving`) and the patient checks they are still in range, so a reviver who is killed or drops releases the clock without a message. The lose condition is read in full rather than only its wipe branch: the run ends the moment nobody is left who could change it, which includes the last player going down while a teammate is already out.
 
 ### ☑ 21. Horror feedback layer
 **Goal:** the player always knows how much trouble they are in.
@@ -236,7 +238,7 @@ the simulation is written host-authoritative from the start.*
 **Touches:** `src/ui/hud/*`.
 **Details:** every element in [`systems/UI.md`](systems/UI.md) — crosshair, hand slots, health vignette, teammate list, voice indicator, objective hints. Plain DOM, config-toggleable.
 **Done when:** all elements update correctly and each can be disabled from `config/ui.json`.
-**Still missing:** the remaining per-element `config/ui.json → hud` toggles, and the move of the rest of the HUD out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots, the objective hint and the player roster (hearts, noise rings and speaking microphones) render from `src/ui/App.tsx`; the health vignette is the feedback layer's (step 21); the voice pill is the first element written the way this step wants them all — plain DOM in `src/ui/hud/voiceIndicator.ts`, because its level meter moves every frame.
+**Still missing:** the remaining per-element `config/ui.json → hud` toggles, and the move of the rest of the HUD out of Preact into per-frame plain DOM. Crosshair, interact prompt with hold ring, hand slots, the objective hint and the player roster (hearts, noise rings and speaking microphones) render from `src/ui/App.tsx`; the health vignette is the feedback layer's (step 21); the voice pill and the **nameplates** are the elements written the way this step wants them all — plain DOM in `src/ui/hud/voiceIndicator.ts` and `src/ui/hud/nameplates.ts`, because a level meter and a name that follows a head both move every frame. Players now have real **names** (Options → Gameplay, replicated as `name`), and `src/ui/playerLabel.ts` is the one place they fall back to "Player 2".
 
 **Milestone: a complete single-player run is playable end to end.**
 

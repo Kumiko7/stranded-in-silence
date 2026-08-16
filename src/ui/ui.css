@@ -1481,6 +1481,31 @@ textarea {
   text-transform: uppercase;
 }
 
+/* The one text input in the options menu. Same skin as the chat box, which is
+   the game's other one - a field is a field. */
+.text-field {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  background: #12141de0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  color: var(--c-text);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.text-field:hover,
+.text-field:focus-visible {
+  border-color: var(--c-accent);
+}
+
+.text-field::placeholder {
+  color: var(--c-text-dim);
+}
+
 .switch {
   position: relative;
   flex: none;
@@ -2360,6 +2385,18 @@ textarea {
   font-size: 1.1rem;
 }
 
+/* The clock. Loud, because it is the number the team is racing, and it stops
+   dead - word and colour both - the moment somebody's hands are on you. */
+.hud__bleed {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  letter-spacing: 0.14em;
+}
+
+.hud__bleed--held {
+  color: var(--c-good);
+}
+
 /* Quieter than the line above it. Someone might still come; this is only what
    you can do if they do not. */
 .hud__downed-give-up {
@@ -2478,6 +2515,32 @@ textarea {
 
 .chat__input::placeholder {
   color: var(--c-text-dim);
+}
+
+/* --- nameplates ----------------------------------------------------------- */
+/* Names over heads. Positioned in percentages of the viewport by
+   `src/ui/hud/nameplates.ts`, which is handed them already projected - nothing
+   here knows where a camera is. Small, dim and unboxed on purpose: it is a
+   label on somebody you can already see, not a marker to look for. */
+
+/* The container is a marker, not a box: the plates position themselves against
+   #hud-root, which is what makes their percentages percentages of the screen. */
+.nameplates {
+  pointer-events: none;
+}
+
+.nameplate {
+  position: absolute;
+  /* Centred on the head and sitting above it, whatever the name is. */
+  transform: translate(-50%, -100%);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  color: var(--c-text);
+  /* No panel behind it, so this is the whole of its legibility against a lit
+     wall or a dark corridor alike. */
+  text-shadow: 0 0 4px #000, 0 1px 6px #000;
 }
 
 /* --- player roster -------------------------------------------------------- */

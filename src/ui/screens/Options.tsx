@@ -22,7 +22,7 @@ import type { AudioConfig } from '@/config/types';
 import type { ActionInfo } from '@/input/index';
 import type { Options, OptionRanges } from '@/save/index';
 import { availableLocales, currentLocale, t } from '@/i18n/index';
-import { Choice, FieldGroup, Slider, Switch, Tabs } from '../components/Controls';
+import { Choice, FieldGroup, Slider, Switch, Tabs, TextField } from '../components/Controls';
 import { ControlsTab } from './Controls';
 
 type TabId = 'gameplay' | 'controls' | 'graphics' | 'audio';
@@ -34,7 +34,11 @@ interface Props {
   ranges: OptionRanges;
   buses: AudioConfig['buses'];
   actions: ActionInfo[];
+  /** What this player is called, and the cap on it (`net.json -> identity`). */
+  playerName: string;
+  nameMaxLength: number;
   onChange(patch: Partial<Options>): void;
+  onPlayerName(name: string): void;
   onLocale(code: string): void;
   onRebind(action: string, code: string): string[];
   onResetBinds(): void;
@@ -49,7 +53,10 @@ export function Options({
   ranges,
   buses,
   actions,
+  playerName,
+  nameMaxLength,
   onChange,
+  onPlayerName,
   onLocale,
   onRebind,
   onResetBinds,
@@ -78,6 +85,16 @@ export function Options({
           {tab === 'gameplay' && (
             <>
               <FieldGroup>
+                {/* First field in the menu, because it is the only setting on
+                    this screen that other people can see. Empty is a legal
+                    answer: the roster falls back to "Player 2". */}
+                <TextField
+                  label={t('options.playerName')}
+                  value={playerName}
+                  placeholder={t('options.playerNamePlaceholder')}
+                  maxLength={nameMaxLength}
+                  onChange={onPlayerName}
+                />
                 {/* Each language names itself in its own script. A player
                     looking for 日本語 is not looking for "Japanese". */}
                 <Choice

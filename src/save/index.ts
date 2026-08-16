@@ -13,11 +13,18 @@
  * a failed boot.
  */
 import type { Config } from '@/config/types';
+import { cleanPlayerName } from '@shared/playerName';
 import { defaultOptions, optionRanges, sanitiseOptions, type Options, type OptionRanges } from './options';
 
 const STORAGE_KEY = 'stranded.profile.v1';
 
 export interface Profile {
+  /**
+   * What everyone else calls this player. Null until they have typed one, and
+   * the interface falls back to their roster number - a player who never opens
+   * the options menu is still `Player 2` to the rest of the team.
+   */
+  name: string | null;
   /**
    * Map ids this player has escaped **themselves**. Being carried out by a team
    * that escaped without you does not count, which is the whole point of the
@@ -110,16 +117,20 @@ export class Save {
   readonly #defaults: Options;
   readonly #ranges: OptionRanges;
   readonly #storage: Storage;
+  /** `net.json -> identity.nameMaxLength`. The one cap on a name, wherever it came from. */
+  readonly #nameMaxLength: number;
 
   constructor(config: Config, storage: Storage = defaultStorage()) {
     this.#defaults = defaultOptions(config);
     this.#ranges = optionRanges(config);
+    this.#nameMaxLength = config.net.identity.nameMaxLength;
     this.#storage = storage;
     this.#profile = this.#empty();
   }
 
   #empty(): Profile {
     return {
+      name: null,
       completedMaps: [],
       colourId: null,
       hatId: null,
@@ -138,6 +149,7 @@ export class Save {
     try {
       const parsed = JSON.parse(raw) as Partial<Profile>;
       this.#profile = {
+        name: cleanPlayerName(parsed.name, this.#nameMaxLength),
         completedMaps: Array.isArray(parsed.completedMaps)
           ? parsed.completedMaps.filter((id): id is string => typeof id === 'string')
           : [],
@@ -229,6 +241,19 @@ export class Save {
     if (!this.#profile.tutorialSeen.length) return;
     this.#profile.tutorialSeen = [];
     this.#flush();
+  }
+
+  /**
+   * The name everyone else sees. Cleaned on the way in as well as on the way
+   * out of a peer's connection, so what is stored is already what is shown.
+   * Returns what was actually kept.
+   */
+  setName(raw: string): string | null {
+    const name = cleanPlayerName(raw, this.#nameMaxLength);
+    if (this.#profile.name === name) return name;
+    this.#profile.name = name;
+    this.#flush();
+    return name;
   }
 
   setColourId(colourId: string): void {

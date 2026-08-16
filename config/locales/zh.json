@@ -323,6 +323,8 @@
   "options.category.voice": "语音",
   "options.category.system": "系统",
   "options.category.other": "其他",
+  "options.playerName": "名称",
+  "options.playerNamePlaceholder": "未命名",
   "options.language": "语言",
   "options.tutorial": "新手提示",
   "options.fov": "视野范围",
@@ -390,6 +392,8 @@
   "run.wiped": "没有人出去。",
   "run.partial": "{total} 人中有 {escaped} 人出去了。",
   "run.downedHint": "别出声。也许有人会来。",
+  "run.bleedOut": "失血中 - {seconds}",
+  "run.beingRevived": "有人在救你",
   "run.giveUpHint": "长按 {key} 放弃",
 
   "scoreboard.title": "探索报告",

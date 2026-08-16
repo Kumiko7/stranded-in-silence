@@ -26,7 +26,8 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 >
 > | Message | Direction | Purpose |
 > | --- | --- | --- |
-> | `welcome {slot, peers, lobby, run}` | host → joiner | Identity, spawn slot, the lobby as it stands, and the run in progress if there is one. A joiner lands in the cabin unless the host is already down a hole. |
+> | `welcome {slot, slots, peers, lobby, run}` | host → joiner | Identity, spawn slot, **every peer's slot**, the lobby as it stands, and the run in progress if there is one. A joiner lands in the cabin unless the host is already down a hole. |
+> | `join {id, slot}` | host → all | Somebody arrived, and the number they arrived as. |
 > | `lobby {state}` | host → all | `{ picks, difficultyId, countdown }`. Sent on every change, and once a second while the clock runs — only the whole second crosses the wire. |
 > | `pick {id, mapId}` | any → host | A map chosen, or `null` to withdraw. Only the host tallies. |
 > | `setDifficulty {difficultyId}` | any → host | Anyone may pull the lever. |
@@ -36,6 +37,7 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 > | `dartScore {id, score}` | any → all | A running total, sent whole. Self-reported: nobody arbitrates a scoreboard, and a message lost on the way costs nothing because the next one carries the truth. |
 > | `scene {id, scene}` | any → all | `lobby` or `run`. Re-announced whenever a peer joins. |
 > | `cosmetic {id, colourId}` | any → all | The wardrobe choice, re-announced the same way. |
+> | `name {id, name}` | any → all | What a peer calls itself, re-announced exactly as a cosmetic is. **Cleaned on arrival, not trusted** (`@shared/playerName`): it is the only free text in the protocol besides chat, and the one string another browser gets to put on your screen. An empty name is a peer who never chose one, and every list falls back to their roster number. |
 > | `chat {id, text}` | any → all | One line of text. Broadcast to the whole session; **who may read it is the receiver's business** — a live player drops a line from a spectator, by the same rule that keeps them off the voice channel (`Game.canHearChatFrom`). Filtering on arrival rather than at the source is what keeps that rule in one place. |
 >
 > **`scene` is what keeps voice alive across a load.** Each side hands `voice/` only
@@ -52,7 +54,25 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 > | `hit {id}` | host → all | Addressed: only the named player applies it. The victim owns their own health ladder. |
 > | `health {id, state}` | owner → all | The result, so every peer can draw a downed teammate and count the wipe condition. |
 > | `revive {id}` | reviver → all | Applied by the named player, who then echoes `health`. |
-> | `escaped {id}` / `wiped` | any → all / host → all | Run outcome. |
+> | `reviving {id, by, active}` | reviver → the patient | Hands going onto a body and coming off again. Addressed like `hit`: the only thing it does is stop that player's bleed-out clock, and nobody else has one. Sent on the **edges** of the hold, never per tick — and never trusted on its own: the patient also checks the reviver is still in `health.reviveRange` (`Game.#beingRevived`), so a reviver who is killed, drops or walks away releases the clock without having to send anything. A message that can be lost is not what a clock hangs on. |
+> | `escaped {id}` / `wiped` | any → all / host → all | Run outcome. `wiped` is sent whenever the host finds **nobody left who could still change the run** — not only when everybody is on the floor. A team with one player out through the door and the rest downed has no revive left in the map, so it ends there rather than after the last bleed-out clock. Peers that already escaped skip the sting; the message is the end of a run, not a verdict on it. |
+
+## Slots: one number for one player
+
+A slot is where you spawn **and** the number the interface calls you by until you
+have typed a name — `Player 2` is slot 1 plus one. The host deals them, lowest
+free first, and publishes the whole map (`welcome.slots`, then `join`); nobody
+works one out for themselves.
+
+That is not bookkeeping, it is the whole point. A peer numbering itself 1 and
+everyone else from 2 gives four players four different rosters, and **"Player 2
+has the key" then names a different person on every screen** — which is exactly
+the sentence proximity voice exists to make useful.
+
+A slot is freed when its owner leaves, but **only between runs**. Inside a run
+the player who dropped keeps their number for as long as it lasts: their roster
+line and their scoreboard column are still there, greyed, and a newcomer
+inheriting the number would put two players on it.
 
 ## Claims: how one thing gets one owner
 
@@ -244,6 +264,8 @@ a list both ends already agree on.
 | `throw {id, itemId, owner, position, velocity}` | events | any → all | on throw |
 | `barricade {doorId, seconds}` | events | host → all (grant) / any → all (torn off) | on place / on break |
 | `heal {playerId, toState}` | events | any → the patient | on event |
+| `reviving {id, by, active}` | events | reviver → the patient | on the edges of a hold |
+| `name {id, name}` | events | any → all | on change, and on anyone joining |
 | `coins {amount}` | events | any → all | at the exit only — a pile is derived, not sent |
 | `wiped` + `stats` | events | host → all / any → all | once / lazily |
 | `LobbyState` | events | host → all | on change |

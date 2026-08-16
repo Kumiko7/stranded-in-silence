@@ -29,7 +29,7 @@ import type { Save } from '@/save/index';
 import type { VoiceChat } from '@/voice/index';
 import { buildLobbyScene, RANDOM_PICK, type LobbyPoster, type LobbyWorld } from '@/world/lobbyScene';
 import { createPlayerBody, defaultCosmetic, type Cosmetic, type PlayerBody } from '@/render/playerBody';
-import type { UseView } from './Game';
+import type { NameplateView, RosterEntry, UseView } from './Game';
 
 /** What the look-ray is offering in the cabin. Everything here is a press, not a hold. */
 export interface LobbyTarget {
@@ -66,6 +66,14 @@ export interface LobbyHooks {
   onInteractTargetChange(target: LobbyTarget | null): void;
   onViewChange(view: LobbyView): void;
   /**
+   * Who is in the cabin. The same shape the run pushes, because it feeds the
+   * same two things - the pause menu's per-teammate mutes and the names over
+   * their heads - and a second shape for "the people here" would be one more
+   * thing to keep in step. Nobody in a cabin is hurt, escaped or gone, so
+   * those fields are simply what they always are in here.
+   */
+  onRosterChange(roster: RosterEntry[]): void;
+  /**
    * A dart went into a hand, or left one. Locale keys, not item ids: the cabin
    * has no item roster to look them up in, and the HUD only wants the words.
    */
@@ -91,6 +99,9 @@ interface RemotePlayer {
 
 /** How often lobby transforms go out. Nothing here is precise; it is a foyer. */
 const MOVE_RATE_HZ = 10;
+
+/** Scratch for the nameplate projection, which runs per body per FRAME. */
+const HEAD = new THREE.Vector3();
 
 /** Highlight colours for the poster mark: your own pick reads differently. */
 const MARK_MINE = '#d8593c';
@@ -274,6 +285,7 @@ export class Lobby {
     this.#applyMarks();
     this.#applyLever();
     this.#pushView();
+    this.#pushRoster();
 
     this.#audio.music.setScene('menu');
   }
@@ -327,6 +339,7 @@ export class Lobby {
     body.body.object.position.set(body.target.x, 0, body.target.z);
     this.#remotes.set(id, body);
     this.#pushView();
+    this.#pushRoster();
     this.#pushScores();
   }
 
@@ -348,6 +361,7 @@ export class Lobby {
       this.#applyMarks();
     }
     this.#pushView();
+    this.#pushRoster();
   }
 
   moveRemote(id: string, x: number, z: number, yaw: number): void {
@@ -362,6 +376,71 @@ export class Lobby {
   /** A teammate changed clothes, or turned up already dressed. */
   setRemoteCosmetic(id: string, cosmetic: Cosmetic): void {
     this.#remotes.get(id)?.body.wear(cosmetic);
+  }
+
+  /** A peer named themselves. The lines are rebuilt from `net/`, as in a run. */
+  refreshNames(): void {
+    if (this.#world) this.#pushRoster();
+  }
+
+  /**
+   * Everybody in the cabin, this player included. It is what the pause menu's
+   * voice list is built from - which is why it is pushed at all in here, where
+   * there is nobody to lose and no health to draw.
+   */
+  #pushRoster(): void {
+    const self = this.#net.selfId;
+    const roster: RosterEntry[] = [self, ...this.#remotes.keys()].map((id) => ({
+      id,
+      name: this.#net.nameOf(id),
+      index: this.#net.playerNumber(id),
+      health: 'healthy',
+      self: id === self,
+      disconnected: false,
+      escaped: false,
+      pulse: null,
+    }));
+    roster.sort((a, b) => a.index - b.index);
+    this.#hooks.onRosterChange(roster);
+  }
+
+  /**
+   * Names over the heads in the cabin, exactly as in a run and for the same
+   * reason - it is where you find out who you are about to go down a hole with.
+   * The one difference is that nothing tests line of sight: the cabin is a
+   * single room you can see across, and the run's rule exists to stop a
+   * nameplate reporting somebody through a wall.
+   */
+  nameplates(): NameplateView[] {
+    const config = this.#config.ui.hud.nameplates;
+    if (!config.enabled || !this.#world || !this.#remotes.size) return [];
+
+    const camera = this.#renderer.camera;
+    const eye = camera.position;
+    const height = this.#config.player.body.standHeight + config.heightOffset;
+    const fade = config.maxDistance - config.fadeDistance;
+    const views: NameplateView[] = [];
+
+    for (const [id, remote] of this.#remotes) {
+      const at = remote.body.object.position;
+      const distance = Math.hypot(at.x - eye.x, at.z - eye.z);
+      if (distance > config.maxDistance) continue;
+
+      HEAD.set(at.x, at.y + height, at.z).project(camera);
+      if (HEAD.z > 1) continue;
+      if (Math.abs(HEAD.x) > 1.2 || Math.abs(HEAD.y) > 1.2) continue;
+
+      views.push({
+        id,
+        name: this.#net.nameOf(id),
+        index: this.#net.playerNumber(id),
+        x: (HEAD.x * 0.5 + 0.5) * 100,
+        y: (HEAD.y * -0.5 + 0.5) * 100,
+        opacity: fade > 0 ? Math.min(1, Math.max(0, (config.maxDistance - distance) / fade)) : 1,
+      });
+    }
+
+    return views;
   }
 
   #createBody(streamName: string): RemotePlayer | null {

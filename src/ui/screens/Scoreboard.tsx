@@ -20,6 +20,7 @@
 import type { GameConfig } from '@/config/types';
 import type { ScoreRow } from '@/game/Game';
 import { t } from '@/i18n/index';
+import { playerLabel } from '../playerLabel';
 
 interface Props {
   rows: ScoreRow[];
@@ -68,7 +69,7 @@ export function Scoreboard({ rows, categories, onContinue }: Props) {
               </div>
 
               <div class="card__id">
-                <span class="card__name">{t('hud.player.name', { n: row.index })}</span>
+                <span class="card__name">{playerLabel(row.name, row.index)}</span>
                 <span class={`chip chip--${row.status}`}>{t(`hud.status.${row.status}`)}</span>
               </div>
 

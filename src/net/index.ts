@@ -25,6 +25,7 @@ import type { NoiseKind } from '@/ai/noiseBus';
 import type { HealthState, NetConfig } from '@/config/types';
 import type { PlayerStats } from '@/world/runStats';
 import type { Cosmetic } from '@shared/cosmetics';
+import { cleanPlayerName } from '@shared/playerName';
 
 /** Namespaced so a 6-character code cannot collide with another app on the public server. */
 const PEER_PREFIX = 'stranded-in-silence-';
@@ -105,12 +106,20 @@ export type NetMessage =
       id: string;
       host: string;
       slot: number;
+      /**
+       * Every peer's slot, sent whole. The slot is not only where somebody
+       * spawns: it is the number the interface calls them by, so it has to be
+       * the same on every screen - and a map small enough to send entire
+       * removes any question of two peers disagreeing about it.
+       */
+      slots: Record<string, number>;
       peers: string[];
       lobby: LobbySnapshot;
       /** Set only when the host is already in a run, so a late joiner catches up. */
       run: RunStart | null;
     }
-  | { t: 'join'; id: string }
+  /** `slot` is the host's, so a joiner is the same number to everybody at once. */
+  | { t: 'join'; id: string; slot: number }
   | { t: 'leave'; id: string }
   /* --- lobby -------------------------------------------------------------- */
   /** Host -> all, whenever the tally, the difficulty or the countdown changes. */
@@ -159,6 +168,12 @@ export type NetMessage =
   /** Any -> all, on change and on anyone joining. Voice reads it across scenes. */
   | { t: 'scene'; id: string; scene: Scene }
   | { t: 'cosmetic'; id: string; colourId: string; hatId: string }
+  /**
+   * What this peer calls itself, re-announced the same way a cosmetic is. The
+   * only free text in the protocol other than chat, so it is cleaned on arrival
+   * rather than trusted (`@shared/playerName`).
+   */
+  | { t: 'name'; id: string; name: string }
   /**
    * One line of text, broadcast to the whole session. Who is allowed to READ it
    * is the receiver's business, not this layer's: a live player drops a line
@@ -229,6 +244,12 @@ export type NetMessage =
   | { t: 'hit'; id: string }
   | { t: 'health'; id: string; state: HealthState }
   | { t: 'revive'; id: string }
+  /**
+   * Somebody's hands are on `id`, or have come off again. Addressed like `heal`:
+   * only the player on the floor applies it, because the only thing it does is
+   * stop their bleed-out clock. Sent on the edges of the hold, not per tick.
+   */
+  | { t: 'reviving'; id: string; by: string; active: boolean }
   | { t: 'wiped' };
 
 export type NetRole = 'offline' | 'host' | 'client';
@@ -265,6 +286,8 @@ export interface NetEvents {
   /** A peer's dart total. Replaces whatever was held for them. */
   onDartScore(id: string, score: number): void;
   onCosmetic(id: string, cosmetic: Cosmetic): void;
+  /** A peer named itself. Everything that draws a name re-reads `nameOf`. */
+  onName(id: string, name: string | null): void;
   /** A line of text from a peer. Whether it is shown is decided above this. */
   onChat(id: string, text: string): void;
   onPeerJoin(id: string): void;
@@ -300,6 +323,8 @@ export interface NetEvents {
   onHit(): void;
   onHealth(id: string, state: HealthState): void;
   onRevive(id: string): void;
+  /** Somebody's hands are on this browser's player, or have come off. */
+  onReviving(by: string, active: boolean): void;
   onPeerEscaped(id: string): void;
   /** A peer's scoreboard tally. Replaces whatever was held for them. */
   onStats(id: string, stats: PlayerStats): void;
@@ -358,9 +383,13 @@ export class Net {
   #run: RunStart | null = null;
   /** The host's lobby, replayed to anyone who joins. Clients keep a copy to send on. */
   #lobby: LobbySnapshot = { picks: {}, difficultyId: '', countdown: null };
-  /** Host-assigned spawn slots. The host is always 0. */
+  /**
+   * Spawn slots, and with them the number every screen calls a player by. The
+   * HOST hands them out and publishes the whole map, so "Player 2" means the
+   * same person in four browsers - which a number each peer worked out for
+   * itself never could, because everybody would be Player 1 to themselves.
+   */
   #slots = new Map<string, number>();
-  #nextSlot = 1;
 
   /* --- scenes -------------------------------------------------------------- */
   /**
@@ -374,9 +403,14 @@ export class Net {
   /* --- identity ------------------------------------------------------------ */
   /** Host-assigned spawn slot for THIS browser. The host is always 0. */
   #mySlot = 0;
+  /** The code of the lobby this browser joined. Empty while hosting its own. */
+  #hostCode = '';
   /** Wardrobe choices, so a peer joining mid-lobby sees everyone as they are. */
   #cosmetic: Cosmetic | null = null;
   #cosmetics = new Map<string, Cosmetic>();
+  /** Names, announced and re-announced exactly as the cosmetics are. */
+  #name: string | null = null;
+  #names = new Map<string, string>();
 
   constructor(events: NetEvents, config: NetConfig) {
     this.#events = events;
@@ -444,6 +478,10 @@ export class Net {
     this.role = 'host';
     this.#run = null;
     this.#lobby = { picks: {}, difficultyId, countdown: null };
+    // The host is player one of its own lobby. Cleared first because anyone
+    // already connected is about to be dealt a fresh slot with the welcome.
+    this.#slots.clear();
+    this.#slots.set(this.selfId, 0);
     for (const id of this.#connections.keys()) this.#sendWelcome(id);
   }
 
@@ -591,6 +629,8 @@ export class Net {
 
     this.#relay({ t: 'leave', id }, id);
     this.#ready.delete(id);
+    // Their number goes back in the pot only between runs - see `#claimSlot`.
+    if (!this.#run) this.#slots.delete(id);
     this.#checkGate();
   }
 
@@ -634,6 +674,34 @@ export class Net {
     return this.#mySlot;
   }
 
+  /**
+   * The number every screen calls a player by: their host-dealt slot plus one.
+   *
+   * It is the host's answer rather than each browser's own, which is the whole
+   * point - a peer numbering itself 1 and everybody else from 2 gives four
+   * players four different rosters, and "Player 2 has the key" means four
+   * different people. A peer the host has not placed yet takes the lowest free
+   * number locally and is corrected the moment the real map lands, so a body is
+   * never drawn with no name at all.
+   */
+  playerNumber(id: string): number {
+    return this.#claimSlot(id) + 1;
+  }
+
+  /** Which slot the host gave someone, if anyone has said yet. */
+  slotOf(id: string): number | null {
+    return this.#slots.get(id) ?? null;
+  }
+
+  /**
+   * The code that gets somebody into the lobby this browser is IN, which is the
+   * host's rather than its own. A client showing its own code in the escape
+   * menu is offering a lobby nobody is standing in.
+   */
+  get lobbyCode(): string {
+    return this.role === 'client' && this.#hostCode ? this.#hostCode : this.#code;
+  }
+
   /* --- cosmetics ----------------------------------------------------------- */
 
   setCosmetic(cosmetic: Cosmetic): void {
@@ -647,6 +715,21 @@ export class Net {
   cosmeticOf(id: string): Cosmetic | null {
     if (id === this.selfId) return this.#cosmetic;
     return this.#cosmetics.get(id) ?? null;
+  }
+
+  /* --- names --------------------------------------------------------------- */
+
+  /** Already cleaned by the caller; sent only when it actually changed. */
+  setName(name: string | null): void {
+    if (this.#name === name) return;
+    this.#name = name;
+    this.broadcast({ t: 'name', id: this.selfId, name: name ?? '' });
+  }
+
+  /** This browser included, so one lookup answers for every line of every list. */
+  nameOf(id: string): string | null {
+    if (id === this.selfId) return this.#name;
+    return this.#names.get(id) ?? null;
   }
 
   /** Peers standing in the same world as this browser. Voice attenuates only these. */
@@ -686,10 +769,12 @@ export class Net {
       const id = shortId(connection.peer);
 
       if (this.role !== 'host') return;
-      if (!this.#slots.has(id)) this.#slots.set(id, this.#nextSlot++);
 
+      // Their welcome carries the whole slot map, so it has to be dealt before
+      // the welcome goes out - and the relay tells everyone already here who
+      // the newcomer is going to be numbered as.
       this.#sendWelcome(id);
-      this.#relay({ t: 'join', id }, id);
+      this.#relay({ t: 'join', id, slot: this.#claimSlot(id) }, id);
       this.#addPlayer(id);
     });
   }
@@ -697,17 +782,39 @@ export class Net {
   #sendWelcome(id: string): void {
     const connection = this.#connections.get(id);
     if (!connection) return;
-    if (!this.#slots.has(id)) this.#slots.set(id, this.#nextSlot++);
+    const slot = this.#claimSlot(id);
 
     this.#send(connection, {
       t: 'welcome',
       id,
       host: this.#code,
-      slot: this.#slots.get(id) ?? 0,
+      slot,
+      slots: Object.fromEntries(this.#slots),
       peers: this.peerIds.filter((peerId) => peerId !== id),
       lobby: this.#lobby,
       run: this.#run,
     });
+  }
+
+  /**
+   * The lowest free slot. Lowest rather than "one more than the last one dealt"
+   * so that a lobby people come and go from stays four players numbered one to
+   * four, rather than climbing to Player 7 in a room of two.
+   *
+   * A slot is only ever freed **between runs** (`#onLost`). Inside one, the
+   * player who dropped keeps their number for as long as the run they were part
+   * of lasts: their roster line and their scoreboard column are still there,
+   * greyed, and a newcomer inheriting that number would put two of them on it.
+   */
+  #claimSlot(id: string): number {
+    const held = this.#slots.get(id);
+    if (held !== undefined) return held;
+
+    const taken = new Set(this.#slots.values());
+    let slot = 0;
+    while (taken.has(slot)) slot++;
+    this.#slots.set(id, slot);
+    return slot;
   }
 
   #register(connection: DataConnection): void {
@@ -738,6 +845,9 @@ export class Net {
         this.#run = message.run;
         this.#lobby = message.lobby;
         this.#mySlot = message.slot;
+        this.#hostCode = message.host;
+        // Wholesale, like the lobby: the host's map is the only one that counts.
+        this.#slots = new Map(Object.entries(message.slots));
         // The scene has to exist before remotes can be added to it. A joiner
         // lands in the lobby unless the host is already down a hole.
         if (message.run) this.#events.onRunStart(message.run, message.slot);
@@ -749,6 +859,7 @@ export class Net {
         break;
       }
       case 'join':
+        this.#slots.set(message.id, message.slot);
         this.#addPlayer(message.id);
         break;
       case 'leave':
@@ -807,6 +918,15 @@ export class Net {
         const cosmetic = { colourId: message.colourId, hatId: message.hatId };
         this.#cosmetics.set(message.id, cosmetic);
         this.#events.onCosmetic(message.id, cosmetic);
+        break;
+      }
+      case 'name': {
+        // Cleaned here rather than trusted: this is the only place a peer gets
+        // to put text of its own choosing on somebody else's screen.
+        const name = cleanPlayerName(message.name, this.#config.identity.nameMaxLength);
+        if (name) this.#names.set(message.id, name);
+        else this.#names.delete(message.id);
+        this.#events.onName(message.id, name);
         break;
       }
       case 'chat':
@@ -868,6 +988,10 @@ export class Net {
         break;
       case 'revive':
         if (message.id === this.selfId) this.#events.onRevive(message.id);
+        break;
+      case 'reviving':
+        // Addressed, not broadcast: only the player on the floor has a clock.
+        if (message.id === this.selfId) this.#events.onReviving(message.by, message.active);
         break;
       case 'wiped':
         this.#events.onWiped();
@@ -1000,6 +1124,7 @@ export class Net {
       if (cosmetic) {
         this.broadcast({ t: 'cosmetic', id: this.selfId, colourId: cosmetic.colourId, hatId: cosmetic.hatId });
       }
+      if (this.#name) this.broadcast({ t: 'name', id: this.selfId, name: this.#name });
     }
   }
 
@@ -1007,6 +1132,7 @@ export class Net {
     this.#players.delete(id);
     this.#scenes.delete(id);
     this.#cosmetics.delete(id);
+    this.#names.delete(id);
     this.#calls.get(id)?.close();
     this.#calls.delete(id);
     this.#events.onVoiceEnded(id);
@@ -1044,6 +1170,7 @@ export class Net {
     this.#players.clear();
     this.#scenes.clear();
     this.#cosmetics.clear();
+    this.#names.clear();
     this.#silence.clear();
     this.#ready.clear();
     this.#gateOpen = false;
@@ -1059,6 +1186,8 @@ export class Net {
     this.#run = null;
     this.#lobby = { picks: {}, difficultyId: '', countdown: null };
     this.#mySlot = 0;
+    this.#hostCode = '';
+    this.#slots.clear();
     this.#scene = 'lobby';
     await this.#dispose();
   }
@@ -1069,9 +1198,9 @@ export class Net {
     this.#run = null;
     this.#lobby = { picks: {}, difficultyId: '', countdown: null };
     this.#mySlot = 0;
+    this.#hostCode = '';
     this.#scene = 'lobby';
     this.#slots.clear();
-    this.#nextSlot = 1;
     this.#silence.clear();
     this.#ready.clear();
     this.#gateOpen = false;

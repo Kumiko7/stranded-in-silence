@@ -76,6 +76,10 @@ export interface PlayerConfig {
     hats: { id: string; nameKey: string; artId: string; cost: number }[];
   };
   health: {
+    /** Whether the floor has a clock on it at all. */
+    downedBleedOut: boolean;
+    /** How long a downed player has, with nobody's hands on them. */
+    downedBleedOutSeconds: number;
     /** How long a downed player holds the give-up key before they die. */
     giveUpHoldSeconds: number;
     reviveHoldSeconds: number;
@@ -368,6 +372,10 @@ export interface VoiceConfig {
 }
 
 export interface NetConfig {
+  identity: {
+    /** Cap on a player name, applied to what is typed AND to what a peer sends. */
+    nameMaxLength: number;
+  };
   simulation: {
     snapshotRateHz: number;
     /** How far in the past remote bodies are drawn, so there is always a gap to fill. */
@@ -484,6 +492,12 @@ export interface UiConfig {
   };
   hud: {
     crosshair: { enabled: boolean; size: number; colour: string; opacity: number };
+    /**
+     * The name over a teammate's head. `fadeDistance` is where it starts to go
+     * out; `maxDistance` is where it is gone. Nothing is drawn without line of
+     * sight, so a nameplate never says where somebody is through a wall.
+     */
+    nameplates: { enabled: boolean; maxDistance: number; fadeDistance: number; heightOffset: number };
     /** The bottom-left player roster: hearts, names and noise rings. */
     teammateList: { enabled: boolean; showVoiceIndicator: boolean };
     /** The voice pill above the roster: mode, transmitting state, input level. */

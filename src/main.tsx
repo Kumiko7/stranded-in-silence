@@ -24,6 +24,8 @@ import { Lobby } from './game/Lobby';
 import { Tutorial } from './game/Tutorial';
 import { disposePortraits } from './render/portraits';
 import { mountVoiceIndicator } from './ui/hud/voiceIndicator';
+import { mountNameplates } from './ui/hud/nameplates';
+import { playerLabel } from './ui/playerLabel';
 import { App, type ChatLine, type Screen, type UiCallbacks, type UiPush, type UiState } from './ui/App';
 
 const bootRoot = document.getElementById('boot-root');
@@ -189,8 +191,11 @@ async function boot(): Promise<void> {
     showEmptyCoins: config.ui.hud.coins.showWhenEmpty,
     hint: null,
     health: 'healthy',
+    playerName: save.profile.name ?? '',
+    nameMaxLength: config.net.identity.nameMaxLength,
     giveUpProgress: 0,
     giveUpKey: input.bindingFor('giveUp'),
+    bleedOut: null,
     spectate: null,
     spectateNextKey: input.bindingFor('spectateNext'),
     spectatePrevKey: input.bindingFor('spectatePrev'),
@@ -286,6 +291,12 @@ async function boot(): Promise<void> {
       lobby.setRemoteCosmetic(id, cosmetic);
       game.setRemoteCosmetic(id, cosmetic);
     },
+    // Every list that draws a name reads it back off `net/`, so a name landing
+    // only has to say "draw them again".
+    onName: () => {
+      game.refreshNames();
+      lobby.refreshNames();
+    },
     // Broadcast to everyone, read by whoever is allowed to: a player still down
     // there never sees a line from one who is out, by the same rule that keeps
     // spectators off their voice channel.
@@ -320,6 +331,7 @@ async function boot(): Promise<void> {
     onHit: () => game.takeHit(),
     onHealth: (id, health) => game.setRemoteHealth(id, health),
     onRevive: () => game.reviveLocal(),
+    onReviving: (by, active) => game.setReviving(by, active),
     onPeerEscaped: (id) => game.markEscaped(id),
     onStats: (id, stats) => game.setStats(id, stats),
     onWiped: () => game.endWiped(),
@@ -332,6 +344,7 @@ async function boot(): Promise<void> {
 
   const voice = new VoiceChat(config.net.voice, audio, net);
   const voiceHud = mountVoiceIndicator(hudRoot, config.ui.hud.voiceIndicator);
+  const nameplateHud = mountNameplates(hudRoot);
 
   /* --- game --------------------------------------------------------------- */
 
@@ -378,6 +391,7 @@ async function boot(): Promise<void> {
       set({ spectate: null, screen: 'scoreboard', chatOpen: false });
     },
     onGiveUpProgress: (giveUpProgress) => set({ giveUpProgress }),
+    onBleedOut: (bleedOut) => set({ bleedOut }),
     onPlayerCountChange: (count) => set({ players: count }),
     onTutorial: (id) => tutorial.note(id),
     onHealthChange: (health) => set({ health }),
@@ -402,6 +416,10 @@ async function boot(): Promise<void> {
       }),
     onTutorial: (id) => tutorial.note(id),
     onViewChange: (view) => set({ lobby: view, players: view.players }),
+    // The cabin has a roster too. Nothing draws it as a HUD element in here -
+    // there is nobody to lose - but it is what the pause menu's per-teammate
+    // mutes are built from, and those exist the moment somebody turns up.
+    onRosterChange: (roster) => set({ roster }),
     // The cabin has no item roster, so it hands the HUD locale keys directly
     // rather than item ids for `items.json` to name.
     onHandsChange: (hands) => set({ hands }),
@@ -428,6 +446,9 @@ async function boot(): Promise<void> {
     tutorial.enter('lobby');
     set({
       screen: 'lobby',
+      // The code that gets somebody in HERE, which on a client is the host's
+      // rather than this browser's own.
+      code: net.lobbyCode,
       optionsOpen: false,
       promptVerbKey: null,
       promptItemKey: null,
@@ -476,6 +497,8 @@ async function boot(): Promise<void> {
   function beginRun(run: RunStart, slot: number): void {
     currentRun = run;
     banked = false;
+    // A joiner can land straight in a run without passing through the cabin.
+    if (state.code !== net.lobbyCode) set({ code: net.lobbyCode });
     lobby.end();
     net.setScene('run');
     closeChat();
@@ -600,8 +623,11 @@ async function boot(): Promise<void> {
     closeChat();
     set({
       screen: 'menu',
+      // Back to offering your own lobby, so the footer's code is joinable again.
+      code: net.selfId,
       lobby: null,
       players: 1,
+      roster: [],
       optionsOpen: false,
       scoreboard: [],
       spectate: null,
@@ -639,7 +665,9 @@ async function boot(): Promise<void> {
 
     const line: ChatLine = {
       id: ++chatSeq,
-      from: game.playerNumber(fromId),
+      // Resolved now rather than kept as an id: a line is a record of something
+      // that was said, and it should not change its attribution afterwards.
+      from: playerLabel(game.playerName(fromId), game.playerNumber(fromId)),
       self: fromId === net.selfId,
       text,
       fresh: true,
@@ -790,6 +818,17 @@ async function boot(): Promise<void> {
       tutorial.setEnabled(options.tutorial);
       if (patch.graphics) setFullscreen(options.graphics.fullscreen);
       set({ options });
+    },
+    /**
+     * Written through on every keystroke, exactly like every other control on
+     * that screen. What is STORED is the tidied version (`Save.setName`); what
+     * is shown is what was typed, because a field that trims under the cursor
+     * is a field that fights you.
+     */
+    onPlayerName: (typed) => {
+      net.setName(save.setName(typed));
+      game.refreshNames();
+      set({ playerName: typed });
     },
     onOptionsReset: () => {
       const options = save.resetOptions();
@@ -978,6 +1017,7 @@ async function boot(): Promise<void> {
   const savedHat = save.profile.hatId;
   if (savedHat && owned(savedHat)) set({ hatId: savedHat, previewHatId: savedHat });
   net.setCosmetic({ colourId: state.colourId, hatId: state.hatId });
+  net.setName(save.profile.name);
   set(hatState());
 
   /* --- loop --------------------------------------------------------------- */
@@ -1040,6 +1080,11 @@ async function boot(): Promise<void> {
       // counts as showing: you can still be heard while the world stands still.
       const status = voice.status();
       voiceHud.update(status, (game.active || lobby.active) && status.live, state.voice.pushToTalkKey);
+      // Projected here rather than in the tick: the plates follow the camera,
+      // and the camera is what has just been rendered from.
+      nameplateHud.update(
+        state.screen === 'scoreboard' ? [] : game.active ? game.nameplates() : lobby.nameplates(),
+      );
       pushVoice();
       input.endFrame();
     },
@@ -1050,6 +1095,7 @@ async function boot(): Promise<void> {
     detachInput();
     detachUiSounds();
     voiceHud.unmount();
+    nameplateHud.unmount();
     disposePortraits();
     voice.dispose();
     void net.close();

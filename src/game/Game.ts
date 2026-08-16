@@ -14,7 +14,7 @@ import { configForRun, type Config } from '@/config/index';
 import { rangeInt, stream, type Rng } from '@/core/rng';
 import type { EnemyArchetype, HealthState, ItemDef } from '@/config/types';
 import { createPlayerState, applyLook, eyeHeight, stepPlayer, type PlayerState } from '@/entities/player';
-import { applyGiveUp, applyHeal, applyHit, applyRevive, isDown, tickHealth } from '@/entities/health';
+import { applyGiveUp, applyHeal, applyHit, applyRevive, isDown, tickBleedOut, tickHealth } from '@/entities/health';
 import {
   createInventory,
   dropFrom,
@@ -114,7 +114,9 @@ export interface UseView {
  */
 export interface RosterEntry {
   id: string;
-  /** Placeholder until players have names of their own. */
+  /** What they call themselves, or null - the line falls back to `index`. */
+  name: string | null;
+  /** Their number, which is what names them until they have chosen one. */
   index: number;
   health: HealthState;
   self: boolean;
@@ -134,9 +136,40 @@ export interface RosterEntry {
  */
 export interface SpectateView {
   targetId: string;
+  name: string | null;
   index: number;
   position: number;
   count: number;
+}
+
+/**
+ * The clock on the floor, as the HUD wants it.
+ *
+ * `seconds` is already whole: it is pushed only when the number a player would
+ * read actually changes, so a countdown costs one vdom update a second rather
+ * than sixty.
+ */
+export interface BleedOutView {
+  seconds: number;
+  /** Somebody has their hands on you, so it is not going down. */
+  paused: boolean;
+}
+
+/**
+ * One name floating over a teammate, in the coordinates the HUD layer wants:
+ * percentages of the viewport, ready to be written straight onto an element.
+ *
+ * Built in the render step rather than the tick, because it is projection
+ * through the camera and nothing about it is simulation.
+ */
+export interface NameplateView {
+  id: string;
+  name: string | null;
+  index: number;
+  x: number;
+  y: number;
+  /** Faded out over the last stretch of `hud.nameplates.maxDistance`. */
+  opacity: number;
 }
 
 /**
@@ -146,6 +179,7 @@ export interface SpectateView {
  */
 export interface ScoreRow {
   id: string;
+  name: string | null;
   index: number;
   self: boolean;
   /**
@@ -211,6 +245,8 @@ export interface RunHooks {
   onSpectate(view: SpectateView | null): void;
   /** 0..1 while a downed player holds the give-up key. */
   onGiveUpProgress(progress: number): void;
+  /** The bleed-out clock while this player is on the floor, or null when they are not. */
+  onBleedOut(view: BleedOutView | null): void;
   /**
    * The scoreboard, once the run is over for this player. Fired again whenever
    * a teammate's tally arrives afterwards, so a column cannot sit at zero
@@ -292,6 +328,9 @@ const ITEM_BOX = new THREE.Box3();
 const ITEM_SPHERE = new THREE.Sphere();
 const OFFSET = new THREE.Vector3();
 
+/** Scratch for the nameplate projection, which runs per remote per FRAME. */
+const HEAD = new THREE.Vector3();
+
 /**
  * How often a peer re-sends its scoreboard tally while a run is going. Nothing
  * reads it until the run ends, so this is deliberately lazy - it exists only so
@@ -369,6 +408,16 @@ export class Game {
   /** Seconds the give-up key has been held while downed. */
   #giveUpHold = 0;
   #giveUpPushed = 0;
+  /**
+   * Teammates who currently have their hands on THIS player. A set rather than
+   * a flag because two people can work on one body, and the clock stops for as
+   * long as any of them is still at it.
+   */
+  #revivers = new Set<string>();
+  /** Whose body this player has their own hands on, so the edge is sent once. */
+  #reviving: string | null = null;
+  /** Last bleed-out reading pushed to the HUD, so a tick that changed nothing costs nothing. */
+  #bleedPushed = '';
   #dropCount = 0;
   #dims: RoomDims | null = null;
   /**
@@ -425,8 +474,6 @@ export class Game {
   #statsTimer = 0;
 
   /* --- roster -------------------------------------------------------------- */
-  /** Stable per-peer numbering, so a teammate keeps their line across runs. */
-  #playerIndex = new Map<string, number>();
   #pulses = new Map<string, { loudness: number; heard: boolean; token: number }>();
   #pulseToken = 0;
 
@@ -492,11 +539,20 @@ export class Game {
 
   /**
    * The number the whole interface calls a peer by. Public because the chat log
-   * needs it in the cabin as well as in a run, and this is the one place that
-   * numbering is decided (`#indexOf`).
+   * needs it in the cabin as well as in a run; the answer itself comes from the
+   * host (`#indexOf`).
    */
   playerNumber(id: string): number {
-    return this.#indexOf(id, id === this.#net.selfId);
+    return this.#indexOf(id);
+  }
+
+  /**
+   * What a peer calls itself, or null for one that never chose. Read straight
+   * off `net/`, which is where a name arrives and is cleaned - nothing in here
+   * keeps a second copy of it to fall out of step.
+   */
+  playerName(id: string): string | null {
+    return this.#net.nameOf(id);
   }
 
   /**
@@ -554,6 +610,10 @@ export class Game {
     this.#giveUpHold = 0;
     this.#giveUpPushed = 0;
     this.#hooks.onGiveUpProgress(0);
+    this.#revivers.clear();
+    this.#reviving = null;
+    this.#bleedPushed = '';
+    this.#hooks.onBleedOut(null);
     this.#pending.clear();
     this.#resetHold();
     this.#clearItemState();
@@ -631,6 +691,8 @@ export class Game {
     this.#look = null;
     this.#hiding = null;
     this.#spectating = null;
+    this.#revivers.clear();
+    this.#reviving = null;
     this.#hunters = [];
     this.#graph = null;
     this.#doorsById.clear();
@@ -758,6 +820,19 @@ export class Game {
     this.#remotes.get(id)?.body.wear(cosmetic);
   }
 
+  /**
+   * A peer named themselves. Every list that draws a name reads it back off
+   * `net/` when it is rebuilt, so this only has to say "rebuild them".
+   */
+  refreshNames(): void {
+    // Only while there is a run to draw a roster of: outside one there is
+    // nobody in `RunState`, and pushing an empty list would take the cabin's
+    // pause-menu voice list down with it.
+    if (!this.#world) return;
+    this.#pushRoster();
+    if (this.#over || this.#escaped) this.#pushScoreboard();
+  }
+
   #disposeRemote(remote: RemotePlayer): void {
     this.#renderer.scene.remove(remote.object);
     remote.body.dispose();
@@ -824,6 +899,62 @@ export class Game {
     );
     this.#run.setHealth(id, transform.health);
     if (healthChanged) this.#pushRoster();
+  }
+
+  /**
+   * Where each teammate's name should be drawn this FRAME, as percentages of
+   * the viewport. Called from the render step rather than from the tick: it is
+   * projection through the camera of bodies that are interpolated, and neither
+   * is simulation - the HUD layer that consumes it
+   * (`src/ui/hud/nameplates.ts`) runs at display rate.
+   *
+   * Line of sight is checked before anything is drawn. A name labels somebody
+   * you can already see; it is never a marker through a wall.
+   */
+  nameplates(): NameplateView[] {
+    const config = this.#config.ui.hud.nameplates;
+    const world = this.#world;
+    if (!config.enabled || !world || !this.#remotes.size) return [];
+
+    const camera = this.#renderer.camera;
+    const eye = camera.position;
+    const body = this.#config.player.body;
+    const fade = config.maxDistance - config.fadeDistance;
+    const views: NameplateView[] = [];
+
+    for (const [id, remote] of this.#remotes) {
+      // Not drawn, shut in a locker, out of the run, or the very person whose
+      // eyes this camera is borrowing: none of them wants a label.
+      if (!remote.object.visible || remote.target.hiding) continue;
+      if (id === this.#spectating || !this.#run.isInMap(id)) continue;
+
+      const at = remote.object.position;
+      const distance = Math.hypot(at.x - eye.x, at.z - eye.z);
+      if (distance > config.maxDistance) continue;
+      if (!world.collision.segmentClear(eye.x, eye.z, at.x, at.z)) continue;
+
+      // Over the head they actually have: a body on the floor is not standing.
+      const height = isDown(remote.target.health) ? body.downedEyeHeight : remote.target.height;
+      HEAD.set(at.x, at.y + height + config.heightOffset, at.z).project(camera);
+      // Behind the camera. `project` folds those back into the frame, so
+      // without this a teammate at your back gets a name floating ahead of you.
+      if (HEAD.z > 1) continue;
+      // Off the sides. A little past the edge is kept so a plate slides in
+      // rather than appearing, and everything beyond that is not drawn at all -
+      // an element parked at -400% is still an element in the document.
+      if (Math.abs(HEAD.x) > 1.2 || Math.abs(HEAD.y) > 1.2) continue;
+
+      views.push({
+        id,
+        name: this.#net.nameOf(id),
+        index: this.#indexOf(id),
+        x: (HEAD.x * 0.5 + 0.5) * 100,
+        y: (HEAD.y * -0.5 + 0.5) * 100,
+        opacity: fade > 0 ? Math.min(1, Math.max(0, (config.maxDistance - distance) / fade)) : 1,
+      });
+    }
+
+    return views;
   }
 
   /* --- host authority ------------------------------------------------------ */
@@ -1081,17 +1212,16 @@ export class Game {
   }
 
   /**
-   * Numbering is stable for the life of the session: a teammate keeps their
-   * line whether they are standing next to you or gone, and slot 1 is always
-   * yours whichever order people turned up in.
+   * The number that names a player until they have chosen a name.
+   *
+   * It is the HOST's, not this browser's (`Net.playerNumber`): a peer that
+   * numbered itself 1 and everyone else from 2 would give four players four
+   * different rosters, and "Player 2 has the key" would mean four different
+   * people. The host deals slots, publishes the whole map, and everybody draws
+   * the same team in the same order.
    */
-  #indexOf(id: string, self: boolean): number {
-    let index = this.#playerIndex.get(id);
-    if (index === undefined) {
-      index = self ? 1 : Math.max(2, this.#playerIndex.size + 1);
-      this.#playerIndex.set(id, index);
-    }
-    return index;
+  #indexOf(id: string): number {
+    return this.#net.playerNumber(id);
   }
 
   /**
@@ -1103,7 +1233,8 @@ export class Game {
     const self = this.#net.selfId;
     const roster: RosterEntry[] = this.#run.players.map((player) => ({
       id: player.id,
-      index: this.#indexOf(player.id, player.id === self),
+      name: this.#net.nameOf(player.id),
+      index: this.#indexOf(player.id),
       health: player.id === self ? (this.#player?.health.state ?? 'healthy') : player.health,
       self: player.id === self,
       disconnected: player.disconnected,
@@ -1196,7 +1327,9 @@ export class Game {
     if (this.#over) return;
     this.#over = true;
     this.#audio.stopSustains();
-    this.#audio.play('run.wiped');
+    // The run being over is not the same thing as having lost it. Somebody who
+    // is already through the door hears the end of a run they won.
+    if (!this.#escaped) this.#audio.play('run.wiped');
     this.#sendStats(0, true);
     this.#hooks.onWiped();
     this.#pushScoreboard();
@@ -1250,7 +1383,8 @@ export class Game {
       const cosmetic = this.#net.cosmeticOf(player.id) ?? defaultCosmetic(this.#config.player);
       return {
         id: player.id,
-        index: this.#indexOf(player.id, mine),
+        name: this.#net.nameOf(player.id),
+        index: this.#indexOf(player.id),
         self: mine,
         portrait: playerPortrait(this.#config.player, this.#config.world, cosmetic),
         colourHex: colourHexOf(this.#config.player, cosmetic.colourId),
@@ -1342,6 +1476,7 @@ export class Game {
     const eye = this.#eye(player);
     this.#updateCamera(eye);
     this.#updateGiveUp(dt, player, controlsEnabled && live);
+    this.#updateBleedOut(dt, player, live);
     // One ray a tick, read by both E and the hand buttons.
     this.#look = active ? this.#lookTag(world) : null;
     this.#updateInteraction(dt, active);
@@ -1390,7 +1525,7 @@ export class Game {
   #spectateTargets(): string[] {
     return [...this.#remotes.keys()]
       .filter((id) => this.#run.isInMap(id))
-      .sort((a, b) => this.#indexOf(a, false) - this.#indexOf(b, false));
+      .sort((a, b) => this.#indexOf(a) - this.#indexOf(b));
   }
 
   /**
@@ -1425,6 +1560,11 @@ export class Game {
    * ends for a spectator: there is nobody left to watch, so it is over.
    */
   #updateSpectator(controlsEnabled: boolean): void {
+    // The run being over outranks who is left to watch. The scoreboard is up,
+    // and a teammate's body leaving the map afterwards must not push a view
+    // that pulls the screen back out of it.
+    if (this.#over) return;
+
     const targets = this.#spectateTargets();
 
     if (!targets.length) {
@@ -1449,14 +1589,15 @@ export class Game {
     this.#spectating = targetId;
     this.#pushSpectate({
       targetId,
-      index: this.#indexOf(targetId, false),
+      name: this.#net.nameOf(targetId),
+      index: this.#indexOf(targetId),
       position: position + 1,
       count: targets.length,
     });
   }
 
   #pushSpectate(view: SpectateView | null): void {
-    const signature = view ? `${view.targetId}|${view.position}|${view.count}` : '';
+    const signature = view ? `${view.targetId}|${view.name ?? ''}|${view.position}|${view.count}` : '';
     if (signature === this.#spectateSignature) return;
     this.#spectateSignature = signature;
     this.#hooks.onSpectate(view);
@@ -1488,12 +1629,96 @@ export class Game {
     return { x: view.x, y: height, z: view.z, yaw: view.yaw, pitch: view.pitch };
   }
 
+  /* --- the floor ------------------------------------------------------------ */
+
+  /**
+   * Somebody's hands are on this player, or have come off again. Only the peer
+   * lying on the floor is told, because the clock is theirs and nobody else's
+   * business (`reviving` in `src/net/index.ts`).
+   */
+  setReviving(by: string, active: boolean): void {
+    if (active) this.#revivers.add(by);
+    else this.#revivers.delete(by);
+  }
+
+  /**
+   * Whether anybody is actually working on this player right now.
+   *
+   * A message said they started; this is what says they still are. A reviver
+   * who was killed, disconnected or simply walked away is not in reach any
+   * more, and the clock is not going to wait for one who never sends the
+   * closing edge - so the position everyone already has settles it, and no
+   * lease or heartbeat is needed for a message that can be lost.
+   */
+  #beingRevived(player: PlayerState): boolean {
+    if (!this.#revivers.size) return false;
+    const range = this.#config.player.health.reviveRange;
+
+    for (const id of this.#revivers) {
+      const remote = this.#remotes.get(id);
+      if (!remote || !this.#run.isActive(id)) continue;
+      if (Math.hypot(remote.target.x - player.x, remote.target.z - player.z) <= range) return true;
+    }
+    return false;
+  }
+
+  /**
+   * The clock on the floor. It stops while a teammate has their hands on you,
+   * so a revive that started in time is never lost to it, and it runs out into
+   * exactly the same place giving up leads to: dead, and watching.
+   *
+   * Not gated on `controlsEnabled` - the run carries on around a player who
+   * opened the pause menu, and bleeding out is the run carrying on.
+   */
+  #updateBleedOut(dt: number, player: PlayerState, live: boolean): void {
+    if (!live || this.#over || this.spectating || player.health.state !== 'downed') {
+      this.#revivers.clear();
+      this.#pushBleedOut(null);
+      return;
+    }
+    // Turned off in config there is no clock to run and none to draw either: a
+    // countdown stuck at zero is worse than the feature being absent.
+    if (!this.#config.player.health.downedBleedOut) {
+      this.#pushBleedOut(null);
+      return;
+    }
+
+    const paused = this.#beingRevived(player);
+    const state = tickBleedOut(player.health, dt, this.#config.player, paused);
+    this.#pushBleedOut({ seconds: Math.ceil(player.health.bleedOutFor), paused });
+    if (!state) return;
+
+    this.#dropEverything(player);
+    this.#announceHealth(state);
+    this.#enterSpectate(player);
+  }
+
+  #pushBleedOut(view: BleedOutView | null): void {
+    const signature = view ? `${view.seconds}|${view.paused}` : '';
+    if (signature === this.#bleedPushed) return;
+    this.#bleedPushed = signature;
+    this.#hooks.onBleedOut(view);
+  }
+
+  /**
+   * Everything in a leaving player's hands hits the floor where they lay, for
+   * exactly the reason a dropped peer's does: a key that leaves the map inside
+   * somebody who has stopped playing is a run nobody can finish.
+   */
+  #dropEverything(player: PlayerState): void {
+    for (const hand of HANDS) {
+      const itemId = dropFrom(this.#inventory, hand);
+      if (itemId) this.#dropIntoWorld(itemId, player);
+    }
+    this.#pushHands();
+  }
+
   /* --- giving up ------------------------------------------------------------ */
 
   /**
-   * The one way off the floor that is not a teammate. Nobody bleeds out here,
-   * so a downed player with nobody coming would otherwise be stuck watching a
-   * corridor until the run ended around them.
+   * The way off the floor that is neither a teammate nor the clock. It is the
+   * player's own hand, and it is there so that nobody who has decided the run
+   * is over for them has to lie still for the rest of the bleed-out.
    */
   #updateGiveUp(dt: number, player: PlayerState, enabled: boolean): void {
     const holding =
@@ -1513,15 +1738,7 @@ export class Game {
     const state = applyGiveUp(player.health);
     if (!state) return;
 
-    // Everything in their hands hits the floor where they lay, for exactly the
-    // reason a dropped peer's does: a key that leaves the map inside somebody
-    // who has stopped playing is a run nobody can finish.
-    for (const hand of HANDS) {
-      const itemId = dropFrom(this.#inventory, hand);
-      if (itemId) this.#dropIntoWorld(itemId, player);
-    }
-    this.#pushHands();
-
+    this.#dropEverything(player);
     this.#announceHealth(state);
     this.#enterSpectate(player);
   }
@@ -1756,8 +1973,18 @@ export class Game {
     this.#net.broadcast({ t: 'hit', id: targetId });
   }
 
+  /**
+   * The run ends the moment nobody is left who could still change it - which is
+   * not the same thing as everybody being on the floor. A team where one player
+   * got out and the other two are down has nobody coming for them: there is no
+   * revive left in the map, so making them lie there waiting out a clock is
+   * asking them to watch a run that has already finished.
+   *
+   * `RunState.evaluate` already draws that line for the wipe condition. This
+   * reads it in full rather than only its `wiped` branch.
+   */
   #checkRunOver(): void {
-    if (this.#over || this.#run.evaluate() !== 'wiped') return;
+    if (this.#over || this.#run.evaluate() === 'running') return;
     this.#net.broadcast({ t: 'wiped' });
     this.endWiped();
   }
@@ -1948,8 +2175,15 @@ export class Game {
   /* --- interaction --------------------------------------------------------- */
 
   #updateInteraction(dt: number, controlsEnabled: boolean): void {
+    // The one thing a hold has to tell somebody else about: hands on a body
+    // stop that body's bleed-out clock, and only they can be told.
+    this.#setReviving(this.#stepInteraction(dt, controlsEnabled));
+  }
+
+  /** Returns the teammate this player is currently picking up, if any. */
+  #stepInteraction(dt: number, controlsEnabled: boolean): string | null {
     const world = this.#world;
-    if (!world) return;
+    if (!world) return null;
 
     const previous = this.#target;
     this.#target = controlsEnabled ? this.#findTarget(world) : null;
@@ -1964,20 +2198,20 @@ export class Game {
     const target = this.#target;
     if (!target) {
       this.#updateHoldLoop(null);
-      return;
+      return null;
     }
 
     if (!target.hold) {
       this.#updateHoldLoop(null);
       if (this.#input.justPressed('interact')) this.#complete(target, null);
-      return;
+      return null;
     }
 
     const hand = this.#holdingHand(target);
     if (hand === false) {
       if (this.#hold > 0) this.#resetHold();
       this.#updateHoldLoop(null);
-      return;
+      return null;
     }
 
     this.#hold += dt;
@@ -1987,6 +2221,22 @@ export class Game {
       this.#holdDone = true;
       this.#complete(target, hand);
     }
+    // Done is done: the ring has finished and the revive has gone out, so the
+    // clock has nothing left to be stopped for.
+    return target.kind === 'revive' && !this.#holdDone ? target.id : null;
+  }
+
+  /**
+   * Announces the edges of a revive hold, and only the edges: a message a tick
+   * would be a stream to say something that changes twice.
+   */
+  #setReviving(id: string | null): void {
+    if (id === this.#reviving) return;
+
+    const previous = this.#reviving;
+    this.#reviving = id;
+    if (previous) this.#net.broadcast({ t: 'reviving', id: previous, by: this.#net.selfId, active: false });
+    if (id) this.#net.broadcast({ t: 'reviving', id, by: this.#net.selfId, active: true });
   }
 
   /**

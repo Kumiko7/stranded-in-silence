@@ -62,8 +62,12 @@ the load between them — see [`ARCHITECTURE.md §5`](ARCHITECTURE.md).
     the map inside somebody who has stopped playing is a run nobody can finish.
   - Revive: another player holds E (`player.json → health.reviveHoldSeconds`). Revived
     players come back **injured**, not healthy.
-- Nobody bleeds out. Being downed is not a timer, it is a problem for the team — and
-  giving up is the only clock on the floor, with the player's own hand on it.
+- A downed player bleeds out after `player.json → health.downedBleedOutSeconds`
+  (30 s) and becomes **dead** → spectator. The clock **stops while somebody is
+  reviving them**, so a rescue that started in time is never lost to it, and giving
+  up is still there for anyone who would rather not spend the thirty seconds. Being
+  downed is a problem for the team first and a countdown second: what the clock adds
+  is a reason to come *now*.
 
 ## 3. The hunter
 
@@ -198,6 +202,11 @@ would bank right now, and every teammate who gets out behind you raises it.
 - **Win**: every remaining player has escaped. Partial escapes still count as a win
   for those who made it, and the scoreboard shows who did.
 - **Lose**: everyone is downed or dead.
+- **Either way the run ends the moment nobody is left who could change it.** A team
+  where one player is out through the door and the rest are on the floor has no
+  revive left in the map, so the scoreboard comes up at once rather than after
+  thirty seconds of watching a ceiling. It is the same test in both cases — is
+  anybody still on their feet — and the answer is what decides win or lose.
 - The run purse is banked by each player who escapes, as it stands when they leave.
   A diamond on a body on the cellar floor is worth exactly nothing.
 
@@ -213,8 +222,9 @@ would bank right now, and every teammate who gets out behind you raises it.
    (distraction, blinding, sensing) rather than fight it.
 5. **Dark, never blind.** Atmosphere covers for the graphics; unreadable geometry
    does not.
-6. **Downed is a story, not a timer.** No bleed-out; the tension is whether your
-   friends come back for you.
+6. **Downed is a story with a timer, not a timer with a story.** Thirty seconds is
+   long enough that the question is still whether your friends come back for you,
+   and the clock stops the moment they do.
 
 ## 8. Extras — designed for, not yet built
 

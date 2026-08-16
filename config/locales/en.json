@@ -322,6 +322,8 @@
   "options.category.voice": "Voice",
   "options.category.system": "System",
   "options.category.other": "Other",
+  "options.playerName": "Name",
+  "options.playerNamePlaceholder": "Unnamed",
   "options.language": "Language",
   "options.tutorial": "Tutorial hints",
   "options.fov": "Field of view",
@@ -389,6 +391,8 @@
   "run.wiped": "Nobody made it out.",
   "run.partial": "{escaped} of {total} made it out.",
   "run.downedHint": "Stay quiet. Someone might come.",
+  "run.bleedOut": "Bleeding out - {seconds}",
+  "run.beingRevived": "Someone is with you",
   "run.giveUpHint": "Hold {key} to give up",
 
   "scoreboard.title": "Run Report",

@@ -6,12 +6,13 @@
  */
 import { useEffect, useState } from 'preact/hooks';
 import type { AudioConfig, GameConfig, HealthState, MenusConfig, VoiceMode } from '@/config/types';
-import type { RosterEntry, ScoreRow, SpectateView, UseView } from '@/game/Game';
+import type { BleedOutView, RosterEntry, ScoreRow, SpectateView, UseView } from '@/game/Game';
 import type { TutorialView } from '@/game/Tutorial';
 import type { ActionInfo } from '@/input/index';
 import type { LobbyView } from '@/game/Lobby';
 import type { Options as OptionValues, OptionRanges } from '@/save/index';
 import { t } from '@/i18n/index';
+import { playerLabel } from './playerLabel';
 import { KeyCap, KeyLine } from './components/KeyCap';
 import { LobbyPanel } from './screens/LobbyPanel';
 import { MainMenu } from './screens/MainMenu';
@@ -82,9 +83,15 @@ export interface UiState {
   /** The one tutorial tip on screen, or null. Never more than one. */
   tutorial: TutorialView | null;
   health: HealthState;
+  /** What this player calls themselves, exactly as typed. Empty is legal. */
+  playerName: string;
+  /** `net.json -> identity.nameMaxLength`: the cap on the field above. */
+  nameMaxLength: number;
   /** 0..1 while a downed player is holding the give-up key. */
   giveUpProgress: number;
   giveUpKey: string;
+  /** The clock on the floor, or null when this player is not on it. */
+  bleedOut: BleedOutView | null;
   /** Whose eyes this player is borrowing, or null when they are not spectating. */
   spectate: SpectateView | null;
   spectateNextKey: string;
@@ -127,10 +134,12 @@ export interface UiState {
 }
 
 /**
- * One line in the chat log. `from` is the sender's roster number rather than
- * their peer id, because that is what every other surface already calls them,
- * and `id` is a local sequence number so a line can be found again when its
- * time on screen runs out.
+ * One line in the chat log. The sender is stored as what they were CALLED when
+ * they said it - their name, or their roster number if they have not chosen one
+ * - rather than as a peer id to look up later: a line is a record of something
+ * that was said, and it should not change its attribution afterwards. `id` is a
+ * local sequence number so a line can be found again when its time on screen
+ * runs out.
  *
  * `fresh` is what that timer clears, and it is a flag rather than a deletion on
  * purpose: a line that has faded is still something that was said. Opening the
@@ -138,7 +147,7 @@ export interface UiState {
  */
 export interface ChatLine {
   id: number;
-  from: number;
+  from: string;
   self: boolean;
   text: string;
   /** Recent enough to show over the game. Faded lines return with the box. */
@@ -197,6 +206,8 @@ export interface UiCallbacks {
   onCloseOptions(): void;
   /** Applied and persisted immediately - there is no Apply button. */
   onOptionsChange(patch: Partial<OptionValues>): void;
+  /** The name everyone else sees. Written through on every keystroke. */
+  onPlayerName(name: string): void;
   onOptionsReset(): void;
   onLocale(code: string): void;
   /** Applies a rebind. Returns the ids of any actions now sharing the key. */
@@ -233,7 +244,10 @@ export function App({
           ranges={state.optionRanges}
           buses={state.buses}
           actions={state.actions}
+          playerName={state.playerName}
+          nameMaxLength={state.nameMaxLength}
           onChange={callbacks.onOptionsChange}
+          onPlayerName={callbacks.onPlayerName}
           onLocale={callbacks.onLocale}
           onRebind={callbacks.onRebind}
           onResetBinds={callbacks.onResetBinds}
@@ -407,7 +421,7 @@ function SpectateHud({ state, callbacks }: { state: UiState; callbacks: UiCallba
       <div class="spectate">
         <div class="spectate__who">
           {state.spectate
-            ? t('spectate.title', { player: t('hud.player.name', { n: state.spectate.index }) })
+            ? t('spectate.title', { player: playerLabel(state.spectate.name, state.spectate.index) })
             : t('spectate.noTargets')}
         </div>
         {state.spectate && state.spectate.count > 1 && (
@@ -597,12 +611,21 @@ function Hud({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) {
         {state.hint && <div class="hud__hint">{t(state.hint)}</div>}
       </div>
 
-      {/* Nobody bleeds out, so this is the only clock on the floor and it is
-          the player's own hand on it. The hint sits under the "someone might
-          come" line rather than replacing it: both are true. */}
+      {/* Two clocks on the floor, and the difference between them is the whole
+          of being downed: the one counting down is how long the team has, and
+          the one under it is the player's own hand. The give-up hint sits under
+          the "someone might come" line rather than replacing it: both are true
+          until the moment neither is. */}
       {state.health === 'downed' && (
         <div class="hud__downed">
           <span class="hud__downed-line">{t('run.downedHint')}</span>
+          {state.bleedOut && (
+            <span class={state.bleedOut.paused ? 'hud__bleed hud__bleed--held' : 'hud__bleed'}>
+              {state.bleedOut.paused
+                ? t('run.beingRevived')
+                : t('run.bleedOut', { seconds: state.bleedOut.seconds })}
+            </span>
+          )}
           <span class="hud__downed-give-up">
             <KeyLine textKey="run.giveUpHint" code={state.giveUpKey} />
           </span>
@@ -666,7 +689,7 @@ function Chat({ state, callbacks }: { state: UiState; callbacks: UiCallbacks }) 
               .filter(Boolean)
               .join(' ')}
           >
-            <span class="chat__from">{t('hud.player.name', { n: line.from })}</span>
+            <span class="chat__from">{line.from}</span>
             <span class="chat__text">{line.text}</span>
           </div>
         ))}
@@ -781,7 +804,7 @@ function Roster({ entries, voice }: { entries: RosterEntry[]; voice: VoiceUiStat
               {entry.health === 'downed' && <span class="roster__flatline" />}
             </div>
 
-            <span class="roster__name">{t('hud.player.name', { n: entry.index })}</span>
+            <span class="roster__name">{playerLabel(entry.name, entry.index)}</span>
 
             {voice.showInRoster && !entry.disconnected && (
               <MicIcon

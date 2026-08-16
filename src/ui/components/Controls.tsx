@@ -1,7 +1,7 @@
 /**
- * The reusable screen controls: a labelled slider, an on/off switch and a tab
- * strip. Everything the options menu is made of, and the first pieces of the
- * component set plan step 6 asked for.
+ * The reusable screen controls: a labelled slider, an on/off switch, a text
+ * field and a tab strip. Everything the options menu is made of, and the first
+ * pieces of the component set plan step 6 asked for.
  *
  * Three rules hold for all of them:
  *   - no colour, size or radius literal - only the CSS variables fed from
@@ -85,6 +85,44 @@ export function Switch({ label, value, onLabel, offLabel, onChange }: SwitchProp
         <span class="field__value">{value ? onLabel : offLabel}</span>
       </span>
     </div>
+  );
+}
+
+interface TextFieldProps {
+  label: string;
+  value: string;
+  placeholder: string;
+  maxLength: number;
+  onChange(value: string): void;
+}
+
+/**
+ * A line of text. The only one in the options menu, and the only control here
+ * whose value is not a number or a choice.
+ *
+ * It writes through on every keystroke like everything else on this screen -
+ * there is no Apply button anywhere in it - which is also why nothing is done
+ * to what is typed while it is being typed: trimming or collapsing spaces under
+ * the cursor makes a field that fights the person using it. That tidying is the
+ * caller's, on the way into the profile (`@shared/playerName`).
+ */
+export function TextField({ label, value, placeholder, maxLength, onChange }: TextFieldProps) {
+  return (
+    <label class="field">
+      <span class="field__label">{label}</span>
+      <span class="field__control">
+        <input
+          class="text-field"
+          type="text"
+          value={value}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          autocomplete="off"
+          spellcheck={false}
+          onInput={(event) => onChange((event.currentTarget as HTMLInputElement).value)}
+        />
+      </span>
+    </label>
   );
 }
 
