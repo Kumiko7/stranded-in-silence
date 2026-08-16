@@ -289,6 +289,10 @@
   "hud.voice.pushToTalk": "Pulsar para hablar",
   "hud.voice.holdHint": "Mantén {key}",
   "hud.voice.unavailable": "Sin micrófono",
+
+  "hud.connection.poor": "Conexión deficiente",
+  "hud.connection.unstable": "Conexión inestable",
+  "hud.connection.detail": "{ms} ms · {loss}% perdido",
   "hud.objective.findExit": "Encuentra la salida.",
   "hud.objective.needKey": "Esta puerta necesita una llave.",
 

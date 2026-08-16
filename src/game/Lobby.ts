@@ -23,7 +23,9 @@ import { createDart, dartVelocity, stepDart, type Dart, type DartLanding, type D
 import { HANDS, type Hand } from '@/entities/items';
 import type { Audio } from '@/audio/index';
 import type { Input } from '@/input/index';
+import { TransformBuffer } from '@/net/interpolation';
 import type { LobbySnapshot, Net, RunStart } from '@/net/index';
+import { nowSeconds } from '@/net/timing';
 import type { Renderer } from '@/render/Renderer';
 import type { Save } from '@/save/index';
 import type { VoiceChat } from '@/voice/index';
@@ -95,6 +97,22 @@ export interface LobbyHooks {
 interface RemotePlayer {
   body: PlayerBody;
   target: { x: number; z: number; yaw: number };
+  /**
+   * The same playback buffer a run uses. The cabin used to chase the latest
+   * packet with an exponential lerp, which is exactly the rubbery motion the
+   * run's buffer exists to replace - and a foyer is where you spend the most
+   * time looking at other people standing still.
+   */
+  buffer: TransformBuffer;
+}
+
+/** Where the cabin is being looked at from: the player's eyes, blended towards the wardrobe. */
+interface CabinEye {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
 }
 
 /** How often lobby transforms go out. Nothing here is precise; it is a foyer. */
@@ -175,6 +193,9 @@ export class Lobby {
   #wardrobeOpen = false;
   /** 0 = first person, 1 = parked in front of the mannequin. */
   #wardrobeBlend = 0;
+  /** The view at the end of the last two ticks. Frames are drawn between them. */
+  #eyeWas: CabinEye | null = null;
+  #eyeIs: CabinEye | null = null;
 
   /* --- audio ---------------------------------------------------------------- */
   #listenerForward = new THREE.Vector3();
@@ -237,6 +258,11 @@ export class Lobby {
     // The arrival spot, so the light budget is filled before the first frame.
     this.#renderer.setRoomLights(world.lights, spawn?.position[0] ?? 0, spawn?.position[2] ?? 0);
 
+    // Nothing to interpolate from yet: the first frame in the cabin must not be
+    // drawn somewhere between here and wherever the last run ended.
+    this.#eyeWas = null;
+    this.#eyeIs = null;
+
     this.#starting = false;
     this.#wardrobeOpen = false;
     this.#wardrobeBlend = 0;
@@ -266,7 +292,7 @@ export class Lobby {
       poster.tick.visible = poster.mapId !== null && this.#save.hasCompleted(poster.mapId);
     }
 
-    this.#mannequin = this.#createBody('mannequin');
+    this.#mannequin = this.#createBody('mannequin', this.#net.selfId);
     if (this.#mannequin) {
       const pose = world.mannequin;
       this.#mannequin.body.object.position.set(pose.position[0], pose.position[1], pose.position[2]);
@@ -326,7 +352,7 @@ export class Lobby {
 
   addRemote(id: string): void {
     if (!this.#world || this.#remotes.has(id)) return;
-    const body = this.#createBody(`remote:${id}`);
+    const body = this.#createBody(`remote:${id}`, id);
     if (!body) return;
 
     body.body.object.traverse((child) => {
@@ -337,6 +363,9 @@ export class Lobby {
     const spawn = this.#world.spawns[(this.#remotes.size + 1) % this.#world.spawns.length];
     body.target = { x: spawn?.position[0] ?? 0, z: spawn?.position[2] ?? 0, yaw: spawn?.rotationY ?? 0 };
     body.body.object.position.set(body.target.x, 0, body.target.z);
+    // Standing where they were put until the first transform lands, rather than
+    // gliding in from the origin.
+    body.buffer.reset({ ...body.target, pitch: 0, height: 0 }, nowSeconds());
     this.#remotes.set(id, body);
     this.#pushView();
     this.#pushRoster();
@@ -364,13 +393,17 @@ export class Lobby {
     this.#pushRoster();
   }
 
-  moveRemote(id: string, x: number, z: number, yaw: number): void {
+  moveRemote(id: string, x: number, z: number, yaw: number, at: number): void {
     const remote = this.#remotes.get(id);
     if (!remote) {
       this.addRemote(id);
       return;
     }
+    // `target` is what voice attenuates against and what the tally reads; the
+    // buffer is what the body is drawn from. They are the same numbers a few
+    // tens of milliseconds apart, and neither wants the other's timing.
     remote.target = { x, z, yaw };
+    remote.buffer.push({ x, z, yaw, pitch: 0, height: 0 }, at);
   }
 
   /** A teammate changed clothes, or turned up already dressed. */
@@ -443,13 +476,25 @@ export class Lobby {
     return views;
   }
 
-  #createBody(streamName: string): RemotePlayer | null {
+  /**
+   * `peerId` is whose clock this body is played back against. The mannequin
+   * passes this browser's own, which is never fed and never sampled - it stands
+   * where the wardrobe puts it.
+   */
+  #createBody(streamName: string, peerId: string): RemotePlayer | null {
     const world = this.#world;
     if (!world) return null;
 
     const body = createPlayerBody(this.#config.player, world.materials, stream(0, streamName), this.#dims);
     this.#renderer.scene.add(body.object);
-    return { body, target: { x: 0, z: 0, yaw: 0 } };
+    return {
+      body,
+      target: { x: 0, z: 0, yaw: 0 },
+      buffer: new TransformBuffer(
+        this.#net.clockFor(peerId),
+        this.#config.net.simulation.interpolation.maxExtrapolationMs,
+      ),
+    };
   }
 
   #disposeBody(remote: RemotePlayer): void {
@@ -771,31 +816,64 @@ export class Lobby {
     }
 
     this.#updateCamera(dt, player);
+    // Kept so the frames between this tick and the next are drawn from
+    // somewhere rather than from here twice - see `present`.
+    this.#eyeWas = this.#eyeIs;
+    this.#eyeIs = this.#cameraEye(player);
     this.#updateInteraction(walking, world);
-    // After the camera: the held dart is pinned to it, and a throw is aimed
-    // down it. Both would be one frame stale otherwise.
+    // After the camera: the look-ray above is cast through it, and would be one
+    // tick stale otherwise. Where the readied dart is DRAWN is not decided here
+    // at all - it is pinned to the camera every frame, in `present`.
     this.#updateDartHands(walking);
     this.#updateReadyArt(dt);
     this.#updateDarts(dt);
     this.#updateVoice(dt, player);
     this.#updateCountdown(dt);
-    this.#interpolateRemotes(dt);
     this.#renderer.updateLights(dt, player.x, player.z);
     this.#sendTransform(dt, player);
   }
 
-  #updateCamera(dt: number, player: PlayerState): void {
-    const camera = this.#renderer.camera;
-    const world = this.#world;
+  /**
+   * What the cabin DRAWS, at the display's rate. Same split as a run and for
+   * the same reason: the tick decides where everything is, the frame decides
+   * what that looks like from here, and a screen faster than 60 Hz gets more
+   * than 60 distinct views out of it.
+   */
+  present(alpha: number): void {
+    const player = this.#player;
+    if (!this.#world || !player) return;
 
+    const a = this.#eyeWas;
+    const b = this.#eyeIs;
+    if (a && b) {
+      const t = Math.min(1, Math.max(0, alpha));
+      this.#writeCamera({
+        x: a.x + (b.x - a.x) * t,
+        y: a.y + (b.y - a.y) * t,
+        z: a.z + (b.z - a.z) * t,
+        yaw: a.yaw + shortestAngle(a.yaw, b.yaw) * t,
+        pitch: a.pitch + (b.pitch - a.pitch) * t,
+      });
+    }
+    // After the camera, always: it is pinned to it.
+    this.#pinReadyArt();
+    this.#interpolateRemotes();
+  }
+
+  #updateCamera(dt: number, player: PlayerState): void {
     // Ease between first person and the wardrobe view rather than cutting: the
     // cut reads as a bug the first time you see it.
     const wanted = this.#wardrobeOpen ? 1 : 0;
     this.#wardrobeBlend += (wanted - this.#wardrobeBlend) * Math.min(1, dt * 7);
     if (Math.abs(this.#wardrobeBlend - wanted) < 0.002) this.#wardrobeBlend = wanted;
 
+    this.#writeCamera(this.#cameraEye(player));
+  }
+
+  /** Where the view sits this tick, wardrobe blend included. Pure. */
+  #cameraEye(player: PlayerState): CabinEye {
+    const view = this.#world?.wardrobeCamera;
     const t = this.#wardrobeBlend;
-    const view = world?.wardrobeCamera;
 
     let x = player.x;
     let y = eyeHeight(player, this.#config.player);
@@ -811,8 +889,13 @@ export class Lobby {
       pitch += (view.pitch - pitch) * t;
     }
 
-    camera.position.set(x, y, z);
-    camera.rotation.set(pitch, yaw, 0, 'YXZ');
+    return { x, y, z, yaw, pitch };
+  }
+
+  #writeCamera(eye: CabinEye): void {
+    const camera = this.#renderer.camera;
+    camera.position.set(eye.x, eye.y, eye.z);
+    camera.rotation.set(eye.pitch, eye.yaw, 0, 'YXZ');
     camera.updateMatrixWorld();
 
     camera.getWorldDirection(this.#listenerForward);
@@ -1006,9 +1089,18 @@ export class Lobby {
     const rate = Math.max(0.01, this.#config.darts.hand.raiseSeconds);
     this.#readyBlend += Math.sign(wanted - this.#readyBlend) * (dt / rate);
     this.#readyBlend = Math.max(0, Math.min(1, this.#readyBlend));
-
     art.visible = this.#readyBlend > 0.001;
-    if (!art.visible) return;
+  }
+
+  /**
+   * Pins the readied dart to the camera. In `present` rather than in the tick,
+   * because it is placed in WORLD space from the camera's matrix and the camera
+   * now moves every frame - pinned at tick rate it would swim about in front of
+   * a face that had already turned.
+   */
+  #pinReadyArt(): void {
+    const art = this.#readyArt;
+    if (!art?.visible) return;
 
     const camera = this.#renderer.camera;
     const [ox = 0.16, oy = -0.15, oz = -0.42] = this.#config.darts.hand.offset;
@@ -1205,14 +1297,15 @@ export class Lobby {
 
   /* --- networking ----------------------------------------------------------- */
 
-  #interpolateRemotes(dt: number): void {
-    const blend = Math.min(1, dt * 10);
+  #interpolateRemotes(): void {
+    const at = nowSeconds();
     for (const remote of this.#remotes.values()) {
+      if (remote.buffer.empty) continue;
+      const view = remote.buffer.sample(at);
       const object = remote.body.object;
-      const root = remote.body.root;
-      object.position.x += (remote.target.x - object.position.x) * blend;
-      object.position.z += (remote.target.z - object.position.z) * blend;
-      root.rotation.y += shortestAngle(root.rotation.y, remote.target.yaw) * blend;
+      object.position.x = view.x;
+      object.position.z = view.z;
+      remote.body.root.rotation.y = view.yaw;
     }
   }
 

@@ -1,24 +1,33 @@
 /**
  * Snapshot interpolation for everything this browser does not simulate: remote
- * players and, on a client, the hunter.
+ * players, remote bodies in the cabin, and on a client the hunter.
  *
- * Transforms arrive at `simulation.snapshotRateHz` (15 Hz, one every ~67 ms) and
- * are drawn every frame, so something has to fill the gaps. Chasing the latest
- * packet with a lerp - which is what this replaces - makes a remote body speed
- * up and slow down between packets and stutter whenever one is late.
+ * Transforms are sent at `simulation.snapshotRateHz` (15 Hz, one every ~67 ms)
+ * and drawn every frame, so something has to fill the gaps. Chasing the latest
+ * packet with a lerp makes a body speed up and slow down between packets and
+ * stutter whenever one is late.
  *
- * Instead every sample is stamped as it arrives and playback runs
- * `simulation.interpolationDelayMs` in the past, which keeps a sample on each
- * side of the playback head to interpolate BETWEEN. When nothing new has
- * arrived - a hiccup, or a peer that stopped sending - the last known velocity
- * carries the body for at most `maxExtrapolationMs` and then it stands still,
- * because a body that keeps gliding through a wall is worse than one that waits.
+ * So playback runs in the past, which keeps a sample on each side of the
+ * playback head to interpolate BETWEEN. Two things make that work under a
+ * connection that is not ideal, and both live next door in `timing.ts`:
+ *
+ *  - Samples are placed on the SENDER's timeline, not stamped with when they
+ *    arrived. Arrival times carry the connection's jitter; send times do not.
+ *  - The depth of the buffer is measured rather than assumed. A link with 4 ms
+ *    of jitter gets a 50 ms buffer and stays responsive; the same code on a
+ *    link with 120 ms of jitter grows one deep enough to cover it.
+ *
+ * When nothing new has arrived - a hiccup, or a peer that stopped sending - the
+ * last known velocity carries the body for at most `maxExtrapolationMs` and
+ * then it stands still, because a body that keeps gliding through a wall is
+ * worse than one that waits.
  *
  * Presentation only: the simulation reads the latest received transform
  * directly. This decides where a body is DRAWN, never where it is.
  */
+import type { PeerClock } from '@/net/timing';
 
-/** One replicated transform, stamped with the local time it arrived. */
+/** One replicated transform, placed on this machine's timeline. */
 export interface TransformSample {
   time: number;
   x: number;
@@ -37,23 +46,26 @@ export interface TransformSample {
 
 export type Transform = Omit<TransformSample, 'time'>;
 
-export interface InterpolationConfig {
-  interpolationDelayMs: number;
-  maxExtrapolationMs: number;
-}
+/**
+ * Enough to bracket the playback head at the deepest buffer the config allows:
+ * 450 ms of delay at 15 Hz is seven samples, and a burst arriving together has
+ * to fit alongside them.
+ */
+const MAX_SAMPLES = 24;
 
-/** Kept just long enough to always bracket the playback head. */
-const MAX_SAMPLES = 12;
-
+/**
+ * A body's recent history, played back late. One per remote player and one per
+ * hunter; the clock is shared with whoever else comes from the same machine.
+ */
 export class TransformBuffer {
   #samples: TransformSample[] = [];
-  #delay: number;
-  #maxExtrapolation: number;
+  readonly #clock: PeerClock;
+  readonly #maxExtrapolation: number;
   #out: Transform = { x: 0, z: 0, yaw: 0, pitch: 0, height: 0 };
 
-  constructor(config: InterpolationConfig) {
-    this.#delay = config.interpolationDelayMs / 1000;
-    this.#maxExtrapolation = config.maxExtrapolationMs / 1000;
+  constructor(clock: PeerClock, maxExtrapolationMs: number) {
+    this.#clock = clock;
+    this.#maxExtrapolation = maxExtrapolationMs / 1000;
   }
 
   /** Drops the history and puts the body at one known place, e.g. on spawn. */
@@ -62,15 +74,34 @@ export class TransformBuffer {
     this.#out = { ...transform };
   }
 
-  push(transform: Transform, now: number): void {
-    const last = this.#samples[this.#samples.length - 1];
-    // Out-of-order arrivals are dropped rather than sorted in: on an ordered
-    // channel there are none, and on an unordered one the newer sample already
-    // says everything the older one would have.
-    if (last && now <= last.time) return;
+  /**
+   * A transform arrived. `at` is already on this machine's timeline - the
+   * caller has run it through the sender's clock, which is the whole point.
+   *
+   * Out-of-order arrivals are inserted rather than dropped: the `state` channel
+   * is unordered by design, so a pair that swapped places in flight is routine,
+   * and putting them back in order costs one comparison against a list that is
+   * almost always already sorted.
+   */
+  push(transform: Transform, at: number): void {
+    const sample: TransformSample = { time: at, ...transform };
+    const samples = this.#samples;
+    const last = samples[samples.length - 1];
 
-    this.#samples.push({ time: now, ...transform });
-    if (this.#samples.length > MAX_SAMPLES) this.#samples.shift();
+    if (!last || at > last.time) {
+      samples.push(sample);
+    } else {
+      // Walk back to the insertion point. Same instant twice is the second one
+      // winning; anything older finds its place. Neither happens often enough
+      // to be worth more than a linear scan of a list that is almost always
+      // already in order.
+      let i = samples.length;
+      while (i > 0 && samples[i - 1]!.time > at) i--;
+      if (i > 0 && samples[i - 1]!.time === at) samples[i - 1] = sample;
+      else samples.splice(i, 0, sample);
+    }
+
+    if (samples.length > MAX_SAMPLES) samples.splice(0, samples.length - MAX_SAMPLES);
   }
 
   get empty(): boolean {
@@ -83,7 +114,7 @@ export class TransformBuffer {
     const newest = samples[samples.length - 1];
     if (!newest) return this.#out;
 
-    const at = now - this.#delay;
+    const at = now - this.#clock.delay;
 
     // Behind the whole buffer: a body that has just appeared, or one whose
     // owner has gone quiet for longer than the buffer is long.

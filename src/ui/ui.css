@@ -2932,3 +2932,78 @@ textarea {
   max-width: 40ch;
   line-height: 1.6;
 }
+
+/* --- connection warning ---------------------------------------------------
+   Top right, and absent whenever there is nothing to say. See
+   src/ui/hud/connectionIndicator.ts. */
+
+.link {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem 0.35rem 0.5rem;
+  background: #0a0c12a0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-text-dim);
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.link[hidden] {
+  display: none;
+}
+
+.link__bars {
+  width: 0.95rem;
+  height: 0.95rem;
+  flex: none;
+}
+
+.link__bar {
+  fill: currentColor;
+  opacity: 0.22;
+}
+
+/* Slow but arriving: two bars. Silent: one, and it pulses, because the thing
+   the player needs to know is that it has not given up yet. */
+.link[data-level='poor'] {
+  color: var(--c-warn);
+  border-color: #6b5a1e;
+}
+
+.link[data-level='poor'] .link__bar--1,
+.link[data-level='poor'] .link__bar--2 {
+  opacity: 1;
+}
+
+.link[data-level='unstable'] {
+  color: var(--c-bad);
+  border-color: #5c1f1f;
+}
+
+.link[data-level='unstable'] .link__bar--1 {
+  opacity: 1;
+  animation: link-pulse 1.1s ease-in-out infinite;
+}
+
+.link__detail {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+
+@keyframes link-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}

@@ -81,8 +81,14 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Voice chat range and modes | `net.json` | `voice.hearingRange`, `.fullVolumeRange`, `.falloff`, `.modes` |
 | How quiet you can talk without the hunter noticing | `net.json` | `voice.noiseThresholdDb` (and `voice.voiceActivityThresholdDb` for the open-mic gate) |
 | Tick rate, interpolation, signalling URL | `net.json` | `simulation.*`, `signalling.*` |
-| How smooth remote players and the hunter look | `net.json` | `simulation.interpolationDelayMs`, `.maxExtrapolationMs` — playback runs that far in the past so there is always a sample to interpolate toward |
-| How fast a dead peer is noticed | `net.json` | `connection.heartbeatSeconds`, `.timeoutSeconds` |
+| How fast the world simulates, whatever the display is doing | `net.json` | `simulation.tickRateHz` (60) — the frame rate is unrelated to it by design |
+| How much of a hitch is caught up rather than lost | `net.json` | `simulation.maxCatchUpSeconds` — one pass may cover this much simulated time *and* spend this much real time doing it; past that the debt is written off rather than paid, because a machine that cannot keep up only falls further behind trying |
+| Whether a host who alt-tabs stops the run | `net.json` | `simulation.stallPumpMs` — no frame for this long and the tick runs off a timer instead. `requestAnimationFrame` stops in a window that is not in front, and the host simulates for everybody |
+| How smooth remote players and the hunter look | `net.json` | `simulation.interpolation.*` — **not one number**. `baseDelayMs` is the floor, and the buffer grows by `jitterMultiplier` × the jitter this link is measurably showing, between `minDelayMs` and `maxDelayMs`. `growSeconds` / `shrinkSeconds` are its two very different time constants. `maxExtrapolationMs` is how long a body coasts before it stands still |
+| How stale a clock estimate may get | `net.json` | `simulation.interpolation.clockWindowSeconds` — the transit floor a peer's clock is measured against is re-earned this often, so two machines drifting apart cannot slowly poison the buffer |
+| Which channel a message takes | `net.json` | `channels.state` (unordered, `maxRetransmits: 0`, negotiated on `id`) vs `channels.events` (ordered, reliable). Snapshots take the first; anything a dropped copy would cost you takes the second |
+| How fast a dead peer is noticed | `net.json` | `connection.heartbeatSeconds`, `.unstableSeconds`, `.timeoutSeconds` — **three stages, not two**: past `unstableSeconds` the link is *reported* as struggling, and only past `timeoutSeconds` is the peer dropped. Dropping somebody for a wifi hiccup is what that gap prevents |
+| How the connection warning behaves | `ui.json` | `hud.connection.enabled`, `.showPing`, `.warnRttMs`, `.warnLoss` — it is hidden entirely while the link is fine |
 | How long the host waits at the loading screen | `net.json` | `connection.loadTimeoutSeconds` — after this the run starts without whoever is missing |
 | Lobby countdown, player cap, run rules | `game.json` | `lobby.*`, `session.*`, `run.*` |
 | How many frames the poster wall has | `game.json` | `lobby.posterSlots` — slots past the map list hang blank |

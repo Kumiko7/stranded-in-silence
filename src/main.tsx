@@ -25,6 +25,7 @@ import { Tutorial } from './game/Tutorial';
 import { disposePortraits } from './render/portraits';
 import { mountVoiceIndicator } from './ui/hud/voiceIndicator';
 import { mountNameplates } from './ui/hud/nameplates';
+import { mountConnectionIndicator } from './ui/hud/connectionIndicator';
 import { playerLabel } from './ui/playerLabel';
 import { App, type ChatLine, type Screen, type UiCallbacks, type UiPush, type UiState } from './ui/App';
 
@@ -35,6 +36,24 @@ function fail(reason: string, error?: unknown): void {
   console.error('[boot]', reason, error);
   bootRoot?.classList.add('boot--error');
   if (bootStatus) bootStatus.textContent = reason;
+}
+
+/**
+ * Runs `fn` after the browser has had a chance to paint - but never *waits* for
+ * a frame that may not come. A window that is not in front gets no
+ * `requestAnimationFrame` callbacks at all, and the one thing that must not
+ * depend on a frame is a run starting: the host who alt-tabbed at the loading
+ * card is three other people's simulation.
+ */
+function afterPaint(fn: () => void): void {
+  let done = false;
+  const once = (): void => {
+    if (done) return;
+    done = true;
+    fn();
+  };
+  requestAnimationFrame(once);
+  setTimeout(once, 50);
 }
 
 /** Screens where the player is in the session and voice should be running. */
@@ -284,7 +303,7 @@ async function boot(): Promise<void> {
     onLobbyState: (lobbyState) => lobby.applyState(lobbyState),
     onPick: (id, mapId) => lobby.applyPick(id, mapId),
     onDifficulty: (difficultyId) => lobby.applyDifficulty(difficultyId),
-    onLobbyMove: (id, x, z, yaw) => lobby.moveRemote(id, x, z, yaw),
+    onLobbyMove: (id, x, z, yaw, at) => lobby.moveRemote(id, x, z, yaw, at),
     onDartThrown: (id, owner, from, velocity, wind) => lobby.dartThrown(id, owner, from, velocity, wind),
     onDartScore: (id, score) => lobby.setDartScore(id, score),
     onCosmetic: (id, cosmetic) => {
@@ -309,7 +328,7 @@ async function boot(): Promise<void> {
       lobby.removeRemote(id);
       game.removeRemote(id);
     },
-    onPeerMove: (id, transform) => game.moveRemote(id, transform),
+    onPeerMove: (id, transform, at) => game.moveRemote(id, transform, at),
     // A peer who walked back to the cabin has left this world, and one who has
     // just arrived in it will be added by their first transform.
     onScene: (id, scene) => {
@@ -327,7 +346,7 @@ async function boot(): Promise<void> {
     onHealed: (toState) => game.healLocal(toState),
     onCoins: (amount) => game.addCoins(amount),
     onNoise: (id, kind, x, z) => game.addNoise(id, kind, x, z),
-    onEnemy: (transform) => game.setEnemyTransform(transform),
+    onEnemy: (transform, at) => game.setEnemyTransform(transform, at),
     onHit: () => game.takeHit(),
     onHealth: (id, health) => game.setRemoteHealth(id, health),
     onRevive: () => game.reviveLocal(),
@@ -345,6 +364,7 @@ async function boot(): Promise<void> {
   const voice = new VoiceChat(config.net.voice, audio, net);
   const voiceHud = mountVoiceIndicator(hudRoot, config.ui.hud.voiceIndicator);
   const nameplateHud = mountNameplates(hudRoot);
+  const linkHud = mountConnectionIndicator(hudRoot, config.ui.hud.connection);
 
   /* --- game --------------------------------------------------------------- */
 
@@ -491,7 +511,7 @@ async function boot(): Promise<void> {
     worldBuilt = false;
     goGiven = false;
     set({ screen: 'loading', loadingReady: 0, loadingTotal: state.players });
-    requestAnimationFrame(() => beginRun(run, slot));
+    afterPaint(() => beginRun(run, slot));
   }
 
   function beginRun(run: RunStart, slot: number): void {
@@ -1034,7 +1054,7 @@ async function boot(): Promise<void> {
     });
   }
 
-  const loop = new Loop({ tickRateHz: 60, maxSubStepsPerFrame: 5 });
+  const loop = new Loop(config.net.simulation);
   loop.add({
     fixedUpdate: (dt) => {
       // Heartbeats, dead-peer detection and the load timeout. It runs in every
@@ -1074,12 +1094,24 @@ async function boot(): Promise<void> {
       // to, so a solo player is never asked for a microphone at all.
       voice.setActive(IN_SESSION.includes(state.screen));
     },
-    render: () => {
+    render: (dt, alpha) => {
+      // Everything that is drawn rather than simulated happens here, at the
+      // display's rate: the camera between the two ticks either side of this
+      // frame, and every body this browser does not own sampled from its own
+      // buffer. Doing it in the tick instead is what made a 144 Hz display show
+      // 60 distinct positions, and a 30 fps one show them a frame late.
+      if (game.active) game.present(dt, alpha);
+      else if (lobby.active) lobby.present(alpha);
+
       renderer.render();
       // The pill shows while voice can actually do something. The pause menu
       // counts as showing: you can still be heard while the world stands still.
       const status = voice.status();
       voiceHud.update(status, (game.active || lobby.active) && status.live, state.voice.pushToTalkKey);
+      // In every screen a session can be live in, the menu included: a link
+      // going bad while you are staring at the options is exactly when you
+      // would otherwise have no idea why everyone stopped moving.
+      linkHud.update(net.linkQuality(), IN_SESSION.includes(state.screen));
       // Projected here rather than in the tick: the plates follow the camera,
       // and the camera is what has just been rendered from.
       nameplateHud.update(

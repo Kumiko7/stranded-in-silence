@@ -50,6 +50,7 @@ import type { Audio } from '@/audio/index';
 import type { Input } from '@/input/index';
 import type { ClaimKind, EnemyTransform, Net } from '@/net/index';
 import { shortestAngle, TransformBuffer } from '@/net/interpolation';
+import { nowSeconds } from '@/net/timing';
 import type { Renderer } from '@/render/Renderer';
 import { heartbeatCloseness, type AlertLevel } from '@/render/feedback';
 import type { VoiceChat } from '@/voice/index';
@@ -393,6 +394,15 @@ export class Game {
   #escaped = false;
   #moveTimer = 0;
 
+  /**
+   * The eye at the end of the last two simulation steps. The frames in between
+   * are drawn from somewhere on the line joining them, which is what makes a
+   * display faster than the tick rate show more than the tick rate's worth of
+   * distinct positions. Null until the first tick has run.
+   */
+  #eyeWas: Eye | null = null;
+  #eyeIs: Eye | null = null;
+
   /* --- out of the run ------------------------------------------------------ */
   /** Whose eyes this player is borrowing, once they are out of the run. */
   #spectating: string | null = null;
@@ -598,6 +608,10 @@ export class Game {
 
     const spawn = layout.playerSpawns[slot % layout.playerSpawns.length] ?? layout.playerSpawns[0]!;
     this.#player = createPlayerState(spawn.position[0], spawn.position[2], spawn.yaw, config.player);
+    // Nothing to interpolate from yet. Left over from the last run, the first
+    // frame of this one would be drawn somewhere between two maps.
+    this.#eyeWas = null;
+    this.#eyeIs = null;
     // After the spawn is known, so the light budget is filled from the first
     // frame: a frame drawn with a different number of lights compiles its own
     // set of shaders, which is exactly what `warmUp()` exists to avoid.
@@ -643,7 +657,9 @@ export class Game {
 
     this.#hunters = layout.enemySpawns.map(({ position }, index) => {
       const [ex, ez] = position;
-      const buffer = new TransformBuffer(config.net.simulation);
+      // Every hunter is timed against the HOST's clock: they all come off one
+      // machine on one send, so they share the trip and share the buffer depth.
+      const buffer = this.#bufferFor(this.#net.hostId);
       buffer.reset({ x: ex, z: ez, yaw: 0, pitch: 0, height: 0 }, now());
       return {
         // A client is handed every hunter's transform and simulates none of them.
@@ -804,7 +820,7 @@ export class Game {
         left: null,
         right: null,
       },
-      buffer: new TransformBuffer(this.#config.net.simulation),
+      buffer: this.#bufferFor(id),
     };
     body.wear(this.#net.cosmeticOf(id) ?? defaultCosmetic(this.#config.player));
     this.#remotes.set(id, remote);
@@ -872,7 +888,13 @@ export class Game {
     }
   }
 
-  moveRemote(id: string, transform: RemotePlayer['target']): void {
+  /**
+   * `at` is where this sample sits on THIS machine's timeline, worked out from
+   * the sender's own clock rather than from when the packet turned up - which
+   * is what stops a connection's jitter turning into a body's motion. See
+   * `src/net/timing.ts`.
+   */
+  moveRemote(id: string, transform: RemotePlayer['target'], at: number): void {
     const remote = this.#remotes.get(id);
     if (!remote) {
       this.addRemote(id);
@@ -895,7 +917,7 @@ export class Game {
     remote.target = transform;
     remote.buffer.push(
       { x: transform.x, z: transform.z, yaw: transform.yaw, pitch: transform.pitch, height: transform.height },
-      now(),
+      at,
     );
     this.#run.setHealth(id, transform.health);
     if (healthChanged) this.#pushRoster();
@@ -1252,11 +1274,11 @@ export class Game {
    * from the difficulty overlay both ends already applied, so a mismatch means
    * the snapshot is wrong, not that the list is short.
    */
-  setEnemyTransform(transform: EnemyTransform): void {
+  setEnemyTransform(transform: EnemyTransform, at: number): void {
     const hunter = this.#hunters[transform.index];
     if (!hunter) return;
     hunter.view = transform;
-    hunter.buffer.push({ x: transform.x, z: transform.z, yaw: transform.yaw, pitch: 0, height: 0 }, now());
+    hunter.buffer.push({ x: transform.x, z: transform.z, yaw: transform.yaw, pitch: 0, height: 0 }, at);
   }
 
   /** The enemy caught the local player. */
@@ -1474,6 +1496,10 @@ export class Game {
     // body they are standing in rather than the one they are watching.
     if (spectating) this.#updateSpectator(controlsEnabled && live);
     const eye = this.#eye(player);
+    // Kept so the frames between this tick and the next can be drawn from
+    // somewhere rather than from here twice - see `present`.
+    this.#eyeWas = this.#eyeIs;
+    this.#eyeIs = { ...eye };
     this.#updateCamera(eye);
     this.#updateGiveUp(dt, player, controlsEnabled && live);
     this.#updateBleedOut(dt, player, live);
@@ -1507,11 +1533,66 @@ export class Game {
       this.#config.graphics.renderDistanceRooms * this.#config.world.grid.cellSize,
     );
     this.#renderer.updateLights(dt, eye.x, eye.z);
-    this.#interpolateRemotes(dt);
     // A spectator has no body left to broadcast. The last transform they sent
     // went out when they left the run, with their hands already empty.
     if (!spectating) this.#sendTransform(dt, player);
     this.#sendStats(dt);
+  }
+
+  /**
+   * Everything the run DRAWS, at the display's rate rather than the tick's.
+   *
+   * The simulation runs at a fixed 60 steps a second because it has to be the
+   * same on every machine. What a screen does is not the simulation's business:
+   * a 144 Hz display gets 144 distinct positions out of those 60 states, and a
+   * 30 fps one gets each frame drawn from where things actually are at that
+   * moment instead of from wherever the last tick left them.
+   *
+   * `alpha` is how far this frame sits between the last two ticks. Remote
+   * bodies ignore it entirely - they have their own clock and their own buffer,
+   * and asking them where they are at this instant is more accurate than
+   * blending between two answers the tick happened to take.
+   */
+  present(dt: number, alpha: number): void {
+    if (!this.#world || !this.#player) return;
+    const at = now();
+
+    this.#presentCamera(alpha);
+    this.#interpolateRemotes(dt, at);
+    this.#drawEnemies(at);
+  }
+
+  /**
+   * Puts the camera where it was `alpha` of the way through the step just
+   * simulated. Rotation is carried along with position rather than left on the
+   * newest tick's value: one tick of aiming latency is 16 ms and nobody can
+   * feel it, while a view that turns 60 times a second in front of a 144 Hz
+   * display is a stutter everybody can see.
+   *
+   * A spectator is not interpolated between ticks at all - their eye comes out
+   * of the buffer of the person they are watching, so it is asked fresh, which
+   * is strictly better than blending two samples of it.
+   */
+  #presentCamera(alpha: number): void {
+    const player = this.#player;
+    if (!player) return;
+    if (this.spectating) {
+      this.#updateCamera(this.#eye(player));
+      return;
+    }
+
+    const a = this.#eyeWas;
+    const b = this.#eyeIs;
+    if (!a || !b) return;
+
+    const t = Math.min(1, Math.max(0, alpha));
+    this.#updateCamera({
+      x: a.x + (b.x - a.x) * t,
+      y: a.y + (b.y - a.y) * t,
+      z: a.z + (b.z - a.z) * t,
+      yaw: a.yaw + shortestAngle(a.yaw, b.yaw) * t,
+      pitch: a.pitch + (b.pitch - a.pitch) * t,
+    });
   }
 
   /* --- spectating ----------------------------------------------------------- */
@@ -1609,7 +1690,7 @@ export class Game {
    * target keeps the last place they were, which is only ever on screen for the
    * frame before the scoreboard replaces it.
    */
-  #eye(player: PlayerState): { x: number; y: number; z: number; yaw: number; pitch: number } {
+  #eye(player: PlayerState): Eye {
     const remote = this.#spectating ? this.#remotes.get(this.#spectating) : null;
     if (!remote || remote.buffer.empty) {
       return {
@@ -1853,7 +1934,6 @@ export class Game {
       this.#checkRunOver();
     }
 
-    this.#drawEnemies();
     this.#updateFeedback(dt, player);
   }
 
@@ -2029,7 +2109,7 @@ export class Game {
   }
 
   /** Presentation only: the sim never reads back from the art. */
-  #drawEnemies(): void {
+  #drawEnemies(at: number): void {
     for (const hunter of this.#hunters) {
       const art = hunter.art;
       if (!art) continue;
@@ -2037,7 +2117,7 @@ export class Game {
       // The host owns the sim, so it draws exactly where the hunter is. A client
       // has only snapshots, so it plays them back through the same buffer the
       // remote players use.
-      const view = this.#isHost ? hunter.view : hunter.buffer.sample(now());
+      const view = this.#isHost ? hunter.view : hunter.buffer.sample(at);
       art.object.position.x = view.x;
       art.object.position.z = view.z;
       art.root.rotation.y = view.yaw;
@@ -2146,7 +2226,7 @@ export class Game {
   }
 
   /** `eye` is the local player's, or - for a spectator - the one they borrowed. */
-  #updateCamera(eye: { x: number; y: number; z: number; yaw: number; pitch: number }): void {
+  #updateCamera(eye: Eye): void {
     const camera = this.#renderer.camera;
     let { x, y, z } = eye;
 
@@ -3397,13 +3477,25 @@ export class Game {
   /* --- networking ---------------------------------------------------------- */
 
   /**
+   * A playback buffer tied to the clock of whoever replicates the body. How far
+   * in the past it draws is that link's answer, not one number for the session:
+   * a teammate on a good connection is drawn 50 ms behind and one on hotel wifi
+   * as far behind as their jitter needs, and neither costs the other anything.
+   */
+  #bufferFor(peerId: string): TransformBuffer {
+    return new TransformBuffer(
+      this.#net.clockFor(peerId),
+      this.#config.net.simulation.interpolation.maxExtrapolationMs,
+    );
+  }
+
+  /**
    * Remote bodies are drawn from their snapshot buffers rather than chased with
    * a lerp: playback runs `interpolationDelayMs` behind, so there is a sample on
    * each side of the playback head and a body moves at the speed it was
    * actually moving. See `src/net/interpolation.ts`.
    */
-  #interpolateRemotes(dt: number): void {
-    const at = now();
+  #interpolateRemotes(dt: number, at: number): void {
     const blend = Math.min(1, dt * 12);
 
     for (const [id, remote] of this.#remotes) {
@@ -3455,13 +3547,29 @@ export class Game {
       // inside a closed tab - see `#dropRemoteItems`.
       left: this.#inventory.left,
       right: this.#inventory.right,
+      // Ordinary transforms take the lossy channel, because the next one is
+      // always a better answer than a re-sent old one. This one has no next.
+      ...(force ? { final: true as const } : {}),
     });
   }
 }
 
+/**
+ * Where the world is being watched from: your own eyes, or - as a spectator -
+ * the eyes you are borrowing. The camera, the ears, the lights and the culling
+ * all read the same one.
+ */
+interface Eye {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+}
+
 /** One monotonic clock for every replicated transform, in seconds. */
 function now(): number {
-  return performance.now() / 1000;
+  return nowSeconds();
 }
 
 /* --- decor ids ------------------------------------------------------------- */

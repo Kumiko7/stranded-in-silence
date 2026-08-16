@@ -289,6 +289,10 @@
   "hud.voice.pushToTalk": "Рация",
   "hud.voice.holdHint": "Удерживайте {key}",
   "hud.voice.unavailable": "Нет микрофона",
+
+  "hud.connection.poor": "Плохое соединение",
+  "hud.connection.unstable": "Соединение нестабильно",
+  "hud.connection.detail": "{ms} мс · потери {loss}%",
   "hud.objective.findExit": "Найдите выход.",
   "hud.objective.needKey": "К этой двери нужен ключ.",
 
