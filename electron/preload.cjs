@@ -22,13 +22,27 @@ contextBridge.exposeInMainWorld('strandedShell', {
     write: (value) => ipcRenderer.send('save:write', value),
   },
   /**
-   * The two things a page cannot do for itself. Fullscreen goes through the
-   * window rather than through `requestFullscreen()` because the DOM call needs
-   * a user gesture and restoring the setting at boot has none; quitting has no
-   * web equivalent at all, which is why the button only exists here.
+   * The things a page cannot do for itself. Fullscreen goes through the window
+   * rather than through `requestFullscreen()` because the DOM call needs a user
+   * gesture and restoring the setting at boot has none; quitting has no web
+   * equivalent at all, which is why the button only exists here.
+   *
+   * `grabPointer` is the same shape of problem with a sharper edge: Escape is
+   * excluded from the keys that grant transient activation, so a page can never
+   * ask for the pointer back off the press that released it. The shell can, by
+   * running the request itself and vouching for the gesture.
    */
   window: {
     setFullscreen: (on) => ipcRenderer.send('window:fullscreen', Boolean(on)),
     quit: () => ipcRenderer.send('window:quit'),
+    grabPointer: () => ipcRenderer.send('window:pointerlock'),
+  },
+  /**
+   * The lobby code, onto the clipboard. A browser does this itself through
+   * `navigator.clipboard`, which is behind a permission the shell's handler
+   * deliberately refuses - so in here it goes the short way round instead.
+   */
+  clipboard: {
+    write: (text) => ipcRenderer.send('clipboard:write', String(text ?? '')),
   },
 });

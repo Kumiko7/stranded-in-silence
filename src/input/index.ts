@@ -118,6 +118,21 @@ export class Input {
   }
 
   /**
+   * How the mouse is actually asked for, when something other than this module
+   * can do it better. Set by `src/main.tsx` in the desktop shell and left null
+   * in a browser; `input/` is not allowed to know the shell exists.
+   *
+   * It is here because of one rule that cannot be worked around from a page:
+   * **Escape does not grant transient activation.** It is excluded from the
+   * keys that count as a gesture, so the press that closes the escape menu can
+   * never be the gesture that takes the pointer back, and no amount of waiting
+   * or deferring changes that. In a browser, Escape can open the pause menu and
+   * only a click can close it back into the game. The shell can run the request
+   * itself and vouch for the gesture, so there it works both ways.
+   */
+  grabPointer: (() => void) | null = null;
+
+  /**
    * Asks for the mouse back, waiting out Chromium's cooldown if it has to.
    *
    * The cooldown is the whole reason this is not one line. Escape inside a run
@@ -125,11 +140,11 @@ export class Input {
    * escape menu; the second press reaches the game and asks for the lock
    * straight back - well inside the second or so during which Chromium refuses
    * every request after a user-initiated exit. Without the wait that refusal
-   * lands on `pointerlockerror`, which puts the escape menu back up, and
-   * Escape stops being able to resume the game at all.
+   * lands on `pointerlockerror`, which puts the escape menu back up.
    *
-   * Deferring keeps the gesture: transient activation from the keypress lasts
-   * several seconds, so the request is still allowed when it finally goes out.
+   * The wait is still worth having with `grabPointer` set: the cooldown applies
+   * to the shell's request too, and being refused for being early would leave
+   * the menu up just the same.
    */
   requestPointerLock(): void {
     if (this.#relockTimer !== null) return;
@@ -159,6 +174,10 @@ export class Input {
    * the callers listen for that, so an unhandled rejection would be pure noise.
    */
   #lockNow(): void {
+    if (this.grabPointer) {
+      this.grabPointer();
+      return;
+    }
     const result = this.#canvas.requestPointerLock() as unknown;
     if (result instanceof Promise) result.catch(() => {});
   }

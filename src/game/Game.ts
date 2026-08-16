@@ -664,7 +664,7 @@ export class Game {
       return {
         // A client is handed every hunter's transform and simulates none of them.
         state: this.#isHost ? createEnemy(ex, ez) : null,
-        view: { index, x: ex, z: ez, yaw: 0, alert: 'calm' },
+        view: { index, x: ex, z: ez, yaw: 0, alert: 'calm', by: null, ax: ex, az: ez },
         buffer,
         art: this.#buildEnemyArt(index),
         artAlert: '',
@@ -1927,7 +1927,18 @@ export class Game {
           searchLocker: (lockerId) => this.#enemySearchesLocker(lockerId),
         });
 
-        hunter.view = { index: hunter.view.index, x: enemy.x, z: enemy.z, yaw: enemy.yaw, alert: enemy.alert };
+        hunter.view = {
+          index: hunter.view.index,
+          x: enemy.x,
+          z: enemy.z,
+          yaw: enemy.yaw,
+          alert: enemy.alert,
+          by: enemy.alertedBy,
+          // Where it is worked up about, which is not where it has got to. Its
+          // own position when there is nothing, so this is always two numbers.
+          ax: enemy.lastKnown?.x ?? enemy.x,
+          az: enemy.lastKnown?.z ?? enemy.z,
+        };
       }
 
       this.#sendEnemy(dt);
@@ -2083,24 +2094,23 @@ export class Game {
   /**
    * The two moments a hunter changes the situation, reported once each.
    *
-   * `heard` is any hunter leaving `calm`: it has something to go and look at,
-   * and the honest advice is the same whatever put it there. `seen` is one
-   * actually chasing.
-   *
-   * On the HOST that is exact - the hunter's target is right there. A client
-   * only ever receives an alert level, so on a client "chasing somebody" has to
-   * stand in for "chasing you". Both come out identical in the solo and hosted
-   * runs a player learning the game is in, and telling a client to run from a
-   * hunter that is chasing their teammate two rooms away is not bad advice.
+   * `heard` is a hunter that has something to go and look at, and the honest
+   * advice is the same whatever put it there - so it is anything that concerns
+   * this player, teammate-caused searches next door included. `seen` is one
+   * actually chasing *this* player, which is a narrower claim and now an exact
+   * one on a client too: `by` says who it is after, so a tip that used to have
+   * to accept "chasing somebody" for "chasing you" no longer does.
    */
   #tutorialCues(): void {
+    const player = this.#player;
+    if (!player) return;
     let heard = false;
     let seen = false;
 
     for (const hunter of this.#hunters) {
-      if (hunter.view.alert !== 'calm') heard = true;
+      if (this.#personalAlert(hunter, player) !== 'calm') heard = true;
       if (hunter.view.alert !== 'chasing') continue;
-      seen ||= hunter.state ? hunter.state.targetId === this.#net.selfId : true;
+      seen ||= hunter.view.by === this.#net.selfId;
     }
 
     if (heard && !this.#cued.heard) this.#hooks.onTutorial('heard');
@@ -2136,13 +2146,17 @@ export class Game {
     // A spectator has no body to be hurt in, so no vignette belongs on their
     // screen - and `dead` would otherwise read as the downed one for good.
     const spectating = this.spectating;
+    // The edge wash is the picture of the same thing the score is the sound of,
+    // so it reads the same personal answer. What the hunter's own eyes and halo
+    // burn is NOT this - that is a shared object and stays the true alert, or
+    // four players would be looking at four different creatures.
     this.#renderer.feedback.update(dt, {
-      alert: this.#peakAlert() as AlertLevel,
+      alert: this.#peakAlert(player) as AlertLevel,
       enemyDistance: distance,
       injured: !spectating && player.health.state === 'injured',
       downed: !spectating && isDown(player.health.state),
     });
-    this.#updateAudio(distance);
+    this.#updateAudio(distance, player);
   }
 
   /** Metres to the closest hunter, or `Infinity` when there is none in the map. */
@@ -2167,12 +2181,52 @@ export class Game {
     return nearest;
   }
 
-  /** The highest alert level any hunter is at, by `alert.levels` order. */
-  #peakAlert(): string {
+  /**
+   * How worked up a hunter is **as far as this player is concerned**.
+   *
+   * The hunter's own alert is a fact about the world and every peer agrees on
+   * it - it is what the thing's eyes and halo burn (`#drawEnemies`), and that
+   * must look the same to everybody. This is a different question: is any of
+   * that *mine*? Four players sharing one map are in four different situations,
+   * and telling all four that something has noticed them when it has noticed
+   * one of them is telling three of them a lie about their own run.
+   *
+   * Two ways it becomes yours, and they are not the same thing:
+   *
+   *  - **You caused it.** Your noise, your body it saw, the locker it watched
+   *    you climb into. `by` is the host's word on that.
+   *  - **It is happening to you anyway.** A teammate slams a door beside you
+   *    and the hunter starts sweeping the room you are standing in; whoever
+   *    started that, you are in it. Measured to the hunter *or* to the thing it
+   *    is worked up about, whichever is nearer, so it counts from the slam
+   *    rather than from the arrival.
+   *
+   * What each of those earns is `#updateAudio`'s business, not this one's: they
+   * do not earn the same thing.
+   */
+  #personalAlert(hunter: Hunter, player: PlayerState): string {
+    const view = hunter.view;
+    if (view.alert === 'calm') return 'calm';
+    if (view.by === this.#net.selfId) return view.alert;
+
+    const radius = this.#archetype().alert.concernRadius;
+    const near =
+      Math.hypot(view.x - player.x, view.z - player.z) <= radius ||
+      Math.hypot(view.ax - player.x, view.az - player.z) <= radius;
+    return near ? view.alert : 'calm';
+  }
+
+  /**
+   * The highest alert level that concerns this player, by `alert.levels` order.
+   * `ownedOnly` narrows it to the ones this player actually caused.
+   */
+  #peakAlert(player: PlayerState, ownedOnly = false): string {
     const { levels } = this.#archetype().alert;
     let peak = levels[0] ?? 'calm';
     for (const hunter of this.#hunters) {
-      if (levels.indexOf(hunter.view.alert) > levels.indexOf(peak)) peak = hunter.view.alert;
+      if (ownedOnly && hunter.view.by !== this.#net.selfId) continue;
+      const alert = this.#personalAlert(hunter, player);
+      if (levels.indexOf(alert) > levels.indexOf(peak)) peak = alert;
     }
     return peak;
   }
@@ -2189,13 +2243,24 @@ export class Game {
    * around with it, and where the score sits. All of it rides the same
    * proximity curve as the screen feedback, so they never disagree.
    */
-  #updateAudio(enemyDistance: number): void {
+  #updateAudio(enemyDistance: number, player: PlayerState): void {
     const { cues } = this.#config.audio;
     // Out of the run is out of danger: the hunter stops being your problem the
     // moment you are through the door, and the mix should say so at once.
     const over = this.spectating || this.#over;
     const closeness = over ? 0 : heartbeatCloseness(this.#config.player, enemyDistance);
-    const alert = over ? 'calm' : this.#peakAlert();
+    // Two different questions, and the whole point of this method.
+    //
+    // The SCORE asks "how much trouble am I in", which a search happening in
+    // the next room is whoever started it - so it reads everything that
+    // concerns this player.
+    //
+    // The STING asks "did something just notice me", which is a claim about one
+    // player and is false for the other three. So it reads only what this
+    // player actually caused. Somebody knocking a chest over across the map
+    // gets their own gasp; nobody else hears a thing.
+    const alert = over ? 'calm' : this.#peakAlert(player);
+    const owned = over ? 'calm' : this.#peakAlert(player, true);
 
     this.#audio.sustain('heartbeat', 'player.heartbeat', {
       on: closeness > 0,
@@ -2213,12 +2278,12 @@ export class Game {
     }
 
     // Only on the way up. It losing interest is not a moment worth a cue.
-    if (alert !== this.#audioAlert) {
+    if (owned !== this.#audioAlert) {
       const levels = this.#archetype().alert.levels;
-      if (this.#audioAlert && levels.indexOf(alert) > levels.indexOf(this.#audioAlert)) {
-        this.#audio.play(cues.alertStings[alert] ?? '');
+      if (this.#audioAlert && levels.indexOf(owned) > levels.indexOf(this.#audioAlert)) {
+        this.#audio.play(cues.alertStings[owned] ?? '');
       }
-      this.#audioAlert = alert;
+      this.#audioAlert = owned;
     }
 
     const music = this.#audio.music;

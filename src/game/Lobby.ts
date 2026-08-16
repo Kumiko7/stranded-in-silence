@@ -313,10 +313,18 @@ export class Lobby {
     this.#pushView();
     this.#pushRoster();
 
-    this.#audio.music.setScene('menu');
+    // No score in the cabin. The menu's is a title theme and it does not belong
+    // over a room people are standing in and talking to each other in - the
+    // fire, the darts and four voices are the whole soundtrack down here.
+    this.#audio.music.setScene('none');
   }
 
   end(): void {
+    // Back to the title theme. If the cabin is being left for a RUN rather than
+    // for the menu, `Game.start` sets `run` a moment later and wins - one
+    // wasted ramp target, and the alternative is the cabin knowing where the
+    // player is going next.
+    this.#audio.music.setScene('menu');
     if (this.#world) {
       this.#renderer.scene.remove(this.#world.root);
       this.#world.dispose();

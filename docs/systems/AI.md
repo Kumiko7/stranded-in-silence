@@ -50,8 +50,16 @@ It reaches the world only through the `EnemyContext` callbacks it is handed
 
 Alert levels (`alert.levels`) map onto these and are what the player actually sees:
 `calm` = PATROL, `suspicious` = INVESTIGATE, `alerted` = SEARCH, `chasing` = CHASE/ATTACK.
-The level is pushed to art via `enemy.ghost` → `api.setAlert(level)` and to the local
-player's post-processing.
+The level is pushed to art via `enemy.ghost` → `api.setAlert(level)`.
+
+**A hunter also tracks whose doing it is** (`EnemyState.alertedBy`): the player
+whose noise it heard, whose body it saw, or who it watched climb into a locker.
+That is not `targetId` and must not be confused with it — `targetId` is who it is
+coming *for* and decides who gets hit, while this is who it is coming *because
+of*, and is read by nothing but the mix and the screen. A hunter sweeping a room
+because somebody slammed a door two wings away is hunting nobody in particular,
+but that slam was still somebody's. It rides on the snapshot as `by`, and what it
+is for is in [`AUDIO_VOICE.md`](AUDIO_VOICE.md) → "Whose alert is it".
 
 ## Perception
 
@@ -220,8 +228,10 @@ which is why `normal` plays exactly as it did.
 
 The host simulates all of them and sends one snapshot each, carrying an index (see
 [`NETWORKING.md`](NETWORKING.md)). The screen and the mix answer to the **nearest**
-hunter for the heartbeat and the **most alert** one for the wash and the score, so
-two hunters never mean two heartbeats.
+hunter for the heartbeat and the most alert one **that concerns this player** for
+the wash and the score, so two hunters never mean two heartbeats and a hunter
+that has nothing to do with you never means anything at all
+([`AUDIO_VOICE.md`](AUDIO_VOICE.md) → "Whose alert is it").
 
 ## Spawning
 

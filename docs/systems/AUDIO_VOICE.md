@@ -95,7 +95,7 @@ turn is the fastest way to make a first-person game feel wrong.
 | Noise bus events (`cues.noiseSounds`) | Footsteps, chest, locker entry, item drop, injury — **for every peer**, since a replicated noise event is the only signal you get that a teammate moved |
 | Door state changes | `door.open` / `door.close`, wherever the change came from — a player, the network, or the hunter. Doors sound from state rather than from noise precisely so the hunter opening one two rooms away is heard by everyone |
 | Interaction hold (`cues.holdLoops`) | `chest.open.loop`, `exit.hold.loop`, `player.revive.loop`, rising in pitch as the ring fills |
-| Enemy alert rising (`cues.alertStings`) | `enemy.alerted`, `enemy.chase.sting`. Only on the way up — it losing interest is not a moment worth a cue |
+| Enemy alert rising (`cues.alertStings`) | `enemy.alerted`, `enemy.chase.sting`. Only on the way up — it losing interest is not a moment worth a cue — and only for the player who **caused** it. See "Whose alert is it" below |
 | Proximity | `player.heartbeat`, level and tempo on the same curve as the screen pulse (`heartbeatCloseness()` in `render/feedback.ts`, shared so they cannot disagree) |
 | Direct calls | Unlock, locked door, pick-up, locker exit, escape, wipe, attack |
 
@@ -113,6 +113,40 @@ A generative score, four layers cross-fading on one intensity value:
 `ambience` is a room bed on its own bus. Intensity is
 `max(intensityByAlert[alert], proximity × proximityWeight)` — so nearness alone
 raises the temperature but only a real chase brings the chase layer in.
+
+### Whose alert is it
+
+Four players share one map and one hunter, but they are in four different
+situations, and the mix has to say so. A hunter's alert level is a fact about
+the world — it is what the thing's eyes and halo burn, and every peer draws that
+identically — but *whether any of it is yours* is a different question, and the
+answer used to be "everybody's". Somebody knocking a chest over at the far end
+of the map put the sting in four pairs of headphones and the tension layer under
+four runs, three of which had nothing happening in them at all.
+
+So the hunter now says **whose doing it is** (`by` on the `enemy` snapshot: the
+player whose noise it heard, whose body it saw, or who it watched climb into a
+locker) and **where it is worked up about** (`ax`/`az` — the noise, the last
+sighting; not where the hunter has got to). From those, each browser answers two
+different questions about itself:
+
+| | Reads | Because |
+| --- | --- | --- |
+| **The sting** | Only alerts this player *caused* | "Something just noticed me" is a claim about one player, and it is false for the other three |
+| **The score, and the screen's edge wash** | Alerts this player caused, **plus** any within `enemy.json → alert.concernRadius` of them | "How much trouble am I in" has nothing to do with who started it. A teammate slamming a door beside you and bringing the hunter into the room you are standing in is *your* problem |
+
+The radius is measured to the hunter **or** to the thing it is worked up about,
+whichever is nearer, which is what makes a search triggered next to you count
+from the slam rather than from the moment the hunter finally walks in.
+
+The two are deliberately different, and the difference is the whole point: a
+teammate being chased past you raises your score without ever telling you that
+something has spotted you.
+
+The screen's edge wash reads the same personal answer as the score, because they
+are the picture and the sound of one thing (`Game.#peakAlert`). What the hunter
+itself burns is not this and never was — that is a shared object, and four
+players must not be looking at four different creatures.
 
 Any layer can be replaced wholesale by dropping a file in for it
 (`music.layers.<id>.files`); the synth graph is only built for layers without one.
