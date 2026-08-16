@@ -188,6 +188,8 @@ export interface EnemyArchetype {
     levels: string[];
     suspiciousDecaySeconds: number;
     alertedDecaySeconds: number;
+    /** How close a hunter's business has to be before it is also yours, in metres. */
+    concernRadius: number;
   };
 }
 

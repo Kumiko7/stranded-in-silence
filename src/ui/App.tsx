@@ -12,6 +12,7 @@ import type { ActionInfo } from '@/input/index';
 import type { LobbyView } from '@/game/Lobby';
 import type { Options as OptionValues, OptionRanges } from '@/save/index';
 import { t } from '@/i18n/index';
+import { copyText } from './clipboard';
 import { playerLabel } from './playerLabel';
 import { KeyCap, KeyLine } from './components/KeyCap';
 import { LobbyPanel } from './screens/LobbyPanel';
@@ -563,7 +564,9 @@ function CodeRow({ code, ready }: { code: string; ready: boolean }) {
         class="btn btn--small"
         disabled={!ready}
         onClick={() => {
-          void navigator.clipboard.writeText(code).then(() => {
+          // Only says "Copied" if it actually was - see `src/ui/clipboard.ts`.
+          void copyText(code).then((ok) => {
+            if (!ok) return;
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           });

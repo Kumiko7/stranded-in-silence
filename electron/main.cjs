@@ -10,7 +10,7 @@
  * must be CommonJS while `sandbox` is on, and having the two halves of the
  * shell written the same way is worth more than the module syntax.
  */
-const { app, BrowserWindow, Menu, ipcMain, net, protocol, session } = require('electron');
+const { app, BrowserWindow, Menu, clipboard, ipcMain, net, protocol, session } = require('electron');
 const { mkdirSync, readFileSync, renameSync, writeFileSync } = require('node:fs');
 const { dirname, join, normalize, sep } = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -166,6 +166,34 @@ ipcMain.on('window:fullscreen', (event, on) => {
 // The main menu's Quit. `app.quit()` rather than closing the window, so macOS
 // leaves too - a game that vanishes but stays in the dock has not quit.
 ipcMain.on('window:quit', () => app.quit());
+
+/**
+ * Gives the page the mouse back after Escape took it away.
+ *
+ * `userGesture: true` is the entire reason this goes through the main process.
+ * Escape is excluded from the keys that grant transient activation, so the
+ * press that closes the pause menu cannot also be the gesture that re-locks the
+ * pointer - which is why, in a browser, Escape can open the pause menu but
+ * never close it back into the game. Only the shell can vouch for the gesture.
+ *
+ * The script is a constant written here, never anything from the page.
+ */
+ipcMain.on('window:pointerlock', (event) => {
+  event.sender
+    .executeJavaScript("document.getElementById('game-canvas')?.requestPointerLock();", true)
+    .catch(() => {
+      // The page listens for `pointerlockerror` and puts the menu back up. A
+      // rejection here is the same failure told twice.
+    });
+});
+
+// The async clipboard is behind `clipboard-sanitized-write`, which the
+// permission handler below refuses along with everything else the game has no
+// business asking for. Copying a six-character lobby code is not a reason to
+// widen that, so it goes through here instead.
+ipcMain.on('clipboard:write', (_event, text) => {
+  clipboard.writeText(String(text ?? ''));
+});
 
 /* --- lifecycle ------------------------------------------------------------ */
 

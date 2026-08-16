@@ -50,7 +50,7 @@ Owner: `src/net/` (client) and `src/server/` (signalling). Shared types in
 > | Message | Direction | Purpose |
 > | --- | --- | --- |
 > | `noise {id, kind, x, z}` | any peer → all | Every peer emits its own footsteps, doors, chests and drops; the host feeds them all into one `NoiseBus`. `kind` indexes `player.json → noise`, so only four numbers cross the wire. |
-> | `enemy {index, x, z, yaw, alert}` | host → all | One per hunter, at `snapshotRateHz`. Clients never simulate a hunter, they interpolate this. **How many there are never crosses the wire**: it falls out of `(mapId, seed, difficultyId)`, which every peer already has, so a snapshot only has to name an index. |
+> | `enemy {index, x, z, yaw, alert, by, ax, az}` | host → all | One per hunter, at `snapshotRateHz`. Clients never simulate a hunter, they interpolate this. **How many there are never crosses the wire**: it falls out of `(mapId, seed, difficultyId)`, which every peer already has, so a snapshot only has to name an index. `by` is whose doing the alert is and `ax`/`az` is what it is worked up about, both so that each browser can decide whether any of it is *theirs* — see [`AUDIO_VOICE.md`](AUDIO_VOICE.md) → "Whose alert is it". |
 > | `hit {id}` | host → all | Addressed: only the named player applies it. The victim owns their own health ladder. |
 > | `health {id, state}` | owner → all | The result, so every peer can draw a downed teammate and count the wipe condition. |
 > | `revive {id}` | reviver → all | Applied by the named player, who then echoes `health`. |
@@ -408,7 +408,7 @@ a list both ends already agree on.
 | `move {x, z, yaw, pitch, height, hiding, health, left, right, final?}` | state | any → all | `snapshotRateHz` |
 | `pong {id, to, n}` | state | → whoever pinged | per `ping` |
 | `chat {id, text}` | events | any → all | on send |
-| `enemy {index, x, z, yaw, alert}` | state | host → all | `snapshotRateHz`, per hunter |
+| `enemy {index, x, z, yaw, alert, by, ax, az}` | state | host → all | `snapshotRateHz`, per hunter |
 | `ping {id, n}` | state | any → all | `connection.heartbeatSeconds` |
 | `runStart {mapId, seed, difficultyId}` | events | host → all | once |
 | `ready` / `loading` / `runGo` | events | ↑ host / host → all | per load |

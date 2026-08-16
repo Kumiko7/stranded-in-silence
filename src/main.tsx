@@ -172,6 +172,13 @@ async function boot(): Promise<void> {
     save.setOptions({ graphics: { ...save.options.graphics, fullscreen: false } });
   }
 
+  // Escape is excluded from the keys that grant transient activation, so the
+  // press that closes the escape menu can never be the gesture that takes the
+  // pointer back - which is why, in a browser, Escape opens the pause menu and
+  // only a click can close it into the game again. The shell can run the
+  // request with a gesture of its own, so there Escape does both.
+  if (shellWindow) input.grabPointer = () => shellWindow.grabPointer();
+
   bootRoot?.remove();
 
   /* --- ui state ----------------------------------------------------------- */

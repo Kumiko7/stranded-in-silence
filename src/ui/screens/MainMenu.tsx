@@ -26,6 +26,7 @@ import { t } from '@/i18n/index';
 // server - which left `npm run dev` throwing on this line while every
 // production bundle was fine. The named import is tree-shaken to the string.
 import { version } from '../../../package.json';
+import { copyText } from '../clipboard';
 
 interface Props {
   code: string;
@@ -70,7 +71,9 @@ export function MainMenu({ code, status, error, menus, onQuit, onStart, onJoin, 
   }, [ready]);
 
   const copy = () => {
-    void navigator.clipboard.writeText(code).then(() => {
+    // Only says "Copied" if it actually was - see `src/ui/clipboard.ts`.
+    void copyText(code).then((ok) => {
+      if (!ok) return;
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });

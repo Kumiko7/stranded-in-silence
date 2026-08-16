@@ -91,7 +91,9 @@
         "$doc": "Drives the spooky indicator + audio stings. Keys map to i18n + art/shared VFX ids.",
         "levels": ["calm", "suspicious", "alerted", "chasing"],
         "suspiciousDecaySeconds": 8.0,
-        "alertedDecaySeconds": 12.0
+        "alertedDecaySeconds": 12.0,
+        "$note": "How close a hunter's business has to be before it becomes YOURS. An alert belongs to whoever caused it - they get the sting, nobody else does - but a search happening this near you is your problem whoever started it, so the tension is felt inside this radius as well. Measured to the hunter OR to the thing it is worked up about, whichever is nearer: a door slammed beside you counts from the moment it is slammed, not from when the hunter finally arrives. Around a room and a half.",
+        "concernRadius": 14.0
       }
     }
   }

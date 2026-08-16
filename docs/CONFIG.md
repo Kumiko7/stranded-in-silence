@@ -73,6 +73,7 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Volumes, spatial audio, sound registry | `audio.json` | `buses.*`, `spatial.*`, `sounds.*` |
 | Which sound a game event fires | `audio.json` | `cues.*` — noise kinds, alert stings, hold loops |
 | How the score reacts to the hunter | `audio.json` | `music.intensityByAlert`, `.proximityWeight`, `.chaseLayerThreshold` |
+| How near a teammate's trouble has to be before it is also yours | `enemy.json` | `archetypes.<id>.alert.concernRadius` — an alert belongs to whoever caused it and only they get the sting, but the score and the screen wash also answer to anything within this of the player, measured to the hunter **or** to the thing it is worked up about. See [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) → "Whose alert is it" |
 | Default key bindings | `input.json` | `actions.*` — the options menu rebinds the *primary* key only, and stores overrides in the save profile; this file stays the reset-to-default source |
 | Whether an action can be rebound at all | `input.json` | `actions.<id>.rebindable` — `false` draws it locked |
 | What is printed on a key cap | `input.json` | `keyLabels.*`, `wideKeys` — letters and digits need no entry |

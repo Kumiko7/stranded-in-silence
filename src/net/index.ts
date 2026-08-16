@@ -77,6 +77,27 @@ export interface EnemyTransform {
   z: number;
   yaw: number;
   alert: string;
+  /**
+   * Whose doing this is - the player whose noise it heard, whose body it saw,
+   * or who it watched climb into a locker. Null while it is calm.
+   *
+   * It is here because an alert is not a fact about the world the way a
+   * position is, it is a fact about somebody's *situation*: the sting that says
+   * "it has noticed" belongs to the player who was noticed, and playing it in
+   * four browsers at once tells three of them a lie about their own run.
+   */
+  by: string | null;
+  /**
+   * The place it is worked up ABOUT - the noise, the last sighting - rather than
+   * where it currently is. Its own position when there is nothing.
+   *
+   * A hunter that heard a door slam next to you starts walking over from the
+   * far end of the map, and the tension belongs to where the slam was, not to
+   * where the hunter has got to. Without this a teammate setting something off
+   * beside you would be silent until the thing arrived.
+   */
+  ax: number;
+  az: number;
 }
 
 /** Which of the two worlds a peer is standing in. Voice spans both. */
@@ -271,7 +292,18 @@ export type NetMessage =
   | { t: 'stats'; id: string; stats: PlayerStats }
   /** Any peer may emit noise; the host feeds it all into one bus. */
   | { t: 'noise'; id: string; kind: NoiseKind; x: number; z: number }
-  | ({ t: 'enemy'; index: number; x: number; z: number; yaw: number; alert: string } & Partial<Stamped>)
+  | ({
+      t: 'enemy';
+      index: number;
+      x: number;
+      z: number;
+      yaw: number;
+      alert: string;
+      /** Whose doing it is, and where it is worked up about - see `EnemyTransform`. */
+      by: string | null;
+      ax: number;
+      az: number;
+    } & Partial<Stamped>)
   /** Host -> the player it caught. They apply their own health ladder and echo it. */
   | { t: 'hit'; id: string }
   | { t: 'health'; id: string; state: HealthState }

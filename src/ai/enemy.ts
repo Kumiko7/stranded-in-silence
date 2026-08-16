@@ -46,6 +46,18 @@ export interface EnemyState {
   /** Room the current route ends in, so patrol does not re-plan every tick. */
   destination: CellKey | null;
   targetId: string | null;
+  /**
+   * Whose doing this is: the player whose noise it heard, whose body it saw, or
+   * who it watched climb into a locker.
+   *
+   * `targetId` is who it is coming FOR and is gameplay - it decides who gets
+   * hit. This is who it is coming BECAUSE OF, and is only ever used to decide
+   * whose screen and whose ears should react (`Game.#personalAlert`). They are
+   * the same player during a chase and different ones the rest of the time: a
+   * hunter sweeping a room because somebody slammed a door two rooms away is
+   * not hunting anybody in particular, but that slam was still *somebody's*.
+   */
+  alertedBy: string | null;
   lastKnown: { x: number; z: number } | null;
   /** Seconds each room was last stood in, so patrol can prefer stale ones. */
   visited: Map<CellKey, number>;
@@ -153,6 +165,7 @@ export function createEnemy(x: number, z: number): EnemyState {
     waypoints: [],
     destination: null,
     targetId: null,
+    alertedBy: null,
     lastKnown: null,
     visited: new Map(),
     time: 0,
@@ -268,6 +281,9 @@ function perceive(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
 
   // A louder noise always wins the enemy's attention, even mid-investigation.
   enemy.lastKnown = { x: heard.x, z: heard.z };
+  // Whoever made that sound owns what happens next, as far as the mix is
+  // concerned. Not `targetId`: it is not hunting them, it is hunting a noise.
+  enemy.alertedBy = heard.sourceId;
   enemy.state = 'investigate';
   enemy.destination = null;
   enemy.waypoints = [];
@@ -284,6 +300,7 @@ function witnessLockerEntry(enemy: EnemyState, ctx: EnemyContext): boolean {
     if (!canSeePoint(enemy, entry.x, entry.z, ctx.config, ctx.collision)) continue;
 
     enemy.targetId = entry.playerId;
+    enemy.alertedBy = entry.playerId;
     enemy.lastKnown = { x: entry.x, z: entry.z };
     beginSearch(enemy, ctx);
     enemy.witnessedLocker = entry.lockerId;
@@ -335,6 +352,7 @@ function investigate(enemy: EnemyState, ctx: EnemyContext): void {
   const goal = enemy.lastKnown;
   if (!goal) {
     enemy.state = 'patrol';
+    enemy.alertedBy = null;
     return;
   }
 
@@ -358,6 +376,8 @@ function search(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
     enemy.destination = null;
     enemy.waypoints = [];
     enemy.targetId = null;
+    // Back to calm, so nobody owns it any more.
+    enemy.alertedBy = null;
     enemy.witnessedLocker = null;
     enemy.lockerId = null;
     enemy.lockerWait = 0;
@@ -484,6 +504,8 @@ function attack(enemy: EnemyState, dt: number, ctx: EnemyContext): void {
 function beginChase(enemy: EnemyState, targetId: string): void {
   enemy.state = 'chase';
   enemy.targetId = targetId;
+  // Being seen is the one case where the two are the same person.
+  enemy.alertedBy = targetId;
   enemy.lostFor = 0;
   enemy.idleFor = 0;
   enemy.destination = null;

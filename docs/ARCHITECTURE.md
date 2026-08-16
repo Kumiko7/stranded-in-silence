@@ -270,6 +270,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Chase jittery remote motion, or tune how far behind bodies are drawn | `src/net/timing.ts` (the per-peer clock and the adaptive buffer depth) and `src/net/interpolation.ts` (the playback), driven by `net.json → simulation.interpolation` — [`systems/NETWORKING.md`](systems/NETWORKING.md) → "Timing" |
 | Change the relationship between the tick and the frame | `src/core/Loop.ts` + `Game.present` / `Lobby.present`. Anything that decides where something *is* belongs in the tick; anything that decides what it *looks like from here* belongs in `present` |
 | Add a sound | `config/audio.json → sounds` + a recipe in `src/audio/recipes.ts` or a file in `assets/audio/` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |
+| Change who hears an alert sting, or when the score tightens | `Game.#personalAlert` / `Game.#peakAlert`, and `enemy.json → alert.concernRadius`. An alert is not one fact shared by four players — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) → "Whose alert is it" |
 | Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
 | Add a difficulty, or change what one does | `config/difficulty.json` only — plus a `difficulty.<id>.name` key per language |
 | Change how many hunters a difficulty puts on the map | `config/enemy.json → archetypes.<id>.spawn.regions`, overridden per mode in `difficulty.json` |
@@ -317,12 +318,19 @@ than the syntax.
 | `npm run electron:build` | Builds, then `electron-builder` → `release/` (NSIS installer + portable exe on Windows) |
 
 **Nothing in `src/` knows it is packaged**, beyond one fact it cannot avoid:
-`window.strandedShell` exists or it does not. Three things read it, and all
-three are cases where a browser genuinely cannot do the job — `src/save/` picks
-its storage adapter, the main menu draws **Quit** (a tab cannot close itself, and
-a Quit button that does nothing is worse than none), and **fullscreen** is
-restored at boot (`requestFullscreen()` needs a user gesture; a window does not).
-There is no desktop-only code path anywhere else.
+`window.strandedShell` exists or it does not. A handful of things read it, and
+every one is a case where a browser genuinely cannot do the job:
+
+| Reader | Why a page cannot |
+| --- | --- |
+| `src/save/` | Picks its storage adapter — a file, or `localStorage` |
+| The main menu's **Quit** | A tab cannot close itself, and a Quit button that does nothing is worse than none |
+| **Fullscreen** at boot | `requestFullscreen()` needs a user gesture; restoring a saved setting has none |
+| **Escape → resume** (`input.grabPointer`) | Escape is excluded from the keys that grant transient activation, so the press that closes the pause menu can never be the gesture that takes the pointer back. In a browser Escape opens the menu and only a click closes it into the game; the shell runs the request itself with `executeJavaScript(…, userGesture: true)` and Escape does both |
+| **Copy lobby code** (`src/ui/clipboard.ts`) | `navigator.clipboard` is behind `clipboard-sanitized-write`, which the shell's permission handler refuses along with everything else the game has no business asking for. Widening it for a six-character code is the wrong trade |
+
+There is no desktop-only code path anywhere else, and none of these is a fork in
+the game's logic — each is one function that resolves differently.
 
 Fullscreen is worth a line on its own, because it behaves differently by
 necessity. The switch lives in Options → Graphics with a rebindable key

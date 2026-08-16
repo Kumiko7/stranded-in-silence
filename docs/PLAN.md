@@ -355,6 +355,8 @@ floating under the plaster.
 **Done when:** footsteps, doors, chests, the enemy and UI all make appropriate positional sound.
 **Note:** all 27 sounds are **synthesised with Tone.js** (`src/audio/recipes.ts`) and rendered to `AudioBuffer`s once at boot, so the game has a complete soundtrack with no assets and no licences. Each one also declares a file path: **drop a file into `assets/audio/` and it replaces the synthesised version**, no code or config change — see [`assets/audio/README.md`](../assets/audio/README.md). Music is generative too (`explore` / `tension` / `chase` / `menu` layers plus an ambience bed), and any layer can be replaced by a file the same way. Two things worth knowing: `unlock()` must wait for `init()` because `Tone.Offline` swaps the global context mid-render, and doors sound from their replicated **state** rather than from the noise bus so that a door the hunter opens is heard by every peer.
 **Still missing:** nothing. The volume sliders landed with step 35 through `audio.setBusVolume()`, which is why every bus in `audio.json` was worth having. Voice ducking landed with step 28: `music.setVoiceDucking()` pulls the score down by `music.duckOnVoiceDb` while a teammate is *audible*, leaving ambience alone.
+**Note:** **an alert is not one fact shared by four players.** The score and the stings originally read the peak alert of any hunter, so somebody knocking a chest over at the far end of the map put the sting in four pairs of headphones and the tension layer under four runs, three of which had nothing happening in them. A hunter now reports *whose doing it is* (`alertedBy` → `by` on the snapshot) and *what it is worked up about* (`ax`/`az` — the noise, the last sighting, not where it has got to), and each browser answers two different questions from that: the **sting** only for alerts this player caused, the **score and the screen wash** for those plus anything within `alert.concernRadius` of them. So a teammate being chased past you tightens the music without ever telling you that something has spotted you, and a search a teammate triggers beside you is yours from the moment of the slam rather than from when the hunter arrives. The hunter's own eyes and halo still burn the true level — that is a shared object, and four players must not be looking at four different creatures. Full reasoning in [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) → "Whose alert is it".
+**Note:** **no score in the cabin.** The menu's is a title theme and it does not belong over a room people are standing in and talking to each other in; the fire, the darts and four voices are the soundtrack down there.
 
 ### ☑ 35. Save system + options menu
 **Touches:** `src/save/{index,options}.ts`, `src/ui/{keys.ts,theme.ts}`, `src/ui/components/{Controls,KeyCap}.tsx`, `src/ui/screens/{Options,Controls}.tsx`, `src/main.tsx`, `src/render/Renderer.ts`, `src/input/index.ts`, `config/locales/*`, `scripts/validateLocales.mjs`, `config/{player,graphics,audio,ui,input}.json`.
@@ -466,6 +468,26 @@ bounce straight back into the escape menu instead of resuming. And the UI layers
 are `user-select: none`, so crouch-walking with the mouse down no longer
 highlights half the interface; fields you type into and the lobby code opt back
 in.
+Two more came out of playing the packaged build, and both are the same shape —
+something the page can normally do for itself that it cannot do *in here*, so
+the shell does it instead and the browser path is untouched.
+**Copy code** did nothing: `navigator.clipboard` is behind
+`clipboard-sanitized-write`, which the permission handler deliberately refuses
+along with everything else the game has no business asking for, and the call site
+had no `.catch()` so the button failed silently. Both call sites now go through
+one `src/ui/clipboard.ts` that tries the shell, then the async clipboard, then a
+hidden textarea — and only says "Copied" when it actually was.
+**Escape could open the pause menu but never close it back into the game**,
+which the cooldown wait above was not enough to fix, because the real cause is
+not a cooldown: **Escape is excluded from the keys that grant transient
+activation**, so the press that closes the menu can never be the gesture that
+takes the pointer back. No page can work around that. The shell runs the request
+itself with `executeJavaScript(…, userGesture: true)` and vouches for the
+gesture, so in the desktop build Escape now does exactly what Resume does. The
+browser build keeps the behaviour it is stuck with, on purpose.
+**Verified in the packaged shell:** `strandedShell.clipboard.write('CODE42')`
+left `CODE42` on the OS clipboard, and `strandedShell.window.grabPointer()` put
+`document.pointerLockElement` on the canvas with no user gesture anywhere.
 **Still missing:** an application icon (electron-builder falls back to Electron's
 own), code signing, and macOS/Linux targets are configured but untested — only
 Windows has been built.
