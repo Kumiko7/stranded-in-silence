@@ -376,19 +376,57 @@ export interface NetConfig {
     /** Cap on a player name, applied to what is typed AND to what a peer sends. */
     nameMaxLength: number;
   };
+  signalling: {
+    /** How many times the socket to the signalling server is re-opened before giving up. */
+    reconnectAttempts: number;
+    /** One wait per attempt, in order. The last is reused if attempts outrun it. */
+    reconnectBackoffSeconds: number[];
+  };
   simulation: {
+    /** Fixed simulation steps per second. Deliberately unrelated to the display. */
+    tickRateHz: number;
+    /** How much real time one frame may catch up before the debt is dropped. */
+    maxCatchUpSeconds: number;
+    /** No frame for this long and the loop is pumped from a timer instead. */
+    stallPumpMs: number;
     snapshotRateHz: number;
-    /** How far in the past remote bodies are drawn, so there is always a gap to fill. */
-    interpolationDelayMs: number;
-    /** How long a body keeps moving on its last known velocity before it freezes. */
-    maxExtrapolationMs: number;
+    interpolation: InterpolationConfig;
+  };
+  channels: {
+    /** Out-of-band negotiated, so it costs no second ICE negotiation. */
+    state: { id: number; ordered: boolean; maxRetransmits: number };
+    events: { ordered: boolean; reliable: boolean };
   };
   connection: {
     heartbeatSeconds: number;
+    /** Silence past this reports a struggling link and starts recovery. */
+    unstableSeconds: number;
+    /** Silence past this is a peer that has actually gone. */
     timeoutSeconds: number;
+    rttSamples: number;
     loadTimeoutSeconds: number;
   };
   voice: VoiceConfig;
+}
+
+/**
+ * How far in the past remote bodies are drawn. Not one number: the buffer is
+ * the smallest one that still covers what this connection is measurably doing.
+ */
+export interface InterpolationConfig {
+  baseDelayMs: number;
+  minDelayMs: number;
+  maxDelayMs: number;
+  /** Multiples of measured arrival jitter held on top of `baseDelayMs`. */
+  jitterMultiplier: number;
+  /** Time constant for growing the buffer - short, because a body has already stuttered. */
+  growSeconds: number;
+  /** And for shrinking it - long, so the delay is not itself a source of jitter. */
+  shrinkSeconds: number;
+  /** How long a clock-offset estimate is trusted before it has to be re-earned. */
+  clockWindowSeconds: number;
+  /** How long a body keeps moving on its last known velocity before it freezes. */
+  maxExtrapolationMs: number;
 }
 
 /**
@@ -502,6 +540,11 @@ export interface UiConfig {
     teammateList: { enabled: boolean; showVoiceIndicator: boolean };
     /** The voice pill above the roster: mode, transmitting state, input level. */
     voiceIndicator: { enabled: boolean; showLevelMeter: boolean };
+    /**
+     * The connection warning. Shown only when there is something to say - a
+     * permanent bar graph would be noise in a game about being in the dark.
+     */
+    connection: { enabled: boolean; showPing: boolean; warnRttMs: number; warnLoss: number };
     /** The run purse. Hidden until you have actually picked something up. */
     coins: { enabled: boolean; showWhenEmpty: boolean };
     /** Text chat: how much backlog is kept and how long a line stays on screen. */

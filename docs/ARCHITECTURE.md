@@ -165,16 +165,15 @@ decides it, and every peer applied the same difficulty.
 ```
 fixedUpdate (60 Hz)                      render (display Hz)
 ──────────────────                       ───────────────────
-input.sample()                           gameplay feedback (alert, heartbeat, damage)
-camera rig from player state             HUD DOM updates (throttled)
-one look-ray down the crosshair          renderer.render()
-host only: authoritative sim
-  ├ player movement + collision
-  ├ interactions (doors/chests/items)
-  ├ noise bus → enemy hearing
-  ├ enemy perception + FSM + pathing
+input.sample()                           Game.present(dt, alpha) / Lobby.present(alpha)
+camera rig from player state               ├ camera between the last two ticks
+one look-ray down the crosshair            ├ remote bodies from their buffers
+host only: authoritative sim               └ hunters from theirs (on a client)
+  ├ player movement + collision          gameplay feedback (alert, heartbeat, damage)
+  ├ interactions (doors/chests/items)     HUD DOM updates (throttled)
+  ├ noise bus → enemy hearing             nameplates projected through that camera
+  ├ enemy perception + FSM + pathing      renderer.render()
   └ run state (down/revive/escape/win)
-remote bodies from the snapshot buffer
 culling: portals, then the light budget
 net.send(snapshot @ 15 Hz)
 voice.updateAttenuation()
@@ -182,6 +181,19 @@ voice.updateAttenuation()
 
 Sim code lives in plain data structures. The only place a sim value becomes a
 `THREE` value is `render/` and the art seam in `world/`.
+
+**The two rates are independent, and that is a guarantee rather than an
+intention.** The tick is fixed at `net.json → simulation.tickRateHz`; a 30 fps
+machine takes two steps in some frames and a 240 Hz one takes none in most, and
+both reach the same world state after the same second of real time. An ordinary
+hitch is *caught up* rather than lost, and the tick keeps running off a timer
+when `requestAnimationFrame` stops — which it does entirely in a window that is
+not in front, and the host simulates the run for everybody. Everything drawn
+moved into `present()` for the same reason from the other side: the frame rate
+should not be able to change where anything is, and the tick rate should not be
+able to limit how smoothly it is drawn. See
+[`systems/NETWORKING.md`](systems/NETWORKING.md) → "The simulation does not care
+what your graphics card is doing".
 
 Culling sits at the end of the fixed step rather than in the render step because
 it projects each doorway through the camera, and the camera is set there. Several
@@ -255,6 +267,8 @@ mic picking up small sounds cannot give you away. Full detail in
 | Change what being downed costs | `config/player.json → health` (`downedBleedOutSeconds`, `giveUpHoldSeconds`) — the clock is `src/entities/health.ts`, and what stops it is `Game.#beingRevived` |
 | Change what the tutorial teaches | `config/ui.json → hud.tutorial.tips` for the order and the key caps, `tutorial.*` locale keys for the words. A **new** tip also needs its trigger reported — `main.tsx` for the cabin, `RunHooks.onTutorial` for the run — see [`systems/UI.md`](systems/UI.md) → "The tutorial" |
 | Change net sync | `src/net/` + `src/shared/messages.ts` — [`systems/NETWORKING.md`](systems/NETWORKING.md) |
+| Chase jittery remote motion, or tune how far behind bodies are drawn | `src/net/timing.ts` (the per-peer clock and the adaptive buffer depth) and `src/net/interpolation.ts` (the playback), driven by `net.json → simulation.interpolation` — [`systems/NETWORKING.md`](systems/NETWORKING.md) → "Timing" |
+| Change the relationship between the tick and the frame | `src/core/Loop.ts` + `Game.present` / `Lobby.present`. Anything that decides where something *is* belongs in the tick; anything that decides what it *looks like from here* belongs in `present` |
 | Add a sound | `config/audio.json → sounds` + a recipe in `src/audio/recipes.ts` or a file in `assets/audio/` + trigger from logic — [`systems/AUDIO_VOICE.md`](systems/AUDIO_VOICE.md) |
 | Replace a sound with a real recording | Drop the file in `assets/audio/` — [`assets/audio/README.md`](../assets/audio/README.md) |
 | Add a difficulty, or change what one does | `config/difficulty.json` only — plus a `difficulty.<id>.name` key per language |
@@ -285,6 +299,7 @@ mic picking up small sounds cannot give you away. Full detail in
 | Gameplay feedback (alert wash, heartbeat, damage flash, health vignette) | **A DOM compositing layer** (`src/render/feedback.ts`), not an `EffectComposer` post stack | Every effect the design asks for is a full-screen blend. A DOM layer costs no render targets and no extra passes, and there is no *general* post-processing stack to justify one (see "Deliberately NOT built"). `render/` still owns it. If an effect ever needs the depth buffer, that is the moment to introduce a composer. |
 | Pathfinding | **A\* over the room graph + per-room waypoints** | The world is already a graph of rooms; hierarchical pathing on it is cheaper and more controllable than a navmesh, and makes "search a nearby room" trivial to express. |
 | State sync | **Seed + snapshots**, not full world replication | The map is a pure function of `(mapId, seed)`, so only entity state crosses the wire. |
+| Snapshot timing | **Sender-stamped samples into a jitter-adaptive buffer**, not arrival-stamped into a fixed one | Stamping a transform with when it *arrived* replays the connection's jitter as the body's motion — measured, that is a body covering half a kilometre in one frame on a bad link. The sender already knows when it sent each one, so it says so, and the buffer is sized from the jitter that link is measurably showing rather than from one number picked for everybody. [`systems/NETWORKING.md`](systems/NETWORKING.md) → "Timing". |
 | Persistence | **`localStorage`** in a browser, a **file in the OS save directory** when packaged | One `Storage` adapter in `src/save/index.ts` with two implementations, picked by whether the desktop shell is there. No backwards-compat requirement yet; the seam is what matters. |
 | Desktop build | **Electron + electron-builder**, serving the *same* bundle over a custom `game://` scheme | The browser build stays the product; the shell adds a window and a save file and nothing else. The custom scheme rather than `file://` is not cosmetic — see "The desktop build" below. |
 
@@ -375,7 +390,7 @@ being simple.
 | **Post-processing beyond gameplay feedback** | Only the effects the design calls for exist (alert state, heartbeat proximity, damage). No general bloom/grain/aberration stack. |
 | **Accessibility settings** (UI scale, reduce flashing, colourblind modes) | UI sizes derive from one base; effects are driven through a single feedback module. |
 | **Config-mismatch detection between peers** | Peers ship `(mapId, seed)` and are assumed to share a build. Hashing config is additive. |
-| **Reconnecting after a disconnect** | A dropped player is marked `disconnected`, their items fall where they stood and the run continues. |
+| **Reconnecting after a disconnect** | A dropped player is marked `disconnected`, their items fall where they stood and the run continues. What *is* built is the stage before that: a link that has merely gone quiet is reported as unstable and waited out rather than dropped ([`systems/NETWORKING.md`](systems/NETWORKING.md) → "Failure handling"). A true rejoin is a different feature and needs a world-state resync, because a peer whose connection actually closed has missed reliable messages and would come back to a divergent world. |
 | **Host migration** | If the host drops, the run ends. `net.json → hostMigration.enabled` marks the seam. |
 | **Anti-cheat** | A host-authoritative P2P game trusts the host. Fine for co-op with friends. |
 | **Host-owned movement** (input frames, prediction, reconciliation) | Each peer moves its own player; the host arbitrates only what can be *contested* — items, doors, locks, the hunter, the outcome. `stepPlayer()` is a pure `(state, input, dt)` function, which is the whole seam. Reasons in [`systems/NETWORKING.md`](systems/NETWORKING.md) → "What the host does not own". |

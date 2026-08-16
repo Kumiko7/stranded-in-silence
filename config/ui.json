@@ -43,6 +43,15 @@
     },
     "teammateList": { "enabled": true, "position": "bottom-left", "showVoiceIndicator": true },
     "voiceIndicator": { "enabled": true, "position": "bottom-left", "showLevelMeter": true },
+    "connection": {
+      "$doc": "The connection warning, top right. It appears only when there is something to say: a permanent bar graph is noise in a game about looking at the dark, but a player whose teammates have started sliding about deserves to know it is the network and not the game.",
+      "enabled": true,
+      "position": "top-right",
+      "showPing": true,
+      "$note": "Above either of these the link is called poor even while packets are still arriving. A quarter of a second of round trip is where a door starting to open a beat after you pressed E stops feeling like the game and starts feeling like the connection.",
+      "warnRttMs": 250,
+      "warnLoss": 0.06
+    },
     "objectiveHint": { "enabled": true, "durationSeconds": 5 },
     "chat": {
       "$doc": "Text chat. Lines fade after `messageSeconds` so the log is not a permanent panel in a game about looking at the dark; the whole backlog comes back while the box is open.",

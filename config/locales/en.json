@@ -288,6 +288,10 @@
   "hud.voice.pushToTalk": "Push to talk",
   "hud.voice.holdHint": "Hold {key}",
   "hud.voice.unavailable": "No microphone",
+
+  "hud.connection.poor": "Poor connection",
+  "hud.connection.unstable": "Connection unstable",
+  "hud.connection.detail": "{ms} ms · {loss}% lost",
   "hud.objective.findExit": "Find the exit.",
   "hud.objective.needKey": "This door needs a key.",
 

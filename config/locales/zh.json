@@ -289,6 +289,10 @@
   "hud.voice.pushToTalk": "按键说话",
   "hud.voice.holdHint": "长按 {key}",
   "hud.voice.unavailable": "无麦克风",
+
+  "hud.connection.poor": "网络状况不佳",
+  "hud.connection.unstable": "连接不稳定",
+  "hud.connection.detail": "{ms} 毫秒 · 丢包 {loss}%",
   "hud.objective.findExit": "找到出口。",
   "hud.objective.needKey": "这扇门需要钥匙。",
 

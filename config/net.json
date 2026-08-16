@@ -5,6 +5,7 @@
     "url": "ws://localhost:8787",
     "urlProduction": "wss://signal.stranded.invalid",
     "connectTimeoutSeconds": 8,
+    "$note": "The socket to the signalling server is not the peer links: losing it costs nobody their game, but it stops anyone else joining and never comes back on its own. So it is re-opened on this backoff, quietly, while play carries on.",
     "reconnectAttempts": 5,
     "reconnectBackoffSeconds": [1, 2, 4, 8, 16]
   },
@@ -22,26 +23,51 @@
   },
 
   "simulation": {
-    "$doc": "Host runs the authoritative sim. Clients predict their own movement and reconcile.",
-    "tickRateHz": 30,
+    "$doc": "The simulation runs on a fixed tick that is deliberately independent of the display: a 30 fps machine takes two steps a frame and a 240 Hz one takes none most frames, and both reach the same world state after the same second of real time.",
+    "tickRateHz": 60,
+    "$note": "A frame that arrives late is caught up, up to this much real time in one go. Beyond it the debt is dropped rather than paid, because a machine that cannot keep up will only fall further behind trying - the alternative is a spiral where every frame owes more than the last.",
+    "maxCatchUpSeconds": 0.5,
+    "$note2": "requestAnimationFrame stops in a window that is not in front, and the host simulates the run for everybody. When no frame has arrived for this long the loop is pumped from a timer instead, so a host who alt-tabs does not stop the world.",
+    "stallPumpMs": 100,
     "snapshotRateHz": 15,
-    "interpolationDelayMs": 100,
-    "maxExtrapolationMs": 250,
-    "clientPrediction": true,
-    "reconcilePositionThreshold": 0.35,
-    "reconcileSnapThreshold": 3.0
+
+    "interpolation": {
+      "$doc": "Remote bodies are drawn from a buffer that plays back in the past, so there is always a sample on each side of the playback head. The delay ADAPTS: it is the smallest buffer that still covers what this connection is actually doing, measured continuously, so a good link stays responsive and a choppy one stops stuttering.",
+      "baseDelayMs": 50,
+      "minDelayMs": 40,
+      "maxDelayMs": 450,
+      "$note": "How many multiples of the measured arrival jitter the buffer holds on top of `baseDelayMs`. Two covers the great majority of arrivals on a normal connection.",
+      "jitterMultiplier": 2.5,
+      "$note2": "Growing the buffer is urgent (a body has already stuttered); shrinking it is not, and doing it quickly would make the delay itself a source of jitter. So they have very different time constants.",
+      "growSeconds": 0.25,
+      "shrinkSeconds": 6.0,
+      "$note3": "Transit times are measured against a clock offset estimated from the fastest packet seen in this window. A window keeps it honest as the two machines' clocks drift apart.",
+      "clockWindowSeconds": 20.0,
+      "maxExtrapolationMs": 250
+    }
   },
 
   "channels": {
-    "state": { "ordered": false, "maxRetransmits": 0 },
+    "$doc": "Two data channels over ONE peer connection. The `state` channel is negotiated out of band on a fixed id, which is what lets it be created without a second ICE negotiation.",
+    "state": {
+      "$note": "Unordered and never retransmitted. A snapshot that has to wait for an older one to be re-sent is worse than one that never arrives - the next is already on its way. This is the single biggest thing between choppy wifi and a body that jumps.",
+      "id": 100,
+      "ordered": false,
+      "maxRetransmits": 0
+    },
     "events": { "ordered": true, "reliable": true }
   },
 
   "connection": {
-    "$doc": "Liveness and the load gate. A browser tab closed without a goodbye never sends one, so peers are dropped on silence rather than on a close event.",
-    "heartbeatSeconds": 2,
-    "timeoutSeconds": 8,
-    "$note": "Everyone generates the map at their own speed. The host holds the run at the loading screen until every peer reports in, or until this expires - a peer that crashed loading must not strand the rest at a spinner.",
+    "$doc": "Liveness, recovery and the load gate. A browser tab closed without a goodbye never sends one, so peers are judged on silence rather than on a close event - but silence on a bad connection is not the same thing as a peer that has gone.",
+    "heartbeatSeconds": 1,
+    "$note": "Three stages, not two. Past `unstableSeconds` the link is reported as struggling and recovery starts; only past `timeoutSeconds` is the peer actually gone. Dropping somebody for a ten-second wifi hiccup is the failure this gap exists to prevent.",
+    "unstableSeconds": 2.5,
+    "timeoutSeconds": 12,
+    "$note2": "A link that CLOSES is a peer that has gone, and is dropped at once rather than waited out - the timeout above is for silence, which is a different thing.",
+    "$note3": "Round-trip time is measured off the heartbeat and smoothed over this many samples. It is what the connection indicator reports.",
+    "rttSamples": 16,
+    "$note4": "Everyone generates the map at their own speed. The host holds the run at the loading screen until every peer reports in, or until this expires - a peer that crashed loading must not strand the rest at a spinner.",
     "loadTimeoutSeconds": 25
   },
 

@@ -23,6 +23,7 @@
 import Peer, { type DataConnection, type MediaConnection } from 'peerjs';
 import type { NoiseKind } from '@/ai/noiseBus';
 import type { HealthState, NetConfig } from '@/config/types';
+import { type LinkHealth, type LinkQuality, nowSeconds, PeerClock } from '@/net/timing';
 import type { PlayerStats } from '@/world/runStats';
 import type { Cosmetic } from '@shared/cosmetics';
 import { cleanPlayerName } from '@shared/playerName';
@@ -100,6 +101,23 @@ export interface RunStart {
   difficultyId: string;
 }
 
+/**
+ * The two fields every continuous message carries, filled in by `Net` on the
+ * way out and always there on the way in.
+ *
+ * `st` is the SENDER's monotonic clock. It is what lets a receiver put samples
+ * back on a timeline of their own instead of stamping them with when they
+ * happened to arrive - see `src/net/timing.ts`, which is where the whole
+ * argument for it lives. `q` is a per-sender packet counter: the `state`
+ * channel is unordered and lossy on purpose, so the gaps in it are how a link's
+ * packet loss is measured.
+ *
+ * A relayed message keeps the ORIGINAL sender's pair, never the relay's, so a
+ * client measures the trip from the peer that moved rather than from the host
+ * that passed it on.
+ */
+type Stamped = { q: number; st: number };
+
 export type NetMessage =
   | {
       t: 'welcome';
@@ -137,9 +155,15 @@ export type NetMessage =
   | { t: 'loading'; ready: number; total: number }
   /** Host -> all. Everyone is in, or the load timeout ran out. Play. */
   | { t: 'runGo' }
-  /** Any -> all, on an interval. Silence for `timeoutSeconds` is a disconnect. */
-  | { t: 'ping'; id: string }
-  | { t: 'lobbyMove'; id: string; x: number; z: number; yaw: number }
+  /**
+   * Any -> all, on an interval. Silence for `timeoutSeconds` is a disconnect.
+   * `n` is a nonce the answering `pong` quotes back, which is what turns a
+   * heartbeat into a round-trip measurement.
+   */
+  | ({ t: 'ping'; id: string; n: number } & Partial<Stamped>)
+  /** The answer to one `ping`, addressed to whoever sent it and nobody else. */
+  | ({ t: 'pong'; id: string; to: string; n: number } & Partial<Stamped>)
+  | ({ t: 'lobbyMove'; id: string; x: number; z: number; yaw: number } & Partial<Stamped>)
   /**
    * A dart, as its release state plus the thrower's wind clock. Every peer
    * re-runs the same flight from it, exactly as they do for a `throw` - the
@@ -182,7 +206,7 @@ export type NetMessage =
    * is what keeps that one rule in one place.
    */
   | { t: 'chat'; id: string; text: string }
-  | {
+  | ({
       t: 'move';
       id: string;
       x: number;
@@ -194,7 +218,15 @@ export type NetMessage =
       health: HealthState;
       left: string | null;
       right: string | null;
-    }
+      /**
+       * The last word from a body about to stop moving - a player leaving the
+       * run, out of turn. It is the one transform that has to arrive: it says
+       * the hands are empty, and a later disconnect that never saw it would
+       * spawn a second copy of whatever they were last holding. So this one
+       * takes the reliable channel, and keeps taking it when the host relays it.
+       */
+      final?: boolean;
+    } & Partial<Stamped>)
   /* --- host authority ------------------------------------------------------ */
   /** Any -> host. `value` carries whatever the result needs, e.g. barricade seconds. */
   | { t: 'claim'; kind: ClaimKind; id: string; by: string; value: number }
@@ -239,7 +271,7 @@ export type NetMessage =
   | { t: 'stats'; id: string; stats: PlayerStats }
   /** Any peer may emit noise; the host feeds it all into one bus. */
   | { t: 'noise'; id: string; kind: NoiseKind; x: number; z: number }
-  | { t: 'enemy'; index: number; x: number; z: number; yaw: number; alert: string }
+  | ({ t: 'enemy'; index: number; x: number; z: number; yaw: number; alert: string } & Partial<Stamped>)
   /** Host -> the player it caught. They apply their own health ladder and echo it. */
   | { t: 'hit'; id: string }
   | { t: 'health'; id: string; state: HealthState }
@@ -274,7 +306,7 @@ export interface NetEvents {
   onPick(id: string, mapId: string | null): void;
   /** Somebody pulled the lever (host only, for the same reason). */
   onDifficulty(difficultyId: string): void;
-  onLobbyMove(id: string, x: number, z: number, yaw: number): void;
+  onLobbyMove(id: string, x: number, z: number, yaw: number, at: number): void;
   /** A peer threw a dart. Its flight is re-simulated locally, not replicated. */
   onDartThrown(
     id: string,
@@ -292,7 +324,12 @@ export interface NetEvents {
   onChat(id: string, text: string): void;
   onPeerJoin(id: string): void;
   onPeerLeave(id: string): void;
-  onPeerMove(id: string, transform: PlayerTransform): void;
+  /**
+   * `at` is when this sample belongs on THIS machine's timeline, worked out
+   * from the sender's own clock rather than from when the packet turned up.
+   * Presentation buffers key on it; the simulation ignores it.
+   */
+  onPeerMove(id: string, transform: PlayerTransform, at: number): void;
   /** A peer moved between the cabin and a run. Both worlds drop bodies that left. */
   onScene(id: string, scene: Scene): void;
   /** The host's word on a door. Whatever this browser showed gives way to it. */
@@ -318,7 +355,7 @@ export interface NetEvents {
   onHealed(toState: HealthState): void;
   onCoins(amount: number): void;
   onNoise(id: string, kind: NoiseKind, x: number, z: number): void;
-  onEnemy(transform: EnemyTransform): void;
+  onEnemy(transform: EnemyTransform, at: number): void;
   /** The host caught this browser's player. */
   onHit(): void;
   onHealth(id: string, state: HealthState): void;
@@ -349,20 +386,87 @@ const NOT_RELAYED: ReadonlySet<NetMessage['t']> = new Set([
   'doorRequest',
   'ready',
   'ping',
+  'pong',
 ]);
+
+/**
+ * What rides the `state` channel: unordered, never retransmitted, and dropped
+ * outright rather than queued when the link is backing up.
+ *
+ * The rule is one question - does a copy that arrives late still say something
+ * true? A transform does not: the next one is already on its way and is a
+ * better answer than the one that was lost. A door opening does, for ever, so
+ * it goes on the reliable channel with everything else.
+ *
+ * This is the single largest thing standing between a choppy connection and a
+ * body that jumps. On one ordered reliable channel, ONE lost snapshot holds up
+ * every message behind it until it has been re-sent - so a body freezes for a
+ * round trip and then teleports through the backlog. Nothing in the buffer can
+ * smooth that out, because by the time the samples arrive they are all in the
+ * past at once.
+ */
+const STATE_MESSAGES: ReadonlySet<NetMessage['t']> = new Set(['move', 'enemy', 'lobbyMove', 'ping', 'pong']);
+
+/** The label both sides open the out-of-band channel under. */
+const STATE_LABEL = 'state';
+
+/** Worst-first ordering, for picking the one link an indicator can show. */
+const RANK: Record<LinkHealth, number> = { good: 0, unstable: 1, lost: 2 };
+
+/**
+ * Past this much unsent data the state channel is treated as blocked and
+ * snapshots are thrown away instead of queued. Queueing them is how a link that
+ * recovers replays thirty stale positions at once.
+ */
+const STATE_BUFFER_LIMIT = 64 * 1024;
+
+/**
+ * One peer's transport: the reliable connection PeerJS made, the unreliable
+ * channel opened alongside it on the same peer connection, and how well the
+ * pair of them are doing.
+ */
+interface Link {
+  id: string;
+  connection: DataConnection;
+  /** Null until the out-of-band channel opens, and if it never does. */
+  state: RTCDataChannel | null;
+  /** Seconds since anything at all arrived from this peer. */
+  silence: number;
+  health: LinkHealth;
+}
 
 export class Net {
   #peer: Peer | null = null;
-  #connections = new Map<string, DataConnection>();
+  #links = new Map<string, Link>();
   #events: NetEvents;
   #config: NetConfig;
   #code = '';
   role: NetRole = 'offline';
 
   /* --- liveness ------------------------------------------------------------ */
-  /** Seconds since anything at all arrived from each peer. */
-  #silence = new Map<string, number>();
   #pingTimer = 0;
+  /** Nonce -> when it went out, so a `pong` measures a real round trip. */
+  #pings = new Map<number, number>();
+  #pingNonce = 0;
+
+  /* --- signalling ---------------------------------------------------------- */
+  /**
+   * The socket to the signalling server, which is not the peer links. Losing it
+   * costs nobody their game - but nobody else can join, and it never comes back
+   * by itself, so it is re-opened quietly underneath a run in progress.
+   */
+  #signalRetries = 0;
+  #signalTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /* --- timing -------------------------------------------------------------- */
+  /**
+   * One clock per PLAYER rather than per connection: in the star a client hears
+   * about its two teammates through the host, and the trip that matters is the
+   * one from whoever actually moved.
+   */
+  #clocks = new Map<string, PeerClock>();
+  /** This browser's outgoing packet counter for the state channel. */
+  #seq = 0;
 
   /* --- the load gate ------------------------------------------------------- */
   /** Host only: who has finished building the map. */
@@ -426,7 +530,7 @@ export class Net {
   }
 
   get peerIds(): string[] {
-    return [...this.#connections.keys()];
+    return [...this.#links.keys()];
   }
 
   /**
@@ -466,8 +570,46 @@ export class Net {
         call.answer(this.#voiceStream ?? undefined);
         this.#registerCall(shortId(call.peer), call);
       });
-      peer.on('disconnected', () => this.#events.onStatus('disconnected'));
+      // The signalling socket, not a peer link. Existing games carry on over
+      // the top of this; what it costs while it is down is anyone joining.
+      peer.on('disconnected', () => {
+        this.#events.onStatus('disconnected');
+        this.#restoreSignalling();
+      });
+      peer.on('open', () => {
+        this.#signalRetries = 0;
+        this.#events.onStatus('connected');
+      });
     });
+  }
+
+  /**
+   * Re-opens the socket to the signalling server on the configured backoff.
+   * PeerJS gives up after one attempt of its own, and a lobby whose code has
+   * quietly stopped being joinable looks exactly like one that works.
+   */
+  #restoreSignalling(): void {
+    const peer = this.#peer;
+    const { reconnectAttempts, reconnectBackoffSeconds } = this.#config.signalling;
+    if (!peer || peer.destroyed || this.#signalTimer) return;
+    if (this.#signalRetries >= reconnectAttempts) return;
+
+    const waits = reconnectBackoffSeconds;
+    const wait = waits[Math.min(this.#signalRetries, waits.length - 1)] ?? 1;
+    this.#signalRetries++;
+
+    this.#signalTimer = setTimeout(() => {
+      this.#signalTimer = null;
+      if (!this.#peer || this.#peer.destroyed || !this.#peer.disconnected) return;
+      try {
+        this.#peer.reconnect();
+      } catch (error) {
+        console.warn('[net] signalling reconnect failed', error);
+      }
+      // Whether that took is answered by `open` or by another `disconnected`,
+      // so there is nothing to check here.
+      this.#restoreSignalling();
+    }, wait * 1000);
   }
 
   /**
@@ -482,7 +624,7 @@ export class Net {
     // already connected is about to be dealt a fresh slot with the welcome.
     this.#slots.clear();
     this.#slots.set(this.selfId, 0);
-    for (const id of this.#connections.keys()) this.#sendWelcome(id);
+    for (const id of this.#links.keys()) this.#sendWelcome(id);
   }
 
   /**
@@ -548,15 +690,15 @@ export class Net {
       return;
     }
 
-    this.broadcast({ t: 'loading', ready: this.#ready.size, total: this.#connections.size + 1 });
-    this.#events.onLoading(this.#ready.size, this.#connections.size + 1);
+    this.broadcast({ t: 'loading', ready: this.#ready.size, total: this.#links.size + 1 });
+    this.#events.onLoading(this.#ready.size, this.#links.size + 1);
     this.#checkGate();
   }
 
   /** Host only. Opens the run once nobody is left to wait for. */
   #checkGate(): void {
     if (this.#going || !this.#gateOpen) return;
-    if (this.#ready.size < this.#connections.size + 1) return;
+    if (this.#ready.size < this.#links.size + 1) return;
     this.#letEveryoneIn();
   }
 
@@ -578,21 +720,39 @@ export class Net {
    * the rest of the run.
    */
   tick(dt: number): void {
+    // The jitter buffers keep adapting whatever the session is doing: they are
+    // measured in real seconds, and a peer standing in a menu is still moving.
+    for (const clock of this.#clocks.values()) clock.tick(dt);
     if (this.role === 'offline') return;
-    const { heartbeatSeconds, timeoutSeconds } = this.#config.connection;
+    const { heartbeatSeconds, unstableSeconds, timeoutSeconds } = this.#config.connection;
 
     this.#pingTimer -= dt;
     if (this.#pingTimer <= 0) {
       this.#pingTimer = heartbeatSeconds;
-      this.broadcast({ t: 'ping', id: this.selfId });
+      const n = ++this.#pingNonce;
+      this.#pings.set(n, nowSeconds());
+      // Older than any answer could reasonably be. Left alone this would grow
+      // for the length of a session.
+      for (const [nonce, at] of this.#pings) {
+        if (nowSeconds() - at > timeoutSeconds) this.#pings.delete(nonce);
+      }
+      this.broadcast({ t: 'ping', id: this.selfId, n });
     }
 
-    for (const id of [...this.#connections.keys()]) {
-      const silence = (this.#silence.get(id) ?? 0) + dt;
-      this.#silence.set(id, silence);
-      if (silence < timeoutSeconds) continue;
-      console.warn('[net] no word from', id, 'for', timeoutSeconds, 'seconds - dropping');
-      this.#close(id);
+    for (const link of [...this.#links.values()]) {
+      link.silence += dt;
+
+      // Three stages, not two. A link that has gone quiet for a couple of
+      // seconds is a bad connection, and dropping somebody for it is the
+      // failure this split exists to prevent: their body would leave, their
+      // key would fall on the floor and the run would carry on without them
+      // over a wifi hiccup. Only real silence is a real disconnect.
+      if (link.silence >= timeoutSeconds) {
+        console.warn('[net] no word from', link.id, 'for', timeoutSeconds, 'seconds - dropping');
+        this.#close(link.id);
+        continue;
+      }
+      link.health = link.silence >= unstableSeconds ? 'unstable' : 'good';
     }
 
     // Nobody is stranded at a spinner by one peer who never finished loading.
@@ -604,12 +764,77 @@ export class Net {
     }
   }
 
+  /* --- connection quality -------------------------------------------------- */
+
+  /**
+   * How this browser's own link is doing, or null when there is nothing to
+   * report. A client has exactly one link that matters - the host's. A host has
+   * one per player, and the honest answer for a single indicator is the worst
+   * of them: a host whose game is fine while one player's is not still has a
+   * problem, and it is one only the host can see.
+   */
+  linkQuality(): LinkQuality | null {
+    let worst: LinkQuality | null = null;
+    for (const link of this.#links.values()) {
+      const quality = this.#clock(link.id).quality(link.health);
+      if (!worst) {
+        worst = quality;
+        continue;
+      }
+      // Health outranks latency, and only breaks ties with it. A slow link that
+      // is still delivering must never displace a silent one in the report.
+      const rank = RANK[quality.health] - RANK[worst.health];
+      if (rank > 0 || (rank === 0 && (quality.rttMs ?? 0) > (worst.rttMs ?? 0))) worst = quality;
+    }
+    return worst;
+  }
+
+  /** The same figures for one peer, whether or not there is a direct link. */
+  qualityOf(id: string): LinkQuality {
+    return this.#clock(id).quality(this.#links.get(id)?.health ?? 'good');
+  }
+
+  /**
+   * The clock a body replicated by `id` should be played back against. Handed
+   * to every `TransformBuffer`, which is the only thing above `net/` that has
+   * any business knowing this exists: the buffer asks it how far in the past to
+   * draw, and it answers with what this link is measurably doing.
+   *
+   * Every hunter shares the host's, because they all come off one machine on
+   * one send.
+   */
+  clockFor(id: string): PeerClock {
+    return this.#clock(id);
+  }
+
+  /**
+   * Whoever is running the simulation: the host's code on a client, this
+   * browser's own otherwise. What a client's hunters are timed against.
+   */
+  get hostId(): string {
+    return this.role === 'client' && this.#hostCode ? this.#hostCode : this.#code;
+  }
+
+  /**
+   * The clock for one player, made on demand. Peers a client has no link to -
+   * its two teammates, in the star - still have one, because their transforms
+   * still arrive stamped with a clock of their own.
+   */
+  #clock(id: string): PeerClock {
+    let clock = this.#clocks.get(id);
+    if (!clock) {
+      clock = new PeerClock(this.#config.simulation.interpolation, this.#config.connection.rttSamples);
+      this.#clocks.set(id, clock);
+    }
+    return clock;
+  }
+
   /** Hangs up on a peer and puts everyone else in the same position. */
   #close(id: string): void {
-    const connection = this.#connections.get(id);
-    this.#connections.delete(id);
-    this.#silence.delete(id);
-    connection?.close();
+    const link = this.#links.get(id);
+    this.#links.delete(id);
+    link?.state?.close();
+    link?.connection.close();
     this.#onLost(id);
   }
 
@@ -780,11 +1005,11 @@ export class Net {
   }
 
   #sendWelcome(id: string): void {
-    const connection = this.#connections.get(id);
-    if (!connection) return;
+    const link = this.#links.get(id);
+    if (!link) return;
     const slot = this.#claimSlot(id);
 
-    this.#send(connection, {
+    this.#send(link, {
       t: 'welcome',
       id,
       host: this.#code,
@@ -819,27 +1044,103 @@ export class Net {
 
   #register(connection: DataConnection): void {
     const id = shortId(connection.peer);
-    this.#connections.set(id, connection);
-    this.#silence.set(id, 0);
+    const link: Link = { id, connection, state: null, silence: 0, health: 'good' };
+    this.#links.set(id, link);
+    this.#clock(id);
 
     connection.on('data', (data) => {
-      this.#silence.set(id, 0);
+      link.silence = 0;
       this.#receive(id, data as NetMessage);
     });
     const lost = (): void => {
-      if (this.#connections.get(id) !== connection) return;
-      this.#connections.delete(id);
-      this.#silence.delete(id);
+      if (this.#links.get(id) !== link) return;
+      this.#links.delete(id);
+      link.state?.close();
       this.#onLost(id);
     };
+    // A connection that CLOSES is a peer that has gone, and is not waited out:
+    // the silence timeout is for a link that might still come back, and this
+    // one has already said it is not going to.
     connection.on('close', lost);
     connection.on('error', (error) => {
       console.warn('[net] connection error', id, error);
       lost();
     });
+
+    this.#openStateChannel(link);
+  }
+
+  /**
+   * Opens the unreliable half of this link.
+   *
+   * It is a second data channel on the SAME peer connection PeerJS already
+   * negotiated, declared out of band on a fixed id so both ends can create it
+   * without another offer/answer round - which is the whole reason it is done
+   * this way rather than by opening a second PeerJS connection. One ICE
+   * negotiation per pair, two channels over it.
+   *
+   * PeerJS itself only offers `reliable: true | false`, and its `false` is
+   * unordered but still retransmitted. Going to the peer connection directly is
+   * what buys `maxRetransmits: 0`: a snapshot that has to be re-sent has already
+   * been replaced by a newer one, and delivering it late is worse than not at all.
+   */
+  #openStateChannel(link: Link): void {
+    const peerConnection = link.connection.peerConnection;
+    if (!peerConnection || link.state) return;
+    const { id, ordered, maxRetransmits } = this.#config.channels.state;
+
+    let channel: RTCDataChannel;
+    try {
+      channel = peerConnection.createDataChannel(STATE_LABEL, { negotiated: true, id, ordered, maxRetransmits });
+    } catch (error) {
+      // Nothing here is fatal: every state message falls back to the reliable
+      // connection, which is exactly where they all used to go.
+      console.warn('[net] no unreliable channel - snapshots will use the reliable one', error);
+      return;
+    }
+
+    channel.onmessage = (event: MessageEvent<string>) => {
+      link.silence = 0;
+      try {
+        this.#receive(link.id, JSON.parse(event.data) as NetMessage);
+      } catch (error) {
+        console.warn('[net] bad state message', error);
+      }
+    };
+    // Losing this channel is not losing the peer. The link carries on over the
+    // reliable connection until the peer connection itself goes.
+    channel.onclose = () => {
+      if (link.state === channel) link.state = null;
+    };
+    channel.onerror = () => {
+      if (link.state === channel) link.state = null;
+    };
+
+    link.state = channel;
+  }
+
+  /**
+   * Where a stamped message belongs on THIS machine's timeline. Everything
+   * continuous goes through here on arrival, and nothing above `net/` ever sees
+   * an arrival time - which is the point, because an arrival time carries the
+   * connection's jitter and a send time does not.
+   */
+  #place(from: string, message: NetMessage): number {
+    const local = nowSeconds();
+    const stamped = message as Partial<Stamped>;
+    if (stamped.st === undefined) return local;
+
+    // The sender, not the relay: in the star a client hears about its teammates
+    // through the host, and the clock that matters is the one they moved on.
+    const source = 'id' in message && typeof message.id === 'string' ? message.id : from;
+    const clock = this.#clock(source);
+    if (stamped.q !== undefined) clock.countSequence(stamped.q);
+    return clock.accept(stamped.st, local) ?? local;
   }
 
   #receive(from: string, message: NetMessage): void {
+    const at = this.#place(from, message);
+
     switch (message.t) {
       case 'welcome': {
         this.#run = message.run;
@@ -893,10 +1194,18 @@ export class Net {
         this.#events.onRunGo();
         break;
       case 'ping':
-        // The arrival is the whole message. Silence is what it prevents.
+        // Arriving is most of what it does - silence is what it prevents - but
+        // quoting the nonce straight back is what turns it into a measurement.
+        this.#sendTo(from, { t: 'pong', id: this.selfId, to: message.id, n: message.n });
         break;
+      case 'pong': {
+        if (message.to !== this.selfId) break;
+        const sent = this.#pings.get(message.n);
+        if (sent !== undefined) this.#clock(message.id).observeRoundTrip(nowSeconds() - sent);
+        break;
+      }
       case 'lobbyMove':
-        this.#events.onLobbyMove(message.id, message.x, message.z, message.yaw);
+        this.#events.onLobbyMove(message.id, message.x, message.z, message.yaw, at);
         break;
       case 'dart':
         this.#events.onDartThrown(
@@ -933,7 +1242,7 @@ export class Net {
         this.#events.onChat(message.id, message.text);
         break;
       case 'move':
-        this.#events.onPeerMove(message.id, message);
+        this.#events.onPeerMove(message.id, message, at);
         break;
       case 'door':
         this.#events.onDoor(message.id, message.open);
@@ -977,7 +1286,7 @@ export class Net {
         this.#events.onNoise(message.id, message.kind, message.x, message.z);
         break;
       case 'enemy':
-        this.#events.onEnemy(message);
+        this.#events.onEnemy(message, at);
         break;
       case 'hit':
         // Addressed, not broadcast: only the caught player applies it.
@@ -1130,6 +1439,7 @@ export class Net {
 
   #removePlayer(id: string): void {
     this.#players.delete(id);
+    this.#clocks.delete(id);
     this.#scenes.delete(id);
     this.#cosmetics.delete(id);
     this.#names.delete(id);
@@ -1139,26 +1449,65 @@ export class Net {
     this.#events.onPeerLeave(id);
   }
 
+  /**
+   * Passes a message on to everyone but its sender, keeping the stamp it
+   * arrived with. Re-stamping it here would measure the trip from the host
+   * rather than from the peer that actually moved, and the buffer at the far
+   * end would be covering the wrong link's jitter.
+   */
   #relay(message: NetMessage, exceptId: string): void {
-    for (const [id, connection] of this.#connections) {
-      if (id !== exceptId) this.#send(connection, message);
+    for (const [id, link] of this.#links) {
+      if (id !== exceptId) this.#send(link, message);
     }
   }
 
   broadcast(message: NetMessage): void {
-    for (const connection of this.#connections.values()) this.#send(connection, message);
+    this.#stamp(message);
+    for (const link of this.#links.values()) this.#send(link, message);
   }
 
   /** Host -> one peer. Used where an answer concerns nobody else. */
   #sendTo(id: string, message: NetMessage): void {
-    const connection = this.#connections.get(id);
-    if (connection) this.#send(connection, message);
+    const link = this.#links.get(id);
+    if (!link) return;
+    this.#stamp(message);
+    this.#send(link, message);
   }
 
-  #send(connection: DataConnection, message: NetMessage): void {
-    if (!connection.open) return;
+  /**
+   * Writes this browser's clock and packet counter onto anything continuous, on
+   * the way out and in one place, so nothing above `net/` has to know that
+   * replicated motion is timed at all.
+   */
+  #stamp(message: NetMessage): void {
+    if (!STATE_MESSAGES.has(message.t)) return;
+    const stamped = message as Partial<Stamped>;
+    if (stamped.st !== undefined) return; // already been through here
+    stamped.q = this.#seq++;
+    stamped.st = nowSeconds();
+  }
+
+  #send(link: Link, message: NetMessage): void {
+    if (STATE_MESSAGES.has(message.t) && !mustArrive(message)) {
+      const channel = link.state;
+      if (channel?.readyState === 'open') {
+        // A backed-up unreliable channel is a link that has stopped moving
+        // data, and every byte waiting in it is already out of date. Dropping
+        // them is what stops a recovered link replaying a minute of stale
+        // positions - which looks exactly like a body teleporting.
+        if (channel.bufferedAmount > STATE_BUFFER_LIMIT) return;
+        try {
+          channel.send(JSON.stringify(message));
+          return;
+        } catch (error) {
+          console.warn('[net] state channel send failed', error);
+        }
+      }
+    }
+
+    if (!link.connection.open) return;
     try {
-      connection.send(message);
+      link.connection.send(message);
     } catch (error) {
       console.warn('[net] send failed', error);
     }
@@ -1171,14 +1520,26 @@ export class Net {
     this.#scenes.clear();
     this.#cosmetics.clear();
     this.#names.clear();
-    this.#silence.clear();
     this.#ready.clear();
     this.#gateOpen = false;
     this.#going = false;
-    for (const connection of this.#connections.values()) connection.close();
-    this.#connections.clear();
+    this.#closeLinks();
+    if (this.#signalTimer) clearTimeout(this.#signalTimer);
+    this.#signalTimer = null;
+    this.#signalRetries = 0;
     this.#peer?.destroy();
     this.#peer = null;
+  }
+
+  /** Hangs up every link, both halves of each, and forgets what they measured. */
+  #closeLinks(): void {
+    for (const link of this.#links.values()) {
+      link.state?.close();
+      link.connection.close();
+    }
+    this.#links.clear();
+    this.#clocks.clear();
+    this.#pings.clear();
   }
 
   async close(): Promise<void> {
@@ -1201,16 +1562,23 @@ export class Net {
     this.#hostCode = '';
     this.#scene = 'lobby';
     this.#slots.clear();
-    this.#silence.clear();
     this.#ready.clear();
     this.#gateOpen = false;
     this.#going = false;
     for (const call of this.#calls.values()) call.close();
     this.#calls.clear();
     for (const id of [...this.#players]) this.#removePlayer(id);
-    for (const connection of this.#connections.values()) connection.close();
-    this.#connections.clear();
+    this.#closeLinks();
   }
+}
+
+/**
+ * A message that normally rides the lossy channel but this once cannot be
+ * allowed to disappear. It says so in the message itself rather than at the
+ * call site, so a host relaying it on makes the same decision the sender did.
+ */
+function mustArrive(message: NetMessage): boolean {
+  return message.t === 'move' && message.final === true;
 }
 
 function shortId(peerId: string): string {

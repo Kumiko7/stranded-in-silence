@@ -289,6 +289,10 @@
   "hud.voice.pushToTalk": "押して話す",
   "hud.voice.holdHint": "{key} 長押し",
   "hud.voice.unavailable": "マイクなし",
+
+  "hud.connection.poor": "接続が不安定",
+  "hud.connection.unstable": "接続が途切れています",
+  "hud.connection.detail": "{ms} ms · 損失 {loss}%",
   "hud.objective.findExit": "出口を探せ。",
   "hud.objective.needKey": "この扉には鍵が要る。",
 
