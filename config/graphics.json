@@ -6,6 +6,9 @@
 
   "pixelRatioCap": 2.0,
   "antialias": true,
+
+  "$powerPreference": "Which GPU to ask for, on a machine with more than one. A laptop with an Intel chip and a discrete card gives WebGL the INTEGRATED one unless a page asks otherwise, and it is not close - that is the difference between a machine that runs this and one that does not, and it is the machines this setting exists for that have two GPUs. `high-performance` asks for the discrete one; `low-power` is the browser default and would trade the frame rate for battery. Like `antialias`, it is a context attribute fixed when the context is created, so no quality tier may change it.",
+  "powerPreference": "high-performance",
   "toneMapping": "aces",
   "exposure": 0.95,
 
@@ -40,6 +43,27 @@
   },
 
   "renderDistanceRooms": 3,
+
+  "$quality": "Player-facing quality tiers. Each is an OVERLAY merged over everything above, exactly the way a map's or a difficulty's overrides are, so a tier is data and adding one is a config change. `default` is what a profile that has never opened the options menu plays on. Only put things in here that are worth a frame on a slow machine AND cost little to look at: the four below are, in measured order of what they buy, the pixel count, the shadow casters, the light budget and the render distance. `antialias` is deliberately absent - it is a WebGL context flag, so changing it needs the context rebuilt, and a setting that quietly waits for a restart is worse than one that is not offered.",
+  "$note": "`maxActiveLights` and `shadows.maxCastingLights` take effect on the NEXT scene, not immediately: the whole point of a fixed light budget is that a shader's light count never changes while a world is up (see `$lights`). Everything else here applies the moment it is chosen.",
+  "quality": {
+    "default": "high",
+    "tiers": {
+      "high": {},
+      "medium": {
+        "pixelRatioCap": 1.0,
+        "maxActiveLights": 5,
+        "shadows": { "maxCastingLights": 1 }
+      },
+      "low": {
+        "pixelRatioCap": 0.75,
+        "maxActiveLights": 4,
+        "renderDistanceRooms": 2,
+        "$shadows": "Zero CASTERS rather than `enabled: false`, so this and the player's own shadow switch never contradict each other. With no lamp in the casting pool no shadow map is ever rendered, which is the same saving; turning the switch itself off from here would leave it reading `on` in a menu while doing nothing.",
+        "shadows": { "maxCastingLights": 0 }
+      }
+    }
+  },
 
   "culling": {
     "$doc": "The manor is a graph of sealed boxes joined by doorways, so 'can this room be seen' has an exact answer: flood out from the cell the camera stands in, through openings that are not shut doors, narrowing the screen rectangle at every doorway. A room nothing can see into is not drawn. This runs INSIDE `renderDistanceRooms` - it can only ever hide something the distance test was already about to hide, so it cannot introduce pop-in.",

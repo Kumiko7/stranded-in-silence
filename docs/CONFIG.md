@@ -66,6 +66,8 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | How gently a lamp takes or loses one of those slots | `graphics.json` | `lightFadeSeconds` — a switch is a light visibly coming on as you walk up to it |
 | How much of the map is drawn | `graphics.json` | `renderDistanceRooms` for the hard limit, `culling.*` for the portal flood inside it |
 | How far the brightness slider may be dragged | `graphics.json` | `brightnessRange` — the slider multiplies `exposure`, it does not replace it |
+| Which GPU to ask for | `graphics.json` | `powerPreference` — a context attribute like `antialias`, so it is fixed when the renderer is built and no quality tier may change it. The desktop shell asks again at the process level; see [`ARCHITECTURE.md`](ARCHITECTURE.md) → "The desktop build" |
+| What the graphics quality tiers do, or adding one | `graphics.json` | `quality.tiers.<id>` — an overlay over the block above, applied LAST so a player's machine wins over a map's own overrides. Nothing in `src/` lists the tiers; a new one needs only an `options.quality.<id>` locale key beside it. See [`systems/RENDERING.md`](systems/RENDERING.md) → "Quality tiers" |
 | How far the sensitivity slider may be dragged | `input.json` | `mouse.sensitivityRange` |
 | Which buses get a volume slider | `audio.json` | `buses.<id>.labelKey` — a bus without one is not offered (`ui` deliberately has none) |
 | Which stats the scoreboard shows, and which way is better | `game.json` | `scoring.categories` — ids must be counters `src/world/runStats.ts` keeps |

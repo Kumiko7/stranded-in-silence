@@ -20,7 +20,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { ownGeometryCache } from '../../../lib/build';
+import { mm, ownGeometryCache } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { poseMatrix, subUV, tiltMatrix } from '../../../lib/merge';
@@ -97,10 +97,10 @@ export function cyl(rTop: number, rBot: number, h: number, seg = 10): THREE.Cyli
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 export function ball(r: number, seg = 10): THREE.SphereGeometry {
-  const key = `${r},${seg}`;
+  const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(r, seg, Math.max(4, Math.round(seg / 2)));
+    geo = new THREE.SphereGeometry(mm(r), seg, Math.max(4, Math.round(seg / 2)));
     sphereCache.set(key, geo);
   }
   return geo;
@@ -108,10 +108,10 @@ export function ball(r: number, seg = 10): THREE.SphereGeometry {
 
 const coneCache = new Map<string, THREE.ConeGeometry>();
 export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
-  const key = `${r},${h},${seg}`;
+  const key = `${mm(r)},${mm(h)},${seg}`;
   let geo = coneCache.get(key);
   if (!geo) {
-    geo = new THREE.ConeGeometry(r, h, seg);
+    geo = new THREE.ConeGeometry(mm(r), mm(h), seg);
     coneCache.set(key, geo);
   }
   return geo;
@@ -119,10 +119,10 @@ export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 export function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
-  const key = `${r},${tube},${seg}`;
+  const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
-    geo = new THREE.TorusGeometry(r, tube, 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -130,10 +130,10 @@ export function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
 
 const planeCache = new Map<string, THREE.PlaneGeometry>();
 export function quad(w: number, h: number): THREE.PlaneGeometry {
-  const key = `${w},${h}`;
+  const key = `${mm(w)},${mm(h)}`;
   let geo = planeCache.get(key);
   if (!geo) {
-    geo = new THREE.PlaneGeometry(w, h);
+    geo = new THREE.PlaneGeometry(mm(w), mm(h));
     planeCache.set(key, geo);
   }
   return geo;
@@ -141,10 +141,10 @@ export function quad(w: number, h: number): THREE.PlaneGeometry {
 
 const discCache = new Map<string, THREE.CircleGeometry>();
 export function disc(r: number, seg = 20): THREE.CircleGeometry {
-  const key = `${r},${seg}`;
+  const key = `${mm(r)},${seg}`;
   let geo = discCache.get(key);
   if (!geo) {
-    geo = new THREE.CircleGeometry(r, seg);
+    geo = new THREE.CircleGeometry(mm(r), seg);
     discCache.set(key, geo);
   }
   return geo;

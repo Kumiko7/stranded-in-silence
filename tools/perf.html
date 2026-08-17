@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Frame cost — where a map's milliseconds go</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #0b0c11;
+        color: #cfd3e0;
+        font: 12px/1.5 ui-monospace, Consolas, monospace;
+      }
+      h1 { font-size: 14px; letter-spacing: 0.14em; text-transform: uppercase; color: #8e94a8; }
+      #status { white-space: pre; margin: 12px 0; }
+      #status.done { color: #86d18a; }
+      #status.failed { color: #e0705f; }
+      /*
+        CSS size only. The drawing buffer is set from the query string, so these
+        are 1920x1080 frames shown as thumbnails — and they must stay VISIBLE:
+        a `display: none` canvas has its frames skipped by the compositor, which
+        reports as a GPU time near zero.
+      */
+      canvas { width: 640px; height: 360px; border: 1px solid #23273a; margin-right: 8px; }
+      .fx { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <h1>Frame cost</h1>
+    <div id="status">starting…</div>
+    <canvas id="shot-canvas"></canvas>
+    <script type="module" src="/tools/perf.ts"></script>
+  </body>
+</html>

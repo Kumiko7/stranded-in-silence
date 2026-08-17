@@ -1466,6 +1466,18 @@ textarea {
   gap: 0.9rem;
 }
 
+/* A line under a control, for the one case where a setting cannot honestly say
+   it took effect immediately - the quality tier's light budget waits for the
+   next map. A sibling of the field rather than part of it, so it reads as a
+   footnote to the row above and not as a second label. */
+.field__note {
+  margin: 0;
+  padding: 0.1rem 0 0.5rem;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  opacity: 0.62;
+}
+
 /* The switch sits where the slider's track ends, so its label lands in the same
    value column every other row uses. */
 .field__control--switch {

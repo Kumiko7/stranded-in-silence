@@ -405,7 +405,11 @@ async function runCycle(renderer: Renderer, cycle: number): Promise<Sample> {
     renderer.camera.updateMatrixWorld(true);
 
     const start = performance.now();
-    world.updateVisibility(renderer.camera, x, z, config.graphics.renderDistanceRooms);
+    // `updateVisibility` takes METRES. Passing the room count raw asked for a
+    // three-metre render distance, which culls everything but the cell the
+    // camera stands in - so every draw-call and triangle number this tool has
+    // ever printed was one room's worth. `Game` has always multiplied.
+    world.updateVisibility(renderer.camera, x, z, config.graphics.renderDistanceRooms * config.world.grid.cellSize);
     renderer.updateLights(1 / 60, x, z);
     renderer.render();
     // The GPU is a pipe behind this, so the number is CPU frame cost. It is the

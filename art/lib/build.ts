@@ -19,13 +19,28 @@
 import * as THREE from 'three';
 import type { Collider } from './contract';
 
+/**
+ * A dimension rounded to the nearest millimetre, for use as a cache key AND as
+ * the size actually built.
+ *
+ * Art sizes almost everything from the seeded RNG, so a cache keyed on the raw
+ * float practically never hits: a hundred pebbles are a hundred radii and a
+ * hundred geometries, built and freed on every single load. Rounding first
+ * collapses that to the handful of distinct millimetre sizes the room really
+ * uses. Nobody can see a millimetre on a pebble, and it is the same rounding
+ * `boxGeometry` has always done - the only change is that the shape built now
+ * matches the key it was filed under instead of being the first caller's exact
+ * float.
+ */
+export const mm = (value: number): number => Math.round(value * 1000) / 1000;
+
 const boxCache = new Map<string, THREE.BoxGeometry>();
 
 export function boxGeometry(w: number, h: number, d: number): THREE.BoxGeometry {
-  const key = `${w.toFixed(3)},${h.toFixed(3)},${d.toFixed(3)}`;
+  const key = `${mm(w)},${mm(h)},${mm(d)}`;
   let geo = boxCache.get(key);
   if (!geo) {
-    geo = new THREE.BoxGeometry(w, h, d);
+    geo = new THREE.BoxGeometry(mm(w), mm(h), mm(d));
     boxCache.set(key, geo);
   }
   return geo;

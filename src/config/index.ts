@@ -66,17 +66,55 @@ export function loadConfig(): Config {
   return base;
 }
 
+/**
+ * The chosen quality tier, as an id into `graphics.json -> quality.tiers`.
+ *
+ * Module state rather than a parameter, because the alternative is threading it
+ * through every call that reads graphics - `configForMap`, `configForRun`,
+ * `lobbyGraphics` and every one of their callers - to express one fact that is
+ * true of the whole session. `main.tsx` sets it from the save profile at boot
+ * and again whenever the options menu changes it, and it is the only writer.
+ */
+let quality: string | null = null;
+
+export function setQuality(tierId: string | null): void {
+  quality = tierId;
+}
+
+export function qualityTierIds(): string[] {
+  return Object.keys(loadConfig().graphics.quality?.tiers ?? {});
+}
+
+/** What a profile that has never chosen plays on. */
+export function defaultQualityTier(): string {
+  const block = loadConfig().graphics.quality;
+  return block?.default ?? qualityTierIds()[0] ?? 'high';
+}
+
+/**
+ * The chosen tier's overlay on top of a graphics block.
+ *
+ * Applied LAST, after the map's and the lobby's own overrides, because it is
+ * the player's machine talking and it should win: a map that asks for six
+ * lights does not get to overrule someone who has said their laptop cannot
+ * draw them.
+ */
+function withQuality(graphics: GraphicsConfig): GraphicsConfig {
+  const tiers = graphics.quality?.tiers;
+  if (!tiers) return graphics;
+  return deepMerge(graphics, tiers[quality ?? graphics.quality?.default ?? '']);
+}
+
 /** Base config with the chosen map's overrides applied. This is what a run uses. */
 export function configForMap(mapId: string): Config {
   const cfg = loadConfig();
   const entry = cfg.maps.maps[mapId];
   if (!entry) throw new Error(`config: unknown map "${mapId}"`);
-  if (!entry.overrides) return cfg;
 
   return {
     ...cfg,
-    graphics: deepMerge(cfg.graphics, entry.overrides.graphics),
-    world: deepMerge(cfg.world, entry.overrides.world),
+    graphics: withQuality(deepMerge(cfg.graphics, entry.overrides?.graphics)),
+    world: deepMerge(cfg.world, entry.overrides?.world),
   };
 }
 
@@ -104,7 +142,12 @@ export function configForRun(mapId: string, difficultyId: string): Config {
 /** Graphics with `graphics.json -> lobby` applied. The lobby is the bright place. */
 export function lobbyGraphics(): GraphicsConfig {
   const { graphics } = loadConfig();
-  return deepMerge(graphics, graphics.lobby);
+  return withQuality(deepMerge(graphics, graphics.lobby));
+}
+
+/** Graphics for the main menu and anything else outside a scene. */
+export function menuGraphics(): GraphicsConfig {
+  return withQuality(loadConfig().graphics);
 }
 
 export function enabledMapIds(): string[] {

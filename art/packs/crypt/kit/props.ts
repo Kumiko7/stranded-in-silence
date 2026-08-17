@@ -28,7 +28,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { boxGeometry, ownGeometryCache } from '../../../lib/build';
+import { boxGeometry, mm, ownGeometryCache } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
@@ -107,10 +107,10 @@ export function wallPose(
  */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 export function cyl(rTop: number, rBot: number, h: number, seg = 9, open = false): THREE.CylinderGeometry {
-  const key = `${rTop},${rBot},${h},${seg},${open}`;
+  const key = `${mm(rTop)},${mm(rBot)},${mm(h)},${seg},${open}`;
   let geo = cylCache.get(key);
   if (!geo) {
-    geo = new THREE.CylinderGeometry(rTop, rBot, h, seg, 1, open);
+    geo = new THREE.CylinderGeometry(mm(rTop), mm(rBot), mm(h), seg, 1, open);
     cylCache.set(key, geo);
   }
   return geo;
@@ -118,10 +118,10 @@ export function cyl(rTop: number, rBot: number, h: number, seg = 9, open = false
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 export function ball(r: number, seg = 9): THREE.SphereGeometry {
-  const key = `${r},${seg}`;
+  const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(r, seg, Math.max(4, Math.round(seg / 2)));
+    geo = new THREE.SphereGeometry(mm(r), seg, Math.max(4, Math.round(seg / 2)));
     sphereCache.set(key, geo);
   }
   return geo;
@@ -129,10 +129,10 @@ export function ball(r: number, seg = 9): THREE.SphereGeometry {
 
 const coneCache = new Map<string, THREE.ConeGeometry>();
 export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
-  const key = `${r},${h},${seg}`;
+  const key = `${mm(r)},${mm(h)},${seg}`;
   let geo = coneCache.get(key);
   if (!geo) {
-    geo = new THREE.ConeGeometry(r, h, seg);
+    geo = new THREE.ConeGeometry(mm(r), mm(h), seg);
     coneCache.set(key, geo);
   }
   return geo;
@@ -140,13 +140,13 @@ export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 export function ring(r: number, tube: number, seg = 12): THREE.TorusGeometry {
-  const key = `${r},${tube},${seg}`;
+  const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
     // Six sides round the tube, not twelve: a 6 x 12 torus is 144 triangles for
     // a band nobody can resolve, and that detail was 15 % of a whole map once
     // (see systems/RENDERING.md).
-    geo = new THREE.TorusGeometry(r, tube, 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -154,10 +154,10 @@ export function ring(r: number, tube: number, seg = 12): THREE.TorusGeometry {
 
 const planeCache = new Map<string, THREE.PlaneGeometry>();
 export function quad(w: number, h: number): THREE.PlaneGeometry {
-  const key = `${w},${h}`;
+  const key = `${mm(w)},${mm(h)}`;
   let geo = planeCache.get(key);
   if (!geo) {
-    geo = new THREE.PlaneGeometry(w, h);
+    geo = new THREE.PlaneGeometry(mm(w), mm(h));
     planeCache.set(key, geo);
   }
   return geo;
@@ -165,10 +165,10 @@ export function quad(w: number, h: number): THREE.PlaneGeometry {
 
 const discCache = new Map<string, THREE.CircleGeometry>();
 export function disc(r: number, seg = 18): THREE.CircleGeometry {
-  const key = `${r},${seg}`;
+  const key = `${mm(r)},${seg}`;
   let geo = discCache.get(key);
   if (!geo) {
-    geo = new THREE.CircleGeometry(r, seg);
+    geo = new THREE.CircleGeometry(mm(r), seg);
     discCache.set(key, geo);
   }
   return geo;
@@ -884,7 +884,15 @@ export function skull(room: Room, x: number, y: number, z: number, rotationY = 0
   const cos = Math.cos(rotationY);
   const out = (d: number, up = 0, side = 0): Vec3 => [x - sin * d + cos * side, y + up, z - cos * d - sin * side];
 
-  room.geo(material, ball(s, 9), tiltMatrix([x, y + s * 0.9, z], [0, rotationY, 0], [0.92, 1.05, 1.1]), { tile: 0.25, ...NO_SHADOW });
+  /*
+   * Seven segments on an 11 cm dome, and four on the sockets below.
+   *
+   * A skull is the most repeated object in this pack - the ossuary is a wall of
+   * them - and at nine segments the dome alone was 72 triangles. What makes a
+   * skull read is written three lines down and it is not the roundness: it is
+   * two dark spots the right size in the right place, and those cost nothing.
+   */
+  room.geo(material, ball(s, 7), tiltMatrix([x, y + s * 0.9, z], [0, rotationY, 0], [0.92, 1.05, 1.1]), { tile: 0.25, ...NO_SHADOW });
   // The face plate: a shorter box forward of the dome, which is what stops a
   // skull reading as a ball.
   room.box(material, [s * 1.3, s * 0.9, s * 0.5], out(s * 0.75, s * 0.5), rotationY, { tile: 0.2, castShadow: false });
@@ -893,9 +901,9 @@ export function skull(room: Room, x: number, y: number, z: number, rotationY = 0
   // stone, and at `stoneDark` under a tallow lamp they were mid-grey on beige - a
   // cairn of them read as a pile of potatoes from four metres.
   for (const side of [-1, 1]) {
-    room.geo('bitumen', ball(s * 0.42, 6), poseMatrix(out(s * 0.94, s * 1.0, side * s * 0.44)), FLAT);
+    room.geo('bitumen', ball(s * 0.42, 4), poseMatrix(out(s * 0.94, s * 1.0, side * s * 0.44)), FLAT);
   }
-  room.geo('bitumen', ball(s * 0.24, 5), tiltMatrix(out(s * 0.98, s * 0.58), [0, rotationY, 0], [0.7, 1.4, 1]), FLAT);
+  room.geo('bitumen', ball(s * 0.24, 4), tiltMatrix(out(s * 0.98, s * 0.58), [0, rotationY, 0], [0.7, 1.4, 1]), FLAT);
   // Cheekbones, and the jaw hanging open under them.
   for (const side of [-1, 1]) {
     room.box(material, [s * 0.3, s * 0.22, s * 0.4], out(s * 0.7, s * 0.66, side * s * 0.6), rotationY, { tile: 0.2, castShadow: false });

@@ -341,7 +341,7 @@ Rules:
 | Metric | Budget |
 | --- | --- |
 | Draw calls | ≤ 40 |
-| Triangles | ≤ 25 000 |
+| Triangles | ≤ 21 000 |
 | Real lights | ≤ `ctx.lightBudget` (2 for 1x1, +1 per extra cell, max 4) |
 | Shadow-casting lights | ≤ 1 |
 | Unique materials created | 0 (use `ctx.materials`) |
@@ -350,18 +350,31 @@ These numbers are **guidance**. `npm run validate:art` reports draw calls,
 triangles and collider counts as warnings, not errors: going over for a set piece
 is a conversation with whoever is profiling, not a reason to make a room worse.
 
-**The triangle budget was 40 000 and never fired**, which is the same as not
-having one — the manor's worst room is 8 400. Kerberos Deep spent the whole
-allowance a room at a time without ever tripping it, ending up at 469k triangles
-standing in a map against the manor's 155k and `abyss.vents` alone at 31 305, and
-what that cost was a run that felt heavy rather than a warning anybody saw. 25 000
-sits just above the largest 1x1 that ships today (`abyss.archive`, 23 878, and
-`crypt.ossuary` right behind it at 23 307), so it says nothing about rooms already
-reviewed and speaks up for the next one to grow — which it did: it caught the
-crypt's bone chapel at 96 000 on its first build, all of it in one detail.
-Per-map totals are in [`../systems/RENDERING.md`](../systems/RENDERING.md) →
-"What each map costs"; `tools/leakcheck.html?props=1` says which art function is
-spending it, which is a more useful place to start than a room.
+**The triangle number is a ratchet, not a ceiling.** It is always set just above
+the largest 1x1 that actually ships, so it says nothing about rooms already
+reviewed and speaks up for the next one to grow — which means it comes DOWN
+every time a pass reduces the worst room:
+
+| | Set to | Because the worst 1x1 was |
+| --- | --- | --- |
+| originally | 40 000 | 8 400 (the manor). Headroom nobody would use, so it never fired — Kerberos Deep spent the whole allowance a room at a time without tripping it, ending at 469k standing against the manor's 155k |
+| after abyss | 25 000 | `abyss.archive`, 23 878. Caught the crypt's bone chapel at 96 000 on its first build, all of it in one detail |
+| now | 21 000 | `crypt.ossuary`, 20 730 |
+
+The last step down was paid for rather than declared: `abyss.archive` came from
+23 878 to 18 178 and `abyss.jelly` from 20 760 to 16 440, all of it the same
+reduction this file keeps recommending — segment counts on small round things
+there are hundreds of. Per-map totals are in
+[`../systems/RENDERING.md`](../systems/RENDERING.md) → "What each map costs";
+`tools/leakcheck.html?props=1` says which art function is spending it, which is a
+more useful place to start than a room.
+
+**Draw calls are the budget that matters most and the one hardest to spend
+well.** A frame on the heaviest map is 400-500 of them and the game is CPU-bound
+on submitting them — `tools/perf.html` reports frame time and submission time as
+the same number. A room at 35 draws is not the problem; twelve of them in one
+sight line is. That is why this number has not been ratcheted the way triangles
+have: what moves it is the culler, not the rooms.
 
 It is a flat number rather than per cell, deliberately: the rooms that get near
 it are 1x1s that packed too much in, not the set pieces. Two consequences the
@@ -394,11 +407,14 @@ doorways that are neither shut nor off screen
 ([`../systems/RENDERING.md`](../systems/RENDERING.md)). Reuse geometry
 aggressively — build a geometry once at module scope and instance it.
 
-Two things the culler assumes, both of which are already rules above:
+Two things the culler assumes:
 
-- **A window only goes on a wall left out of `doorWalls`.** That is what tells
-  logic which walls are guaranteed solid — you can see the next room through
-  glass, so a wall that might have a window in it is treated as an opening.
+- **A wall is solid, and a window shows what YOU put behind it.** The room on the
+  other side is not drawn, so a window needs its own backdrop — a night pane, a
+  painted ocean, a light column. Every window in the game already had one, which
+  is why making this the rule cost 0.000 % of the pixels in three packs of five
+  (`../systems/RENDERING.md` → "A wall is a wall"). Clear glass onto nothing will
+  look out onto fog, and that is the one way to get a window wrong now.
 - Geometry that **leans out of its room** (a light shaft falling through the wall
   behind its window) is handled: a room is culled by the cells its geometry
   reaches, not the cells it occupies. It costs that room an extra cell, so keep

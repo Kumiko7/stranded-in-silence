@@ -7,7 +7,8 @@
  */
 import * as THREE from 'three';
 import { render } from 'preact';
-import { enabledMapIds, loadConfig, lobbyGraphics } from './config/index';
+import { configForRun, enabledMapIds, loadConfig, lobbyGraphics, menuGraphics, setQuality } from './config/index';
+import type { GraphicsConfig } from './config/types';
 import { currentLocale, initI18n, setLocale, t } from './i18n/index';
 import { initKeys } from './ui/keys';
 import { applyTheme } from './ui/theme';
@@ -101,7 +102,12 @@ async function boot(): Promise<void> {
   applyTheme(config.ui.theme);
   document.documentElement.lang = currentLocale();
 
-  const renderer = new Renderer(canvas, config.graphics, config.player);
+  // Before the renderer, because the tier decides the pixel ratio the drawing
+  // buffer is first sized at, and a machine that needs the low tier should not
+  // have to draw one full-resolution frame to find out.
+  setQuality(save.options.graphics.quality);
+
+  const renderer = new Renderer(canvas, menuGraphics(), config.player);
   const input = new Input(config.input, canvas);
   const detachInput = input.attach();
   
@@ -126,6 +132,21 @@ async function boot(): Promise<void> {
   audio.music.setScene('menu');
 
   /**
+   * Where the graphics block for whatever is currently on screen comes from.
+   *
+   * Held as the *source* rather than as the values, because a quality tier can
+   * change under it: the menu, the lobby and a run each layer their own
+   * overrides, and re-applying a tier means asking the current one again rather
+   * than remembering which of the three it was.
+   */
+  let sceneGraphics: () => GraphicsConfig = menuGraphics;
+
+  function applyScene(source: () => GraphicsConfig): void {
+    sceneGraphics = source;
+    renderer.applyGraphics(source());
+  }
+
+  /**
    * The one place the saved options become live settings. Called at boot and on
    * every change, so "apply" and "restore on load" are the same code path and
    * cannot drift apart.
@@ -139,6 +160,12 @@ async function boot(): Promise<void> {
     renderer.setFov(options.graphics.fovDegrees);
     renderer.setBrightness(options.graphics.brightness);
     renderer.setShadows(options.graphics.shadows);
+    // The tier first, then re-apply the scene through it. Resolution and render
+    // distance move immediately; the light budgets deliberately wait for the
+    // next scene, because a shader's light count may not change while a world
+    // is up - `graphics.json -> $lights`.
+    setQuality(options.graphics.quality);
+    applyScene(sceneGraphics);
     input.setMouse(options.controls);
     input.applyBinds(options.binds);
   }
@@ -466,7 +493,7 @@ async function boot(): Promise<void> {
   function enterLobby(slot = 0): void {
     currentRun = null;
     game.end();
-    renderer.applyGraphics(lobbyGraphics());
+    applyScene(lobbyGraphics);
     net.setScene('lobby');
     closeChat();
     lobby.start(slot, enabledMapIds());
@@ -530,6 +557,10 @@ async function boot(): Promise<void> {
     net.setScene('run');
     closeChat();
     game.start(run.mapId, run.seed, slot, run.difficultyId);
+    // `Game.start` applies the run's own graphics; this is so a quality change
+    // made from the pause menu re-applies THIS map's block rather than the
+    // menu's - the tier is the last layer over whichever one is up.
+    sceneGraphics = () => configForRun(run.mapId, run.difficultyId).graphics;
     set({
       lobby: null,
       optionsOpen: false,
@@ -645,7 +676,7 @@ async function boot(): Promise<void> {
     tutorial.enter(null);
     currentRun = null;
     net.leave();
-    renderer.applyGraphics(config.graphics);
+    applyScene(menuGraphics);
     input.releasePointerLock();
     closeChat();
     set({

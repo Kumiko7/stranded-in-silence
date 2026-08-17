@@ -34,6 +34,13 @@ export interface Options {
     brightness: number;
     shadows: boolean;
     /**
+     * An id into `graphics.json -> quality.tiers`. Not validated against that
+     * list here: a profile written by a build that had a tier this one does not
+     * is handled where it is applied, and forgetting a name is friendlier than
+     * silently resetting somebody's choice on a downgrade.
+     */
+    quality: string;
+    /**
      * Whether the game is fullscreen. Unlike everything else in this block it
      * is a *window* state rather than a value handed to a subsystem, so
      * `applyOptions()` does not touch it - see `main.tsx`.
@@ -92,6 +99,7 @@ export function defaultOptions(config: Config): Options {
       fovDegrees: config.player.camera.fovDegrees,
       brightness: 1,
       shadows: config.graphics.shadows.enabled,
+      quality: config.graphics.quality?.default ?? 'high',
       fullscreen: config.graphics.fullscreen,
     },
     controls: {
@@ -146,6 +154,7 @@ export function sanitiseOptions(raw: unknown, defaults: Options, ranges: OptionR
       fovDegrees: clamp(graphics['fovDegrees'], ranges.fov, defaults.graphics.fovDegrees),
       brightness: clamp(graphics['brightness'], ranges.brightness, defaults.graphics.brightness),
       shadows: bool(graphics['shadows'], defaults.graphics.shadows),
+      quality: typeof graphics['quality'] === 'string' ? graphics['quality'] : defaults.graphics.quality,
       fullscreen: bool(graphics['fullscreen'], defaults.graphics.fullscreen),
     },
     controls: {

@@ -21,7 +21,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { ownGeometryCache } from '../../../lib/build';
+import { mm, ownGeometryCache } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
@@ -93,10 +93,10 @@ export function wallPose(
  */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 export function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THREE.CylinderGeometry {
-  const key = `${rTop},${rBot},${h},${seg},${open}`;
+  const key = `${mm(rTop)},${mm(rBot)},${mm(h)},${seg},${open}`;
   let geo = cylCache.get(key);
   if (!geo) {
-    geo = new THREE.CylinderGeometry(rTop, rBot, h, seg, 1, open);
+    geo = new THREE.CylinderGeometry(mm(rTop), mm(rBot), mm(h), seg, 1, open);
     cylCache.set(key, geo);
   }
   return geo;
@@ -104,21 +104,44 @@ export function cyl(rTop: number, rBot: number, h: number, seg = 10, open = fals
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 export function ball(r: number, seg = 10): THREE.SphereGeometry {
-  const key = `${r},${seg}`;
+  const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(r, seg, Math.max(4, Math.round(seg / 2)));
+    geo = new THREE.SphereGeometry(mm(r), seg, Math.max(4, Math.round(seg / 2)));
     sphereCache.set(key, geo);
+  }
+  return geo;
+}
+
+/**
+ * A unit speck: an octahedron, eight triangles, meant to be SCALED by the
+ * caller's matrix rather than rebuilt at each size.
+ *
+ * Both halves of that matter for the things this is for - a millimetre of
+ * bioluminescence, a bubble, a mote of silt, of which a map places hundreds.
+ * At the fog density they are seen through, an eight-triangle solid and a
+ * thirty-triangle sphere are the same pale dot; and because `ball()` keys its
+ * cache on the radius, and these radii come out of the seeded RNG, every mote
+ * was minting a geometry of its own - 764 of them on this map alone, built and
+ * freed on every run. One shared geometry and a scale in the matrix is fewer
+ * triangles AND several hundred fewer allocations a load.
+ */
+const speckCache = new Map<string, THREE.OctahedronGeometry>();
+export function speck(): THREE.OctahedronGeometry {
+  let geo = speckCache.get('unit');
+  if (!geo) {
+    geo = new THREE.OctahedronGeometry(1, 0);
+    speckCache.set('unit', geo);
   }
   return geo;
 }
 
 const coneCache = new Map<string, THREE.ConeGeometry>();
 export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
-  const key = `${r},${h},${seg}`;
+  const key = `${mm(r)},${mm(h)},${seg}`;
   let geo = coneCache.get(key);
   if (!geo) {
-    geo = new THREE.ConeGeometry(r, h, seg);
+    geo = new THREE.ConeGeometry(mm(r), mm(h), seg);
     coneCache.set(key, geo);
   }
   return geo;
@@ -126,10 +149,10 @@ export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 export function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
-  const key = `${r},${tube},${seg}`;
+  const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
-    geo = new THREE.TorusGeometry(r, tube, 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -137,10 +160,10 @@ export function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
 
 const planeCache = new Map<string, THREE.PlaneGeometry>();
 export function quad(w: number, h: number): THREE.PlaneGeometry {
-  const key = `${w},${h}`;
+  const key = `${mm(w)},${mm(h)}`;
   let geo = planeCache.get(key);
   if (!geo) {
-    geo = new THREE.PlaneGeometry(w, h);
+    geo = new THREE.PlaneGeometry(mm(w), mm(h));
     planeCache.set(key, geo);
   }
   return geo;
@@ -148,16 +171,16 @@ export function quad(w: number, h: number): THREE.PlaneGeometry {
 
 const discCache = new Map<string, THREE.CircleGeometry>();
 export function disc(r: number, seg = 20): THREE.CircleGeometry {
-  const key = `${r},${seg}`;
+  const key = `${mm(r)},${seg}`;
   let geo = discCache.get(key);
   if (!geo) {
-    geo = new THREE.CircleGeometry(r, seg);
+    geo = new THREE.CircleGeometry(mm(r), seg);
     discCache.set(key, geo);
   }
   return geo;
 }
 
-for (const cache of [cylCache, sphereCache, coneCache, torusCache, planeCache, discCache]) ownGeometryCache(cache);
+for (const cache of [cylCache, sphereCache, speckCache, coneCache, torusCache, planeCache, discCache]) ownGeometryCache(cache);
 
 /** Upright cylinder whose `y` is its bottom. */
 export function post(
@@ -734,17 +757,26 @@ export function diveSuit(room: Room, x: number, z: number, rotationY = 0, lit = 
  * shelf of these lights a whole bench.
  */
 export function specimenJar(room: Room, x: number, y: number, z: number, radius = 0.11, height = 0.3, glowing = false): void {
-  room.geo('steelDark', cyl(radius * 1.05, radius * 1.05, 0.03, 10), poseMatrix([x, y + 0.015, z]), NO_SHADOW);
+  /*
+   * Eight sides, not twelve.
+   *
+   * A jar is 22 cm across and there are a hundred and forty of them in a map,
+   * behind fog, in a room lit by the jars themselves - the silhouette that
+   * reads is the pale shape suspended in the middle, not the profile of the
+   * glass. This is the reduction docs/systems/RENDERING.md keeps finding:
+   * segment counts on small round things there are a great many of.
+   */
+  room.geo('steelDark', cyl(radius * 1.05, radius * 1.05, 0.03, 8), poseMatrix([x, y + 0.015, z]), NO_SHADOW);
   /**
    * The fluid is BACK-FACED, so it is the far wall of the jar rather than a
    * cylinder wrapped round everything in it. Front-faced, the specimen inside
    * is behind an opaque tube and the jar is a glowing can.
    */
-  room.geo(glowing ? 'tankGlow' : 'tankFluid', cyl(radius * 0.92, radius * 0.92, height * 0.84, 12), poseMatrix([x, y + height * 0.45, z]), NO_SHADOW);
+  room.geo(glowing ? 'tankGlow' : 'tankFluid', cyl(radius * 0.92, radius * 0.92, height * 0.84, 8), poseMatrix([x, y + height * 0.45, z]), NO_SHADOW);
   // What is in it: a pale coiled shape, never quite resolved.
-  room.geo('canvasPale', ball(radius * 0.42, 8), tiltMatrix([x, y + height * 0.45, z], [0, room.range(0, 3), 0], [1, 1.6, 0.7]), NO_SHADOW);
-  room.geo('glassPane', cyl(radius, radius, height, 12, true), poseMatrix([x, y + height / 2, z]), FLAT);
-  room.geo('steelPale', cyl(radius * 1.08, radius * 1.02, 0.05, 12), poseMatrix([x, y + height, z]), { tile: 0.2, castShadow: false });
+  room.geo('canvasPale', ball(radius * 0.42, 6), tiltMatrix([x, y + height * 0.45, z], [0, room.range(0, 3), 0], [1, 1.6, 0.7]), NO_SHADOW);
+  room.geo('glassPane', cyl(radius, radius, height, 8, true), poseMatrix([x, y + height / 2, z]), FLAT);
+  room.geo('steelPale', cyl(radius * 1.08, radius * 1.02, 0.05, 8), poseMatrix([x, y + height, z]), { tile: 0.2, castShadow: false });
 }
 
 /**
@@ -1119,8 +1151,15 @@ export function urchin(room: Room, x: number, y: number, z: number, radius = 0.1
 
 /** A jellyfish: a translucent bell with an oral arm bundle and trailing threads. */
 export function jelly(room: Room, x: number, y: number, z: number, radius = 0.2): void {
-  room.geo('jellyBell', ball(radius, 12), tiltMatrix([x, y, z], [0, room.range(0, 3), 0], [1, 0.78, 1]), FLAT);
-  room.geo('jellyTrail', ring(radius * 0.96, radius * 0.06, 14), tiltMatrix([x, y - radius * 0.5, z], [Math.PI / 2, 0, 0]), FLAT);
+  /*
+   * Eight segments on the bell and eight on the trail ring, down from twelve
+   * and fourteen. The bell was 120 triangles for a 20 cm dome and the ring 168
+   * for a band a centimetre thick - and this is the softest, most translucent,
+   * most out-of-focus thing in the map. Halved, it is 44 % of a jellyfish and
+   * there are eight hundred of them.
+   */
+  room.geo('jellyBell', ball(radius, 8), tiltMatrix([x, y, z], [0, room.range(0, 3), 0], [1, 0.78, 1]), FLAT);
+  room.geo('jellyTrail', ring(radius * 0.96, radius * 0.06, 8), tiltMatrix([x, y - radius * 0.5, z], [Math.PI / 2, 0, 0]), FLAT);
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + room.range(-0.3, 0.3);
     room.geo(
@@ -1236,10 +1275,19 @@ export function siltFall(room: Room, x: number, z: number, from = 0): void {
 /** Marine snow and bioluminescent motes hanging in the water. Free, and lovely. */
 export function bioMotes(room: Room, x: number, y: number, z: number, spread = 1.2, count = 22, warm = false): void {
   for (let i = 0; i < count; i++) {
+    // Drawn in this order on purpose: colour, then radius, then position, which
+    // is the order the arguments used to be evaluated in. The stream is seeded,
+    // so reordering these two lines would repaint every mote on every map.
+    const material = warm ? 'lumenAmber' : room.chance(0.3) ? 'lumenViolet' : 'lumenCyan';
+    const r = room.range(0.008, 0.022);
     room.geo(
-      warm ? 'lumenAmber' : room.chance(0.3) ? 'lumenViolet' : 'lumenCyan',
-      ball(room.range(0.008, 0.022), 5),
-      poseMatrix([x + room.range(-spread, spread), y + room.range(-spread * 0.7, spread * 0.7), z + room.range(-spread, spread)]),
+      material,
+      speck(),
+      tiltMatrix(
+        [x + room.range(-spread, spread), y + room.range(-spread * 0.7, spread * 0.7), z + room.range(-spread, spread)],
+        [0, 0, 0],
+        [r, r, r],
+      ),
       FLAT,
     );
   }

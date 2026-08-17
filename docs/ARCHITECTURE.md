@@ -243,6 +243,8 @@ mic picking up small sounds cannot give you away. Full detail in
 | Task | Touch |
 | --- | --- |
 | Tune anything numeric | `config/` only — [`CONFIG.md`](CONFIG.md) |
+| Add or retune a graphics quality tier | `config/graphics.json → quality.tiers` + an `options.quality.<id>` key per language. Nothing in `src/` lists the tiers — [`systems/RENDERING.md`](systems/RENDERING.md) → "Quality tiers" |
+| Chase where a frame's milliseconds go | `tools/perf.html` — it renders the real maps at a real window size and changes one setting at a time. `?verify=1` checks the culler is still exact |
 | Change on-screen text | `config/locales/` — [`LOCALISATION.md`](LOCALISATION.md) |
 | Add a room | `art/packs/<pack>/rooms/`, then `npm run validate:art` — [`art/ROOM_FORMAT.md`](art/ROOM_FORMAT.md) |
 | Review how rooms *look* | `tools/roomshot` — [`art/ROOM_REVIEW.md`](art/ROOM_REVIEW.md) |
@@ -329,6 +331,10 @@ every one is a case where a browser genuinely cannot do the job:
 | **Escape → resume** (`input.grabPointer`) | Escape is excluded from the keys that grant transient activation, so the press that closes the pause menu can never be the gesture that takes the pointer back. In a browser Escape opens the menu and only a click closes it into the game; the shell runs the request itself with `executeJavaScript(…, userGesture: true)` and Escape does both |
 | **Copy lobby code** (`src/ui/clipboard.ts`) | `navigator.clipboard` is behind `clipboard-sanitized-write`, which the shell's permission handler refuses along with everything else the game has no business asking for. Widening it for a six-character code is the wrong trade |
 
+Nothing in that list is about speed, and one thing the shell does *is*: it
+chooses the GPU. See "The desktop build" below — `src/` still learns nothing,
+because the switches are set on the process before a window exists.
+
 There is no desktop-only code path anywhere else, and none of these is a fork in
 the game's logic — each is one function that resolves differently.
 
@@ -360,7 +366,24 @@ and i18n is initialised from it before anything is drawn.
 
 **`backgroundThrottling` is off.** Chromium throttles timers and rAF in a window
 that is not in front; the host simulates the run for everybody, so a host who
-alt-tabs must not stop the game for the other three.
+alt-tabs must not stop the game for the other three. It is joined by
+`disable-backgrounding-occluded-windows` and `disable-renderer-backgrounding`,
+which are not the same thing: a window can be unfocused, or it can be entirely
+*covered* by another one, and Chromium stops painting the second case whatever
+the window's own throttling setting says.
+
+**The shell asks for the discrete GPU, and that is the one performance thing it
+can do that a tab cannot.** `Renderer` passes
+`powerPreference: 'high-performance'` when it creates the context — a browser
+can do that much, and it should, because a laptop with an integrated chip and a
+discrete card gives WebGL the integrated one by default. But the hint only
+chooses between adapters Chromium has already opened; `force_high_performance_gpu`
+is what makes it open the fast one. Both, or the machines this matters most for
+run the whole game on the wrong chip. `disableDomainBlockingFor3DAPIs()` sits
+beside it: Chromium refuses 3D to an origin whose GPU process has crashed a few
+times, which is a sensible defence for a web page and the end of the run here.
+All three must be set **before `app.whenReady()`**, which is why they are at the
+top of `main.cjs` rather than next to the window.
 
 **The browser's own shortcuts are gone, by removing the menu.** Ctrl+W, Ctrl+R,
 Ctrl+Q, the devtools pair and the zoom pair are all accelerators on Electron's
@@ -393,7 +416,6 @@ being simple.
 | **Stamina** | Sprinting is priced in noise alone. `movement` has no resource coupled to it. |
 | **Sound occlusion** (walls/doors muffling audio, noise or voice) | Propagation is distance-only everywhere. One rule, one place to change. |
 | **Directional movement penalties** | Movement is speed-uniform — backing away from the enemy costs nothing, by design. |
-| **Graphics quality tiers / presets** | `graphics.json` is flat. A tier system is a merge layer over it, and the config loader's merge is already generic. |
 | **Room streaming** (building and disposing rooms as you walk) | Every room is built up front and culled. `BuiltWorld.updateVisibility` is the seam; at 33 rooms and a 110 ms build there is nothing to gain yet. |
 | **Post-processing beyond gameplay feedback** | Only the effects the design calls for exist (alert state, heartbeat proximity, damage). No general bloom/grain/aberration stack. |
 | **Accessibility settings** (UI scale, reduce flashing, colourblind modes) | UI sizes derive from one base; effects are driven through a single feedback module. |

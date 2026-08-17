@@ -5,8 +5,9 @@
  *
  * Deliberately the basics: what every game has and nothing else. Per-effect
  * graphics switches are not here, and the things this project decided against
- * (quality presets, accessibility settings) are on the "Deliberately NOT built"
- * list in docs/ARCHITECTURE.md.
+ * (accessibility settings) are on the "Deliberately NOT built" list in
+ * docs/ARCHITECTURE.md. The one quality control is a TIER, not a panel of
+ * toggles - which tiers exist is `graphics.json -> quality.tiers`.
  *
  * Every control writes through immediately - there is no Apply button, because
  * a setting you cannot hear or see change while you drag it is a setting you
@@ -19,6 +20,7 @@
  */
 import { useState } from 'preact/hooks';
 import type { AudioConfig } from '@/config/types';
+import { qualityTierIds } from '@/config/index';
 import type { ActionInfo } from '@/input/index';
 import type { Options, OptionRanges } from '@/save/index';
 import { availableLocales, currentLocale, t } from '@/i18n/index';
@@ -176,6 +178,15 @@ export function Options({
                 offLabel={t('common.off')}
                 onChange={(shadows) => onChange({ graphics: { ...options.graphics, shadows } })}
               />
+              {/* Which tiers exist is read from `graphics.json -> quality.tiers`
+                  rather than listed here, so adding one adds its chip. */}
+              <Choice
+                label={t('options.quality')}
+                value={options.graphics.quality}
+                options={qualityTierIds().map((id) => ({ id, label: t(`options.quality.${id}`) }))}
+                onChange={(quality) => onChange({ graphics: { ...options.graphics, quality } })}
+              />
+              <p class="field__note">{t('options.quality.note')}</p>
             </FieldGroup>
           )}
 

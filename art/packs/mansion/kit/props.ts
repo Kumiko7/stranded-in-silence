@@ -14,7 +14,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { ownGeometryCache } from '../../../lib/build';
+import { mm, ownGeometryCache } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { poseMatrix, subUV, tiltMatrix } from '../../../lib/merge';
@@ -89,7 +89,7 @@ function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THR
   const key = `${rTop},${rBot},${h},${seg},${open ? 1 : 0}`;
   let geo = cylCache.get(key);
   if (!geo) {
-    geo = new THREE.CylinderGeometry(rTop, rBot, h, seg, 1, open);
+    geo = new THREE.CylinderGeometry(mm(rTop), mm(rBot), mm(h), seg, 1, open);
     cylCache.set(key, geo);
   }
   return geo;
@@ -97,7 +97,7 @@ function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THR
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 function ball(r: number, seg = 10): THREE.SphereGeometry {
-  const key = `${r},${seg}`;
+  const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
     geo = new THREE.SphereGeometry(r, seg, Math.max(4, seg / 2));
@@ -108,10 +108,10 @@ function ball(r: number, seg = 10): THREE.SphereGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
-  const key = `${r},${tube},${seg}`;
+  const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
-    geo = new THREE.TorusGeometry(r, tube, 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -119,10 +119,10 @@ function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
 
 const planeCache = new Map<string, THREE.PlaneGeometry>();
 function quad(w: number, h: number): THREE.PlaneGeometry {
-  const key = `${w},${h}`;
+  const key = `${mm(w)},${mm(h)}`;
   let geo = planeCache.get(key);
   if (!geo) {
-    geo = new THREE.PlaneGeometry(w, h);
+    geo = new THREE.PlaneGeometry(mm(w), mm(h));
     planeCache.set(key, geo);
   }
   return geo;

@@ -72,8 +72,24 @@ export class Renderer {
   #graphics: GraphicsConfig;
 
   constructor(canvas: HTMLCanvasElement, graphics: GraphicsConfig, player: PlayerConfig) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: graphics.antialias });
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: graphics.antialias,
+      /**
+       * Asked for explicitly, because the default is the wrong one for this
+       * game. On a laptop with an integrated chip AND a discrete card, WebGL is
+       * handed the integrated one unless the page says otherwise - and the
+       * machines that need every frame this project can find are exactly the
+       * machines that have two GPUs. The desktop shell asks a second time at
+       * the process level (`electron/main.cjs`), because a hint on one context
+       * is not the same as telling Chromium which adapter to open.
+       */
+      powerPreference: graphics.powerPreference ?? 'high-performance',
+    });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, graphics.pixelRatioCap));
+    // `antialias` and `powerPreference` are context attributes and cannot be
+    // changed after this line, which is why no quality tier touches either -
+    // see `graphics.json -> $quality`.
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = graphics.exposure;
     this.renderer.shadowMap.enabled = graphics.shadows.enabled;
@@ -99,6 +115,7 @@ export class Renderer {
     this.#ambient.color = new THREE.Color(graphics.ambientColor);
     this.#ambient.intensity = ambientIntensity(graphics);
     this.renderer.toneMappingExposure = graphics.exposure * this.#brightness;
+    this.setPixelRatio(graphics.pixelRatioCap);
 
     if (graphics.fog.enabled) {
       this.scene.fog = new THREE.FogExp2(new THREE.Color(graphics.fog.color), graphics.fog.density);
@@ -120,6 +137,23 @@ export class Renderer {
     if (this.camera.fov === degrees) return;
     this.camera.fov = degrees;
     this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * How many device pixels a CSS pixel is drawn at, capped by the quality tier.
+   *
+   * This is the one knob that scales the whole fragment cost of a frame at
+   * once, which is what a weak GPU actually runs out of - and below 1 it is a
+   * genuine render scale rather than a cap, because `devicePixelRatio` is 1 on
+   * an ordinary monitor. `setSize` has to be repeated: three.js multiplies the
+   * two together when it sizes the drawing buffer, and changing one without the
+   * other leaves the buffer where it was.
+   */
+  setPixelRatio(cap: number): void {
+    const ratio = Math.min(devicePixelRatio, cap);
+    if (this.renderer.getPixelRatio() === ratio) return;
+    this.renderer.setPixelRatio(ratio);
+    this.resize();
   }
 
   setShadows(enabled: boolean): void {

@@ -33,6 +33,57 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'game', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
 ]);
 
+/* --- what the shell can do about the frame rate that a tab cannot ----------- */
+
+/*
+ * All of this has to happen before `app.whenReady()`: command-line switches are
+ * read when the GPU process starts, and by the time a window exists it is too
+ * late to choose an adapter.
+ *
+ * `src/` learns nothing from any of it. These change which hardware Chromium
+ * opens and when it is allowed to stop drawing - the page just gets faster.
+ */
+
+/**
+ * Open the discrete GPU, on a machine that has one.
+ *
+ * `Renderer` already passes `powerPreference: 'high-performance'` when it
+ * creates the context, and that is the half a browser can do. This is the other
+ * half: the hint picks between adapters Chromium has already opened, and the
+ * switch is what makes it open the fast one at all. Both, or a laptop quietly
+ * runs the whole game on its integrated chip.
+ */
+app.commandLine.appendSwitch('force_high_performance_gpu');
+
+/**
+ * Keep drawing when the window is not the one in front.
+ *
+ * `backgroundThrottling: false` on the window covers a window that is not
+ * FOCUSED. Neither of these is the same thing as a window that is fully
+ * COVERED by another one, which Chromium treats as occluded and stops painting
+ * entirely - and the host simulates the run for the other three. The tick keeps
+ * running off its timer either way (docs/ARCHITECTURE.md section 7), so this is
+ * about the host's own screen staying live rather than about the simulation.
+ */
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+
+/*
+ * Do not let a bad minute end the game permanently.
+ *
+ * When a GPU driver resets - which it does, on the machines this build is for,
+ * under a game - Chromium counts the context loss against the ORIGIN and
+ * refuses 3D for it after a few, until restart. In a browser that is a
+ * reasonable defence against a page that keeps killing the GPU. Here the origin
+ * is the game, the game is the only thing running, and being refused a WebGL
+ * context is the end of it: there is no 2D fallback and there is not going to
+ * be one.
+ *
+ * Up here with the switches because it has the same constraint - Electron only
+ * accepts it before the app is ready.
+ */
+app.disableDomainBlockingFor3DAPIs();
+
 /** Where the profile lives: the OS's per-user application data directory. */
 function profilePath() {
   return join(app.getPath('userData'), 'profile.json');
@@ -74,6 +125,9 @@ function createWindow() {
       // The host simulates the run for everybody, so a host who alt-tabs must
       // not stop the game for the other three.
       backgroundThrottling: false,
+      // One text field in the whole game, and a dictionary loaded per language
+      // to serve it. Nothing here is prose.
+      spellcheck: false,
     },
   });
 

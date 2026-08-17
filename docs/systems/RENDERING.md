@@ -207,6 +207,56 @@ three.js tests the box second.
 
 ---
 
+## 5. Quality tiers
+
+`config/graphics.json → quality.tiers`. Each tier is an **overlay** merged over
+the graphics block, exactly the way a map's or a difficulty's overrides are, and
+it is applied **last** — after the map's and the lobby's — because it is the
+player's machine talking and it should win over a map that asked for six lights.
+
+Nothing in `src/` lists the tiers. `qualityTierIds()` reads them from config, the
+options screen renders a chip per id, and the save profile stores the id. Adding
+a tier is a config change plus one `options.quality.<id>` locale key per
+language.
+
+Only four things are in them, and the order is the measured order of what they
+buy on a machine that is struggling:
+
+| In a tier | Applies |
+| --- | --- |
+| `pixelRatioCap` | **immediately.** Below 1 it is a render scale rather than a cap, because `devicePixelRatio` is 1 on an ordinary monitor. The one knob that scales the whole fragment cost of a frame at once |
+| `renderDistanceRooms` | immediately — it is a per-call radius |
+| `maxActiveLights`, `shadows.maxCastingLights` | **on the next scene.** A shader's light count may not change while a world is up (§1), so the budgets are read when `setRoomLights` hands a scene over. The options screen says so rather than pretending otherwise |
+
+**`antialias` is deliberately not in them.** It is a WebGL context flag, fixed
+when the context is created, so a tier that changed it would quietly wait for a
+restart — and a setting that lies about when it takes effect is worse than one
+that is not offered.
+
+What the tiers are worth, measured on Kerberos Deep — the heaviest map, and the
+one where the signal is clearest:
+
+| | frame | draw calls | triangles | pixels |
+| --- | --- | --- | --- | --- |
+| `medium` | −14 % | — | — | −44 % on a HiDPI screen |
+| `low` | **−39 %** | 525 → 379 (−28 %) | 87k → 68k (−22 %) | −44 % |
+
+The Leviathan and the manor move the same way (−28 % draw calls, −28 % frame).
+Note where each saving comes from: the draw calls and triangles are the shorter
+render distance, the pixels are the 0.75 render scale, and `medium` buys its
+14 % almost entirely from the light budget. On a **fast** card the pixel column
+is nearly free and the draw-call column is the whole story; on a weak one the
+pixel column is the one that saves the frame. The tier moves both because the
+machine that needs it usually cannot do either.
+
+**Read the frame column with care, and prefer the counters.** Draw calls,
+triangles and pixels are deterministic; frame time on a fast card is a small
+number measured on a busy desktop, and single runs of `tools/perf.html` have
+disagreed with each other by 30 % on the lighter maps. Raise `?rounds=` and
+trust the heaviest map.
+
+---
+
 ## Numbers
 
 Mansion, 6×6, measured in the running game across every cell of the map at eight
@@ -226,17 +276,43 @@ headings, over several seeds.
 
 ### What each map costs
 
-Measured with `tools/leakcheck.html?rooms=1&props=1`, every door open, 48 camera
-poses spread over the grid. Nothing here is a leak — it is what the packs are.
+Measured with `tools/perf.html` and `tools/leakcheck.html?rooms=1&props=1`, every
+door open, at 1920x1080. Nothing here is a leak — it is what the packs are.
+
+**The per-frame numbers in this table were wrong for a long time and are four to
+five times higher than they used to say.** `updateVisibility` takes a radius in
+METRES and `renderDistanceRooms` is a room count; `Game` has always multiplied
+by the cell size and `leakcheck.ts` never did. Every draw-call and triangle
+figure this tool printed was therefore taken with a **three-metre** render
+distance, which culls everything but the cell the camera stands in. Fixed, and
+worth remembering the shape of: a measuring tool that agrees with your hopes is
+the one to check first.
 
 | | mansion | viscera | abyss | crypt | forge |
 | --- | --- | --- | --- | --- | --- |
-| Triangles standing in the map | 155k | ~230k | **429k** | 413k | 249k |
-| Triangles drawn, average pose | 5–7k | 11–16k | **22–38k** | 22–23k | 18–23k |
-| Draw calls, average pose | 60–68 | 59–65 | **83–104** | 87–93 | 81–87 |
-| Worst room | library, 9.1k | ribcage, 18k | **archive, 23.9k** | ossuary, 22.2k | tube, 12.8k (3 cells) |
+| Triangles standing in the map | 155k | ~230k | **~390k** | ~400k | 249k |
+| Triangles drawn, average pose | 25k | 49k | **61k** | 67k | 51k |
+| Draw calls, average pose | 299 | 290 | **327** | 348 | 331 |
+| Worst room | library, 9.1k | ribcage, 18k | breach, 20.9k (3 cells) | **ossuary, 20.7k** | tube, 12.8k (3 cells) |
 | Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** | 7–11 | 22–25 |
-| World build | 95–300 ms | 150–750 ms | **230–1200 ms** | 1.6–1.7 s | 340–1700 ms |
+
+Those are the numbers **after** "a wall is a wall" below, which is most of why
+they are close together now. Before it, abyss was 525 draws and 87k triangles
+and viscera 402 and 64k; the packs differed mainly in how many walls they left
+unreserved, which is not a thing anybody was authoring on purpose.
+
+**The frame is draw-call bound, not fill bound**, and that is the single most
+useful thing measured here. On an RTX 4070 at 1080p, `tools/perf.html` reports
+frame time and `render()` submission time as the *same number* on every map and
+every variant: 400-500 draw calls at roughly 11 µs of JS each is the whole
+frame, and halving the resolution changes it by less than the noise. A weak GPU
+will feel the pixels too — which is what the low quality tier's render scale is
+for — but a weak CPU is what the packs are actually up against, and the lever
+for that is fewer draws: culling, and materials per room.
+
+Two knobs worth their cost, measured against `base` on Kerberos Deep:
+`renderDistanceRooms` 3 → 2 is **−20 % draw calls**, and `maxActiveLights` 6 → 4
+is about **−10 % of frame time**. Both are in the low tier.
 
 Every abyss room is inside the per-room budget in
 [`../art/ROOM_FORMAT.md`](../art/ROOM_FORMAT.md) §7 — that budget is 40k
@@ -304,6 +380,53 @@ six-sided collar is 24, and the pack lost 40k triangles (8.5%) on a detail
 nobody can resolve at the fog density it is seen through. The remaining large
 line items, if more is ever wanted: `mouth` 42.5k, `strip` 37.4k, `specimenJar`
 28.9k, `bioMotes` 22.9k (764 glowing specks at ~30 triangles each).
+
+### A wall is a wall
+
+The culler used to treat every wall a blueprint had not reserved for a door as
+**possibly** having a window in it, and therefore as permanently open. Logic
+cannot see art, so that was the conservative answer. It was also, on Kerberos
+Deep, **38 % of the draw calls in an average frame**, on a game that spends its
+frames submitting draw calls.
+
+It bought nothing. Measured with `tools/perf.html?verify=1`, which renders every
+pose culled and again with the whole map visible and counts the pixels that
+differ, dropping the assumption costs:
+
+| mansion | viscera | abyss | crypt | forge |
+| --- | --- | --- | --- | --- |
+| 0.000 % | 0.013 % | +0.54 % | 0.000 % | 0.167 % |
+
+Four of the five packs are pixel-identical. The reason is that **art never
+showed the next room through a window anyway**: a manor casement has a night
+pane behind its glass, an abyss viewpane has the ocean painted behind it, a
+crypt shaft has its own light column. The far room was being drawn so that it
+could be entirely hidden by the near room's own backdrop.
+
+There was no art change needed for this and none was made. A new window still
+works — it just shows what the art puts behind it, which is what every window in
+the game already did.
+
+### The 1.1 % on Kerberos Deep, which predates all of this
+
+`verify` reports abyss at 1.630 %, and only 0.54 % of that is the change above:
+the map measured **1.089 % with the old culler too**, at the identical worst
+pose. Standing in `abyss.vents@4,2` looking north, a large lit area of the map
+is culled and should not be. It is not a window — that room declares no ports,
+and a ray down the crosshair hits its own north wall first, at 3.70 m, with the
+next room's wall 30 cm behind it. Whatever is drawing those far rooms over an
+opaque near wall is not culling, and finding it is worth doing: reproduce with
+`tools/perf.html?verify=1&map=abyss`, and `&shot=diff` paints the missing
+region red over the frame it went missing from.
+
+The lesson from getting this wrong the first time is in the tool, not the map.
+The first comparison said the old culler scored 0.085 % and the new one 1.34 %,
+and the change was reverted on the strength of it. Both numbers were taken
+before `verify` learned to silence the art's own animation and freeze the shadow
+maps — a revealed room's frozen `onBeforeRender` clock jumps, some of that
+motion moves a LAMP, and the relit map reads as culling having hidden something.
+Measured properly, the two rules differ by half a percent. **Compare rules under
+one instrument, and be suspicious of a measurement that agrees with you.**
 
 ## Deliberately not done
 

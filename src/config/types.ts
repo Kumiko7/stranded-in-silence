@@ -296,6 +296,11 @@ export interface GraphicsConfig {
   fullscreen: boolean;
   pixelRatioCap: number;
   antialias: boolean;
+  /**
+   * Which GPU to ask for on a machine with more than one. A context attribute,
+   * so it is fixed when the renderer is built and no quality tier may change it.
+   */
+  powerPreference?: 'high-performance' | 'low-power' | 'default';
   exposure: number;
   /** How far the options-menu brightness slider may be dragged. It multiplies `exposure`. */
   brightnessRange?: [number, number];
@@ -321,6 +326,15 @@ export interface GraphicsConfig {
     portalMarginMetres: number;
     /** Fractions of half the viewport the projected rectangle is widened by. */
     screenMargin: number;
+  };
+  /**
+   * Player-facing quality tiers, each an overlay merged over everything above.
+   * The chosen one lives in the save profile; `default` is what a profile that
+   * has never opened the options menu plays on.
+   */
+  quality?: {
+    default: string;
+    tiers: Record<string, DeepPartial<GraphicsConfig>>;
   };
   /** Merged over the block above while the lobby scene is up. */
   lobby?: DeepPartial<GraphicsConfig>;

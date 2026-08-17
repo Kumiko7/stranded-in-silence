@@ -25,8 +25,8 @@ import type { WorldItem } from '@/entities/items';
 import { CollisionWorld } from './collision';
 import type { Chest, Locker } from './containers';
 import type { Door } from './doors';
-import { rotateCell, rotateSide, type RunLayout } from './generation';
-import { cellKey, cellsCovered, PortalVisibility, wallKey, type CellKey } from './visibility';
+import { type RunLayout } from './generation';
+import { cellKey, cellsCovered, PortalVisibility, type CellKey } from './visibility';
 
 /** A piece of temporary scenery, with whatever hooks its art chose to expose. */
 export interface BuiltDecor {
@@ -107,28 +107,12 @@ export function buildWorld(
   const blueprints = new Map(pack.rooms.map((room) => [room.id, room]));
   const disposers: (() => void)[] = [];
 
-  // Every wall edge a blueprint reserved for a door, in world terms. The shell
-  // will not cut a window into one, so a reserved wall that got no door this
-  // run is genuinely solid - which is what lets the culler see through the rest.
-  const solidWalls = new Set<string>();
-  for (const placed of layout.rooms) {
-    const blueprint = blueprints.get(placed.blueprintId);
-    if (!blueprint) continue;
-    const turns = Math.round(placed.rotationY / (Math.PI / 2));
-    for (const wall of blueprint.doorWalls) {
-      const [dx, dy] = rotateCell(wall.cell, turns);
-      solidWalls.add(wallKey(placed.cell[0] + dx, placed.cell[1] + dy, rotateSide(wall.side, turns)));
-    }
-  }
-
   const visibility = new PortalVisibility(
     layout,
     {
       cellSize: world.grid.cellSize,
-      ceilingHeight: world.grid.ceilingHeight,
       doorWidth: world.doors.width,
       doorHeight: world.doors.height,
-      solidWalls,
     },
     graphics.culling,
   );

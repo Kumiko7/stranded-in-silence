@@ -10,12 +10,25 @@
  *   2. the opening, projected to the screen, still overlaps the rectangle
  *      inherited from every opening already stepped through.
  *
- * A doorway is not the only opening. The mansion shell cuts *windows* into any
- * wall the blueprint did not reserve for a door, and its glass is glass - you
- * can see the next room through one. Logic cannot see art, but it can see which
- * walls a blueprint reserved: everything else might have a window in it, so it
- * is treated as permanently open. That is a handful of extra portals per room
- * and it keeps the answer conservative, which is the property that matters.
+ * **A wall is a wall.** Only a doorway is a portal, and a wall the generator
+ * left shut is the end of the flood.
+ *
+ * It was not always. Every pack's shell cuts windows - a manor casement, a
+ * viewpane onto the deep, a light shaft over a tomb - and logic cannot see art,
+ * so every wall a blueprint had not reserved for a door was ASSUMED to maybe
+ * have a hole in it and treated as permanently open. That is a portal on nearly
+ * every wall of nearly every room, and it was expensive: on Kerberos Deep it
+ * was **38 % of the draw calls in an average frame**, on a game whose frames are
+ * spent submitting draw calls.
+ *
+ * What it bought was nothing, and that is measurable rather than argued.
+ * `tools/perf.html?verify=1` renders every pose culled and again with the whole
+ * map visible and counts the pixels that differ; dropping the assumption costs
+ * **0.000 %** on the manor, **0.013 %** on the Leviathan and 0.54 % on Kerberos
+ * Deep. The reason is that art never showed the next room through a window in
+ * the first place - a manor casement has a night pane behind the glass, an
+ * abyss viewpane has the ocean painted behind it. The far room was being drawn
+ * so that it could be completely hidden by the near room's own backdrop.
  *
  * Point 2 is what makes this worth having. Distance alone stops helping the
  * moment a team has opened most of the doors - which is exactly when a run is
@@ -76,29 +89,18 @@ type Portal = readonly (readonly [number, number, number])[];
 interface Link {
   to: CellKey;
   /**
-   * The door that can shut this opening. `''` for the two that never shut: two
-   * cells of one room (no `portal` either - it is open floor), and a wall that
-   * might have a window in it (clipped by the wall as a whole).
+   * The door that can shut this opening. `''` for the one that never shuts: two
+   * cells of one room, which have no `portal` either - it is open floor.
    */
   doorId: string;
   portal: Portal | null;
 }
 
-/** `"x,y:side"` - one wall edge, the unit `solidWalls` is keyed by. */
-export const wallKey = (x: number, y: number, side: Side): string => `${x},${y}:${side}`;
-
-/** What the layout can tell the culler about a map's walls. */
+/** What the layout can tell the culler about a map's openings. */
 export interface VisibilityInput {
   readonly cellSize: number;
-  readonly ceilingHeight: number;
   readonly doorWidth: number;
   readonly doorHeight: number;
-  /**
-   * Wall edges a blueprint reserved for doors. The shell refuses to put a
-   * window in one, so a reserved wall with no door in it this run is solid and
-   * can be culled through. Every other wall is assumed see-through.
-   */
-  readonly solidWalls: ReadonlySet<string>;
 }
 
 interface Node {
@@ -112,8 +114,6 @@ interface Node {
 type Rect = readonly [number, number, number, number];
 
 const FULL_SCREEN: Rect = [-1, -1, 1, 1];
-
-const SIDES: readonly Side[] = ['north', 'east', 'south', 'west'];
 
 export class PortalVisibility {
   readonly #nodes = new Map<CellKey, Node>();
@@ -131,7 +131,7 @@ export class PortalVisibility {
   #viewProjection: THREE.Matrix4 | null = null;
 
   constructor(layout: RunLayout, input: VisibilityInput, config: GraphicsConfig['culling']) {
-    const { doorWidth, doorHeight, ceilingHeight, solidWalls } = input;
+    const { doorWidth, doorHeight } = input;
     this.#cellSize = layout.grid.cellSize;
     this.#config = config;
 
@@ -170,7 +170,6 @@ export class PortalVisibility {
         node.links.push({ to, doorId, portal });
       };
 
-      const withDoor = new Set<Side>(placed.doors);
       for (const side of placed.doors) {
         const id = doorIdBetween(x, y, side);
         link(side, id, portals.get(id) ?? null);
@@ -178,17 +177,9 @@ export class PortalVisibility {
       // Two halves of one room: no wall, no door, nothing to clip against.
       for (const side of placed.interior) link(side, '', null);
 
-      // Anything left is a wall, and a wall the blueprint did not reserve for a
-      // door may have had a window cut into it. Only the NEAR room's wall is
-      // asked about: through a hole in it you see the far room's own wall,
-      // which is part of the far room and has to be drawn with it. Clipped by
-      // the whole wall, which is as tight as logic can honestly be about a hole
-      // it cannot see.
-      for (const side of SIDES) {
-        if (withDoor.has(side) || placed.interior.includes(side)) continue;
-        if (solidWalls.has(wallKey(x, y, side))) continue;
-        link(side, '', wallQuad(x, y, side, this.#cellSize, ceilingHeight, config.portalMarginMetres));
-      }
+      // And nothing else. Every remaining side is a wall, and a wall stops the
+      // flood - see the note at the top of this file for what asking otherwise
+      // used to cost and what it bought.
     }
   }
 
@@ -303,38 +294,6 @@ function openingQuad(
         [px + half, low, pz],
         [px - half, high, pz],
         [px + half, high, pz],
-      ];
-}
-
-/** The whole face of a shared wall, for a wall that might have a window in it. */
-function wallQuad(
-  x: number,
-  y: number,
-  side: Side,
-  cellSize: number,
-  ceilingHeight: number,
-  margin: number,
-): Portal {
-  const cx = x * cellSize;
-  const cz = y * cellSize;
-  const half = cellSize / 2;
-  const low = -margin;
-  const high = ceilingHeight + margin;
-  const alongX = side === 'north' || side === 'south';
-  const at = side === 'north' ? cz - half : side === 'south' ? cz + half : side === 'west' ? cx - half : cx + half;
-
-  return alongX
-    ? [
-        [cx - half - margin, low, at],
-        [cx + half + margin, low, at],
-        [cx - half - margin, high, at],
-        [cx + half + margin, high, at],
-      ]
-    : [
-        [at, low, cz - half - margin],
-        [at, low, cz + half + margin],
-        [at, high, cz - half - margin],
-        [at, high, cz + half + margin],
       ];
 }
 

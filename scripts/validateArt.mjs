@@ -59,15 +59,31 @@ const lightBudgetFor = (footprint) => Math.min(4, 1 + footprint.length);
 const CELL = 0.12;
 
 /**
- * `triangles` was 40 000, which was headroom nobody was ever going to use and so
- * never said anything: the manor's worst room is 8 400. Kerberos Deep spent the
- * whole allowance without tripping it - `abyss.vents` reached 31 305, and the map
- * carried 469k triangles against the manor's 155k, which is what a run there
- * actually felt like. 25 000 is set just above the largest room that ships
- * (`abyss.archive`, 23 878) so it flags the next one to grow rather than the ones
- * already reviewed. See docs/systems/RENDERING.md - "What each map costs".
+ * Every one of these is set just above the largest room that actually ships, so
+ * it says nothing about rooms already reviewed and speaks up for the next one to
+ * grow. That means each is RATCHETED DOWN whenever a pass reduces the worst
+ * room, and the history is the point:
+ *
+ *   triangles  40 000 -> 25 000 -> 21 000
+ *
+ * 40 000 was headroom nobody was going to use and so never said anything - the
+ * manor's worst room is 8 400, and Kerberos Deep spent the whole allowance a
+ * room at a time without tripping it. 25 000 sat just above `abyss.archive` at
+ * 23 878. 21 000 sits just above `crypt.ossuary` at 20 730, which is now the
+ * largest 1x1 that ships: a pass over the biggest spenders took the archive to
+ * 18 178 and `abyss.jelly` to 16 440, all of it segment counts on small round
+ * things there are hundreds of. See docs/systems/RENDERING.md.
+ *
+ * `drawCalls` is deliberately NOT tightened, and it is the one that matters
+ * most. Measured in the running game, a frame on the heaviest map is 400-500
+ * draw calls and CPU-bound on submitting them - `tools/perf.html` reports frame
+ * time and submission time side by side and they are the same number. But the
+ * two rooms over 40 are a 3-cell (16 draws a cell) and the crypt's hinge room,
+ * both argued in the docs, and every other room is at 30-38: tightening the
+ * number would flag a dozen rooms without reducing anything. What would
+ * actually move it is the culler, not the budget.
  */
-const BUDGET = { drawCalls: 40, triangles: 25000, lights: 2, shadowLights: 1, colliders: 25 };
+const BUDGET = { drawCalls: 40, triangles: 21000, lights: 2, shadowLights: 1, colliders: 25 };
 
 /** Packs that are scaffolding, not maps. See the note where this is used. */
 const SCAFFOLD_PACKS = new Set(['test']);
