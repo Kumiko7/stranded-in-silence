@@ -14,6 +14,7 @@ import { initKeys } from './ui/keys';
 import { applyTheme } from './ui/theme';
 import { Loop } from './core/Loop';
 import { Renderer } from './render/Renderer';
+import { probeQuality } from './render/probe';
 import { Input } from './input/index';
 import { Audio } from './audio/index';
 import { attachUiSounds } from './audio/uiSounds';
@@ -101,6 +102,21 @@ async function boot(): Promise<void> {
   initKeys(config.input);
   applyTheme(config.ui.theme);
   document.documentElement.lang = currentLocale();
+
+  /*
+   * On the very first launch on this machine, and only then, measure it and
+   * pick a starting quality tier.
+   *
+   * This is the one moment the game may choose a setting for somebody: there is
+   * no saved preference to overrule, and the alternative is that every machine
+   * starts on the tier that suits the machine this was developed on. It is
+   * silent and it errs downward - see `src/render/probe.ts`.
+   */
+  if (save.isFirstRun) {
+    const probed = probeQuality(config.graphics);
+    console.info(`[boot] first run: quality "${probed.tier}" (${probed.reason})`);
+    save.setOptions({ graphics: { ...save.options.graphics, quality: probed.tier } });
+  }
 
   // Before the renderer, because the tier decides the pixel ratio the drawing
   // buffer is first sized at, and a machine that needs the low tier should not

@@ -117,6 +117,7 @@ export class Save {
   readonly #defaults: Options;
   readonly #ranges: OptionRanges;
   readonly #storage: Storage;
+  #firstRun = false;
   /** `net.json -> identity.nameMaxLength`. The one cap on a name, wherever it came from. */
   readonly #nameMaxLength: number;
 
@@ -141,9 +142,24 @@ export class Save {
     };
   }
 
+  /**
+   * Whether `load()` found nothing to load.
+   *
+   * Only ever true on the very first launch on a machine, which is the one
+   * moment the game is allowed to choose something FOR the player - there is no
+   * preference to overrule yet. See `probeQuality` in `src/render/probe.ts`.
+   * A profile that failed to parse is deliberately NOT a first run: somebody had
+   * settings, and quietly re-deciding them is worse than falling back to the
+   * defaults they will recognise.
+   */
+  get isFirstRun(): boolean {
+    return this.#firstRun;
+  }
+
   /** Never throws: a corrupt profile is a fresh profile, not a failed boot. */
   load(): Profile {
     const raw = this.#storage.read();
+    this.#firstRun = !raw;
     if (!raw) return this.#profile;
 
     try {

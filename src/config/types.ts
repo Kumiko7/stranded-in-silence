@@ -335,6 +335,15 @@ export interface GraphicsConfig {
   quality?: {
     default: string;
     tiers: Record<string, DeepPartial<GraphicsConfig>>;
+    /** The one-off first-launch benchmark. See `src/render/probe.ts`. */
+    probe?: {
+      enabled: boolean;
+      drawCalls: number;
+      frames: number;
+      /** Tried in order; the first tier the measurement reaches wins. */
+      thresholds: { tier: string; atLeastMs: number }[];
+      budgetMs: number;
+    };
   };
   /** Merged over the block above while the lobby scene is up. */
   lobby?: DeepPartial<GraphicsConfig>;

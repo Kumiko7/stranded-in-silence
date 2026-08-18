@@ -82,6 +82,7 @@ through `core/EventBus` with events declared in `src/shared/events.ts`.
 3. save.load()                      → options, key binds, meta progress
 4. i18n.init(profile.locale)        → chosen language, or the browser's
    ui.initKeys() / ui.applyTheme()  → key-cap labels, theme → CSS variables
+4b. first launch only: probe        → benchmark the machine, pick a quality tier
 5. render.init()                    → renderer, camera rig, post stack
 6. input.init()                     → bindings from config + save overrides
 7. audio.init()                     → buses (unlocked on first user gesture)
@@ -91,6 +92,14 @@ through `core/EventBus` with events declared in `src/shared/events.ts`.
 
 Nothing after step 2 may read a raw JSON import. Nothing after step 4 may contain
 a literal string shown to a player.
+
+**Step 4b runs on the first launch on a machine and never again**, and it sits
+where it does because it has to: the quality tier decides the pixel ratio the
+drawing buffer is first sized at, and `antialias` and `powerPreference` are
+context attributes that cannot be revisited once step 5 has opened one. It is
+silent, it takes about a tenth of a second, and it errs toward the slower tier —
+[`systems/RENDERING.md`](systems/RENDERING.md) → "Which tier a machine starts
+on".
 
 **Save comes before i18n**, because the chosen language lives in the profile. A
 profile that has never picked one passes nothing and i18n falls back to the browser's

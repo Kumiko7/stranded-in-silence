@@ -231,7 +231,33 @@ buy on a machine that is struggling:
 **`antialias` is deliberately not in them.** It is a WebGL context flag, fixed
 when the context is created, so a tier that changed it would quietly wait for a
 restart — and a setting that lies about when it takes effect is worse than one
-that is not offered.
+that is not offered. `powerPreference` is the same and is absent for the same
+reason.
+
+### Which tier a machine starts on
+
+Measured, once, on the first launch on that machine and never again — silently,
+before the menu is drawn. `src/render/probe.ts` opens a throwaway context, draws
+a few hundred individually-drawn boxes lit by the same number of lights the game
+runs, times a block of them the way `tools/perf.html` learned to, and maps the
+result through `graphics.json → quality.probe.thresholds`.
+
+A benchmark rather than a table of GPU names, for three reasons: a table is
+wrong the day a new chip ships, it says nothing about the **CPU** — which is
+what this game runs out of first — and it cannot see a driver that has quietly
+fallen back to software rendering, which a benchmark spots without being told
+anything.
+
+It errs **downward**. Someone on a fast machine who starts on `medium` finds the
+setting and moves it up; someone on a slow machine who starts on `high` sees a
+slideshow and may never learn why. Every unknown — a probe that threw, a context
+that would not open, a warm-up that blew `budgetMs` — resolves to the slowest
+tier, which is why the thresholds list it first.
+
+It runs **only when there was no profile at all**. A profile that failed to
+parse is not a first run: somebody had settings, and silently re-deciding them
+is worse than the defaults they will recognise. After the first launch the
+answer is the player's.
 
 What the tiers are worth, measured on Kerberos Deep — the heaviest map, and the
 one where the signal is clearest:

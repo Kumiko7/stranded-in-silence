@@ -48,6 +48,20 @@
   "$note": "`maxActiveLights` and `shadows.maxCastingLights` take effect on the NEXT scene, not immediately: the whole point of a fixed light budget is that a shader's light count never changes while a world is up (see `$lights`). Everything else here applies the moment it is chosen.",
   "quality": {
     "default": "high",
+
+    "$probe": "On the FIRST launch on a machine and never again, the game measures itself and picks a starting tier - silently, before the menu is drawn. It draws `drawCalls` separately-drawn boxes lit by `maxActiveLights` lights at the window's size, which is the shape a real frame turned out to have, and times a block of `frames` of them. `default` above is what a machine that beats every threshold gets. See src/render/probe.ts for why this is a benchmark rather than a table of GPU names.",
+    "$thresholds": "Tried in order, first match wins, so the slowest tier is listed FIRST - and every unknown (a probe that threw, a context that would not open, a warm-up over `budgetMs`) resolves to that first entry, so it must stay the slowest one. `atLeastMs` is the probed frame time at or above which a machine gets that tier. Derived from a 60 fps target rather than by feel: the reference machine probes at 0.8-1.7 ms and draws the heaviest map at 3.6 ms, so a real frame costs roughly 3-4.5x a probed one. Taking the pessimistic end of that, 16.7 ms of real frame is about 3.7 ms of probe - hence 3.5 for `medium`. Past about 6 ms even the low tier cannot hold 60 fps on Kerberos Deep, so from there the machine should have every saving going. The reference machine sits 2x under the nearest threshold, which is the margin that stops run-to-run noise deciding anything.",
+    "probe": {
+      "enabled": true,
+      "drawCalls": 240,
+      "frames": 24,
+      "budgetMs": 900,
+      "thresholds": [
+        { "tier": "low", "atLeastMs": 6.0 },
+        { "tier": "medium", "atLeastMs": 3.5 }
+      ]
+    },
+
     "tiers": {
       "high": {},
       "medium": {
