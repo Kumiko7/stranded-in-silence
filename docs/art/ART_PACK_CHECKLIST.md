@@ -104,7 +104,9 @@ against ochre sandstone, tallow against oil, pointed arches against post and
 lintel; `forge` is a weapons black site against the volcano it was drilled into,
 machined graphite and hazard chevron against pahoehoe and ash - and it inverts
 the usual temperature rule to do it, because the only warm light in that map is
-the mountain leaking into the building and the *facility* is the cold half; the
+the mountain leaking into the building and the *facility* is the cold half;
+`heartwood` is what moved into a tree against the tree itself, carved and waxed
+joinery against bark, pulp and rot, warm tapped sap against cold foxfire; the
 manor does the same thing more quietly with its grand rooms and its service
 rooms. Give the two halves different palettes, different light colours
 and different floor materials, and put one hinge room in the set that is honestly
@@ -137,6 +139,15 @@ channel with a lit line at its mouth and ember crust behind it on the built side
 a raw fissure on the rock side, and an arc-white service light in the handful of
 rooms that are refrigerated. One object, three materials, and it is the whole
 reason a torchless player can always find the doors in that map.
+
+`heartwood` runs the same idea in three materials and adds a second one, which is
+worth knowing because **a pack can afford two**: a **register** along the base of
+every wall (a carved channel of live resin in the built half, a split in the wood
+with foxfire in the wound in the raw half, a violet lace in the third strand) AND
+a **mouth** round every doorway (a carved elven arch, a place where the bark
+simply parted, or a banded round burrow ring). The register is what a player
+navigates by; the mouth is what tells them which of the three families they have
+just walked into, before they have read a single prop.
 
 Three things the crypt and forge passes learned about that trick, all worth
 knowing before you write one:

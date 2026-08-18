@@ -25,7 +25,7 @@ import { buildGhost } from './characters/ghost';
 import { hatArt } from './characters/hats';
 import { buildLever, buildWardrobe } from './lobby/fixtures';
 import { buildDart, buildDartStand, buildDartboard, buildScoreboard } from './lobby/darts';
-import { buildPosterAbyss, buildPosterBlank, buildPosterCrypt, buildPosterForge, buildPosterMansion, buildPosterRandom, buildPosterTest, buildPosterViscera } from './lobby/poster';
+import { buildPosterAbyss, buildPosterBlank, buildPosterCrypt, buildPosterForge, buildPosterHeartwood, buildPosterMansion, buildPosterRandom, buildPosterTest, buildPosterViscera } from './lobby/poster';
 
 export const sharedArt: ArtRegistry = {
   'door.standard': buildDoor,
@@ -61,6 +61,7 @@ export const sharedArt: ArtRegistry = {
   'poster.abyss': buildPosterAbyss,
   'poster.crypt': buildPosterCrypt,
   'poster.forge': buildPosterForge,
+  'poster.heartwood': buildPosterHeartwood,
   'poster.test': buildPosterTest,
   'lobby.wardrobe': buildWardrobe,
   'lobby.lever': buildLever,

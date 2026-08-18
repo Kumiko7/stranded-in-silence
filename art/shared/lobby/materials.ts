@@ -158,6 +158,13 @@ export function createLobbyMaterials(): MaterialLibrary {
       emissiveIntensity: 0.12,
       roughness: 0.95,
     }),
+    'poster.heartwood': standard(0xffffff, {
+      map: tex.posterHeartwood,
+      emissive: 0xffffff,
+      emissiveMap: tex.posterHeartwood,
+      emissiveIntensity: 0.22,
+      roughness: 0.92,
+    }),
     'poster.test': standard(0xffffff, {
       map: tex.posterTest,
       emissive: 0xffffff,

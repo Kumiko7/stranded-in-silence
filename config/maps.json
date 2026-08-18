@@ -138,6 +138,29 @@
       },
       "ambienceTrack": "ambience/mansion_loop",
       "musicTrack": "music/mansion_tension"
+    },
+
+    "heartwood": {
+      "nameKey": "map.heartwood.name",
+      "descKey": "map.heartwood.desc",
+      "artPack": "heartwood",
+      "posterArtId": "poster.heartwood",
+      "enabled": true,
+      "enemies": ["ghost"],
+      "$note": "Ambient is COLD and slightly green - the fill is what a forest night looks like through a hole in a trunk - and every practical in the Bower half is warm sap, wax or ember against it. That split is the only thing that makes a moth lantern read as a moth lantern; a green ambient under green foxfire would flatten the Thicket half into one wash and take the wood colour out of the whole map. The fog is a warm near-black: leaf mould and dust rather than sea water, which is what closes a twenty-four metre bark canyon down at the far end and what keeps a sap well reading as a surface rather than as a lamp. Intensity sits between the manor and the abyss because a good half of what you navigate by here is emissive - the register round every wall, a bank of gills, a comb full of lit honey - and the fill is only doing the corners.",
+      "overrides": {
+        "world": {
+          "grid": { "width": 6, "height": 6 },
+          "doors": { "lockedDoorCount": 2 }
+        },
+        "graphics": {
+          "fog": { "color": "#080a07", "density": 0.052 },
+          "ambientColor": "#26364a",
+          "ambientIntensity": 1.0
+        }
+      },
+      "ambienceTrack": "ambience/mansion_loop",
+      "musicTrack": "music/mansion_tension"
     }
   }
 }

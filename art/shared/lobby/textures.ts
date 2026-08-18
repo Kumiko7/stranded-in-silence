@@ -611,6 +611,111 @@ export const posterForge = (): THREE.Texture =>
   });
 
 /**
+ * Heartwood's poster: looking straight up the inside of the trunk.
+ *
+ * One vertical composition, and the whole thing is a scale trick. The frame is
+ * two walls of bark closing in as they rise, a spiral of lantern points going up
+ * between them, and at the very top a small pale gap of canopy - the only cold
+ * colour on the print and the only thing suggesting an outside. At the bottom,
+ * a doorway with a figure standing in it, and the figure is about a
+ * twenty-fifth of the frame.
+ *
+ * The lanterns are the part that does the work: they get smaller and closer
+ * together as they go up, which is the only depth cue a flat print has, and they
+ * are what says somebody lives all the way up there.
+ */
+export const posterHeartwood = (): THREE.Texture =>
+  colorTexture('lobby.posterHeartwood', 256, (x, y, size) => {
+    const u = x / size;
+    const v = y / size;
+    const paper = paperAt(x, y, size);
+    if (u < 0.08 || u > 0.92 || v < 0.2 || v > 0.94) return paper;
+
+    const grain = n2(x, y, size, 9, 6101, 3);
+
+    /* --- the shaft ---------------------------------------------------------- */
+    // How far up the trunk this row is, 0 at the floor and 1 at the canopy gap.
+    const up = (v - 0.2) / 0.74;
+    // The walls close in as they rise. Anything outside them is bark.
+    const bore = 0.42 - Math.pow(up, 0.8) * 0.3;
+    const off = Math.abs(u - 0.5);
+
+    if (off > bore) {
+      // Bark: vertical fissures, darker the further out of the bore you are and
+      // darker again toward the top, so the frame closes down on the light.
+      const depth = Math.min(1, (off - bore) / 0.28);
+      const fissure = Math.max(0, 1 - Math.abs(n2s(x, y, size, 11, 2, 6111, 3) - 0.5) / 0.1);
+      let bark = mix(rgb(0x4a3a2a), rgb(0x241c14), Math.pow(depth, 0.6));
+      bark = mix(bark, rgb(0x0d0a08), fissure * 0.8);
+      bark = shade(bark, (1 - up * 0.45) * (0.92 + grain * 0.18));
+      // Lantern points on the walls, spiralling: a phase that turns with height
+      // is what makes a straight shaft read as a spiral stair.
+      const step = Math.floor(up * 13);
+      const phase = Math.sin(step * 1.7);
+      const lx = 0.5 + (phase > 0 ? 1 : -1) * (bore + 0.06);
+      const ly = 0.2 + ((step + 0.5) / 13) * 0.74;
+      const lr = 0.016 * (1 - up * 0.7);
+      const d = Math.hypot((u - lx) * 1.2, v - ly);
+      if (d < lr * 4.5) bark = mix(bark, rgb(0xffc978), Math.pow(Math.max(0, 1 - d / (lr * 4.5)), 2.2) * 0.95);
+      // A gallery bracket under each lantern, black.
+      if (Math.abs(v - ly + lr * 3) < 0.004 && Math.abs(u - lx) < 0.035) bark = rgb(0x090706);
+      return bark;
+    }
+
+    /* --- what is in the shaft ------------------------------------------------ */
+    // The far side of the bore, going to black at the bottom and opening to the
+    // canopy gap at the top.
+    let air = mix(rgb(0x0b0d0a), rgb(0x8ea884), Math.pow(Math.max(0, up - 0.55) / 0.45, 1.6));
+    air = shade(air, 0.9 + grain * 0.2);
+    // Leaves across the gap, right at the top.
+    if (up > 0.72 && n2(x, y, size, 22, 6121, 3) > 0.52) air = mix(air, rgb(0x24301f), 0.85);
+    // Hanging cords with things on the end of them, at three depths.
+    for (let i = 0; i < 5; i++) {
+      const hx = 0.5 + (hash1(i * 13, 16, 6131) - 0.5) * bore * 1.6;
+      const top = 0.34 + hash1(i * 7, 16, 6141) * 0.4;
+      const drop = 0.05 + hash1(i * 23, 16, 6151) * 0.12;
+      if (Math.abs(u - hx) < 0.0022 && v < top && v > top - drop) air = rgb(0x0a0806);
+      if (Math.hypot((u - hx) * 1.6, v - (top - drop)) < 0.008) air = rgb(0x0a0806);
+    }
+
+    /* --- the doorway --------------------------------------------------------- */
+    // A grown arch at the bottom of the frame with light behind it, and the
+    // figure standing in it. Everything above the arch head is shaft.
+    const doorW = 0.075;
+    const doorTop = 0.325;
+    const arch = doorTop - Math.pow(Math.abs(u - 0.5) / doorW, 2.2) * 0.05;
+    if (v < doorTop && Math.abs(u - 0.5) < doorW && v < arch) {
+      // The light coming through it: warm, and brightest at the threshold.
+      let glow = mix(rgb(0xd8913c), rgb(0x6a3c14), (doorTop - v) / (doorTop - 0.2));
+      glow = mix(glow, rgb(0xffd79a), Math.max(0, 1 - Math.abs(v - 0.215) / 0.02));
+      /**
+       * The figure. Head, shoulders wider than the waist, two legs with daylight
+       * between them: what makes a silhouette a person is that it is NOT a
+       * rectangle (docs/art/ROOM_REVIEW.md).
+       */
+      const fx = u - 0.5;
+      const foot = 0.205;
+      const head = foot + 0.078;
+      if (v > foot && v < head) {
+        const t = (v - foot) / (head - foot);
+        const halfW = t > 0.8 ? 0.0105 : t > 0.62 ? 0.022 : 0.015 + t * 0.008;
+        const legGap = t < 0.32 && Math.abs(fx) < 0.0042;
+        if (Math.abs(fx) < halfW && !legGap) return rgb(0x080605);
+      }
+      return glow;
+    }
+    // The arch ring itself: a roll of bark round the opening, black.
+    if (v < doorTop + 0.03 && Math.abs(u - 0.5) < doorW + 0.022 && v < arch + 0.03) return rgb(0x0d0a08);
+    // The floor either side of the doorway, and the light it throws forward.
+    if (v < 0.245) {
+      const spill = Math.max(0, 1 - Math.abs(u - 0.5) / 0.3) * Math.max(0, 1 - (0.245 - v) / 0.045);
+      return mix(mix(rgb(0x141210), rgb(0x201a14), grain), rgb(0x8a5c28), spill * 0.7);
+    }
+
+    return air;
+  });
+
+/**
  * The random-map poster: a question mark on a sunburst, in the same flat print
  * style as the rest of the wall so it reads as one more expedition rather than
  * as a UI element that wandered into the room.

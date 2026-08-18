@@ -498,6 +498,74 @@ these looked fine in code:
   camera was framed on a 1.8 m body. A player in a candelabra is 2.4 m, and a
   crown with its points cut off is exactly what makes a card look broken.
 
+### And the ones the Heartwood pass caught
+
+Sixth pack, and the failures divide cleanly in two: **things that were too bright
+in isolation and blew out at the scale they actually ship at**, and **things that
+were the wrong size for the distance they are read from**. Both are review-tool
+findings by definition — neither is visible in code, and both looked fine in the
+one place they were designed.
+
+- **An emissive on a repeated shell detail must be tuned at map scale, not at
+  prop scale.** The Bower's sapline is a lit line in a carved channel and at
+  `emissiveIntensity` 2.6 it looked right on its own. On hundreds of metres of
+  wall it clipped through ACES to flat white, and every room in half the pack had
+  a neon tube screwed to its skirting board. It is 1.5 now, and the lit part is
+  **beads on a dark channel rather than a continuous filament** — which is the
+  viscera nerve-run finding ("glow has to be points on a dark line") arriving in
+  the shell instead of in a prop, where it costs twenty rooms instead of one.
+- **A saturated lamp takes the material colour out of a whole room, and green is
+  the worst offender.** The Thicket's gill lamps started at `0x7ce0b4` and every
+  fungal room came back as one flat green wash with no wood left in it. Pale
+  (`0xc4ecd8`) and 35 % brighter, and the same rooms have bark colour again. This
+  is the crypt's cave-lamp finding in a different hue, and it is now the second
+  time it has been paid for: **if a room reads as one colour, suspect the
+  saturation before the intensity.**
+- **A shade lit from inside is the thing a player stands closest to.** Lantern
+  globes at `emissiveIntensity` 2.4 were featureless white balls in every view
+  that had one in the foreground — and a hanging lantern is directly over the
+  walking lane, so that is most views. Judge a globe from a metre away, not from
+  across the room.
+- **Sheet web is a count-and-angle problem, not a material problem.** The
+  Spinner's Gallery first shipped its web as a handful of quads at the full size
+  of the patch, and it read as pale grey slabs floating in the room — "a pale
+  material multiplies" and "a full-width sheet is a pane of fog" arriving
+  together. A dozen quads at a third of the spread, at scattered pitch and roll,
+  is silk. The same fix, with the same numbers, turned the canopy ceiling from a
+  scatter of green paper rectangles into leaf: **twenty half-metre blades at a
+  near-flat pitch is confetti; seventy small ones at wildly varied pitch and roll
+  is a canopy.** If an individual leaf is resolvable, there are not enough of them.
+- **A drawn thread is a hint of a line.** Unlit `strand` at 0.55 opacity, strung
+  between eleven ceiling nodes with a nine-metre span limit, read as a bundle of
+  laser beams crossing the whole L. Down to 0.28, thinner, and **short spans
+  only** — the long ones are what read as beams, because nothing that long in a
+  dark room reads as anything else.
+- **`room.box()` only rotates about Y, so an arch built from boxes is a chain of
+  cubes.** The Warren's three round front doors — the entire point of the room —
+  were fourteen axis-aligned blocks on an arc. A stave has to be *turned* to the
+  ring, which means `tiltMatrix` and a roll about X. This is the manor's pot rack
+  standing on end, in a different axis, and it is worth checking any time a
+  helper takes a single `rotationY` and the thing being built is curved.
+- **A wall lamp lights the wall it is bolted to.** Two rooms were built round a
+  set piece that is not against a wall — three front doors a player is meant to
+  look AT, and a 24 m gallery with a stair up one side — and both came back as
+  black corridors with a lit skirting board. They now hang a lantern out over the
+  walking lane instead. `hangingLantern()` exists because of those two sheets.
+- **A prop a player is meant to look into has to hang where they could reach
+  it.** Five woven cribs slung at a metre were invisible from all three doorways
+  and only showed on the raised corner views, which is exactly the case a contact
+  sheet exists to catch. At chest height and 20 % bigger they read as a row of
+  hanging baskets from every entrance.
+- **A tiling detail with an even rhythm becomes a bond.** Birch lenticels on 26
+  evenly spaced rows read as brickwork across a whole wall. Half as many rows,
+  each nudged off the grid by its own hash, most rows empty. This is "a tile size
+  is a look, not a setting" arriving as a *rhythm* rather than as a scale — the
+  spacing was right and the regularity was not.
+- **An emissive disc lying flat is a dot of paint.** Honey pools on the mead
+  hall's floorboards were single circles of a lit material and read as orange
+  spots. Four overlapping lobes at varied radii read as something spilt. Same
+  finding as an unmasked additive wash, one material family over.
+
 ---
 
 ## 5. Using it on a new pack

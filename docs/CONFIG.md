@@ -58,7 +58,7 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | How much chat is kept, and for how long | `ui.json` | `hud.chat.enabled`, `.maxMessages`, `.messageSeconds`, `.maxLength` |
 | What the tutorial teaches, and in what order | `ui.json` | `hud.tutorial.tips` — each `id` is both a locale key (`tutorial.<id>`) and a trigger the code reports, so this orders and dresses the tips rather than inventing them. `keys` are action ids whose caps fill the string's `{key}` gap |
 | How long a tutorial tip stays up | `ui.json` | `hud.tutorial.flashSeconds`, `.gapSeconds` — `task` tips ignore both and wait to be done. `hud.tutorial.enabled` removes the feature; the player's own switch is `options.tutorial` in the save profile |
-| Which maps exist | `maps.json` | `maps.*` — `mansion`, `viscera`, `abyss`, `crypt`, and the `test` scaffold |
+| Which maps exist | `maps.json` | `maps.*` — `mansion`, `viscera`, `abyss`, `crypt`, `forge`, `heartwood`, and the `test` scaffold |
 | A map's lobby poster | `maps.json` | `maps.<id>.posterArtId` — an art id from `art/shared/index.ts`; unset or unregistered hangs a blank |
 | Lighting, fog, shadows, draw distance | `graphics.json` | top level |
 | Whether the game starts fullscreen | `graphics.json` | `fullscreen` — the default only. The player's own switch is `options.graphics.fullscreen` in the save profile, and it is restored at boot in the packaged build alone: a browser may not go fullscreen without a gesture |

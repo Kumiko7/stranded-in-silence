@@ -314,13 +314,21 @@ distance, which culls everything but the cell the camera stands in. Fixed, and
 worth remembering the shape of: a measuring tool that agrees with your hopes is
 the one to check first.
 
-| | mansion | viscera | abyss | crypt | forge |
-| --- | --- | --- | --- | --- | --- |
-| Triangles standing in the map | 155k | ~230k | **~390k** | ~400k | 249k |
-| Triangles drawn, average pose | 25k | 49k | **61k** | 67k | 51k |
-| Draw calls, average pose | 299 | 290 | **327** | 348 | 331 |
-| Worst room | library, 9.1k | ribcage, 18k | breach, 20.9k (3 cells) | **ossuary, 20.7k** | tube, 12.8k (3 cells) |
-| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | **11–17** | 7–11 | 22–25 |
+| | mansion | viscera | abyss | crypt | forge | heartwood |
+| --- | --- | --- | --- | --- | --- | --- |
+| Triangles standing in the map | 155k | ~230k | ~390k | ~400k | 249k | **433k** |
+| Triangles drawn, average pose | 25k | 49k | 61k | 67k | 51k | **71–89k** |
+| Draw calls, average pose | 299 | 290 | 327 | 348 | 331 | **315–364** |
+| Worst room | library, 9.1k | ribcage, 18k | breach, 20.9k (3 cells) | **ossuary, 20.7k** | tube, 12.8k (3 cells) | barkcanyon, 20.4k (2 cells) |
+| Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | 11–17 | 7–11 | 22–25 | 31–33 |
+
+`heartwood` is the heaviest map standing and it is worth knowing where that went,
+because the answer is the same one `forge` found and it is not the set pieces:
+**18.9 % of the whole map is `strip()` in its `kit/shell.ts`** — the trim and the
+register course round the base of every wall, 7,248 calls at twelve triangles
+each. A trick in the shell is a trick you pay for in every room, and the cheapest
+time to find that out is `tools/leakcheck.html?props=1` before the rooms are
+written rather than after.
 
 Those are the numbers **after** "a wall is a wall" below, which is most of why
 they are close together now. Before it, abyss was 525 draws and 87k triangles
