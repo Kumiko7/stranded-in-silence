@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { cobwebs, debris, pendantLamp } from '../kit/props';
+import { cobwebs, cyl, debris, pendantLamp } from '../kit/props';
 
 /**
  * The Linen Store - a dead end with a wall in the middle of it.
@@ -69,8 +69,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // Brooms, stood in the corner behind the door.
   for (let i = 0; i < 3; i++) {
     const x = -3.2 + i * 0.22;
-    room.geo('woodPale', new THREE.CylinderGeometry(0.022, 0.022, 1.5, 5), poseMatrix([x, 0.78, -3.0]), {
-      consume: true,
+    room.geo('woodPale', cyl(0.022, 0.022, 1.5, 5), poseMatrix([x, 0.78, -3.0]), {
     });
     room.box('deadLeaf', [0.24, 0.3, 0.1], [x, 0.02, -3.0], i);
   }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { ball, boneDebris, drools, fleshFolds, lumenPod, polyps, strut } from '../kit/props';
+import { ball, boneDebris, cyl, drools, fleshFolds, lumenPod, polyps, strut } from '../kit/props';
 
 /**
  * The Loom - a room strung like an instrument.
@@ -74,9 +74,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     });
     room.geo(
       'meat',
-      new THREE.CylinderGeometry(r * 1.9, r * 1.6, 0.5, 7),
+      cyl(r * 1.9, r * 1.6, 0.5, 7),
       tiltMatrix([x + lean * 0.35, ceilingHeight * 0.35, z - lean * 0.14], [0, 0, -0.4]),
-      { tile: 0.4, consume: true },
+      { tile: 0.4 },
     );
   }
 
@@ -97,7 +97,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   lumenPod(room, [-3.25, 1.15, -1.9], 0.2, true, true, 8);
   room.solid('meat', [0.5, 1.15, 0.7], [-3.4, 0, -1.9], 0, { tile: 0.7 });
   lumenPod(room, [3.3, 1.9, 2.4], 0.17, true, false, 6);
-  room.geo('meatPale', new THREE.CylinderGeometry(0.12, 0.2, 1.9, 8), poseMatrix([3.42, 0.95, 2.4]), { tile: 0.6, consume: true });
+  room.geo('meatPale', cyl(0.12, 0.2, 1.9, 8), poseMatrix([3.42, 0.95, 2.4]), { tile: 0.6 });
 
   return room.finish();
 }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { ball, boneDebris, boneSlab, breathe, drools, glowShaft, lumenPod, polyps, strut } from '../kit/props';
+import { ball, boneDebris, boneSlab, breathe, cyl, drools, glowShaft, lumenPod, polyps, strut } from '../kit/props';
 
 /**
  * The Lattice - petrified cartilage, and the only translucent room in the map.
@@ -79,9 +79,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       );
     }
     // The core, still lit, and the collars binding the bundle at three heights.
-    room.geo('lumenCold', new THREE.CylinderGeometry(0.075, 0.075, ceilingHeight - 0.3, 8), poseMatrix([x, ceilingHeight / 2, z]), {
+    room.geo('lumenCold', cyl(0.075, 0.075, ceilingHeight - 0.3, 8), poseMatrix([x, ceilingHeight / 2, z]), {
       castShadow: false,
-      consume: true,
     });
     for (const y of [0.55, 1.6, 2.65]) {
       room.geo('bonePale', new THREE.TorusGeometry(0.36, 0.06, 5, 14), poseMatrix([x, y, z]), { tile: 0.4, consume: true });

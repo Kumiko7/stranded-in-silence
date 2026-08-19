@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { ball, caulCurtain, drools, lumenCluster, lumenPod, polyps, tendril } from '../kit/props';
+import { ball, caulCurtain, cyl, drools, lumenCluster, lumenPod, polyps, tendril } from '../kit/props';
 
 /**
  * The Thicket - the most dangerous room in the map to be chased through.
@@ -80,12 +80,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const nz = pz + Math.sin(angle) * Math.cos(facing) * step;
       room.geo(
         'meat',
-        new THREE.CylinderGeometry(r, r * 1.2, Math.hypot(nx - px, ny - py, nz - pz) * 1.1, 7),
+        cyl(r, r * 1.2, Math.hypot(nx - px, ny - py, nz - pz) * 1.1, 7),
         tiltMatrix(
           [(px + nx) / 2, (py + ny) / 2, (pz + nz) / 2],
           [Math.acos((ny - py) / Math.max(0.001, Math.hypot(nx - px, ny - py, nz - pz))), Math.atan2(nx - px, nz - pz), 0],
         ),
-        { tile: 0.6, consume: true },
+        { tile: 0.6 },
       );
       room.geo('meat', ball(r * 1.05, 7), tiltMatrix([nx, ny, nz], [0, 0, 0]), { tile: 0.5 });
       px = nx;

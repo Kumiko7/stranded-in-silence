@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { ball, boneDebris, disc, drools, lumenPod, organSac, polyps, resinFlow, strut } from '../kit/props';
+import { ball, boneDebris, cyl, disc, drools, lumenPod, organSac, polyps, resinFlow, strut } from '../kit/props';
 
 /**
  * The Cisterns - where the beast keeps what it makes.
@@ -57,10 +57,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       consume: true,
     });
     // The drip: a thread of resin from the nipple of the gland to the basin.
-    room.geo('resin', new THREE.CylinderGeometry(0.016, 0.03, y - r - 0.6, 5), poseMatrix([x, (y - r + 0.6) / 2, 3.28]), {
+    room.geo('resin', cyl(0.016, 0.03, y - r - 0.6, 5), poseMatrix([x, (y - r + 0.6) / 2, 3.28]), {
       castShadow: false,
       tile: 0.3,
-      consume: true,
     });
   }
 
@@ -97,9 +96,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 5; i++) {
     room.geo(
       'bonePale',
-      new THREE.CylinderGeometry(0.035, 0.05, room.range(0.5, 1.1), 6),
+      cyl(0.035, 0.05, room.range(0.5, 1.1), 6),
       tiltMatrix([room.range(-1.8, 1.8), room.range(0.06, 0.3), room.range(0.4, 2.4)], [room.range(1.2, 1.6), room.range(0, 3), 0]),
-      { tile: 0.4, consume: true },
+      { tile: 0.4 },
     );
   }
 

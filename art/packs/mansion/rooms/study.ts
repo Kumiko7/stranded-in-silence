@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { armchair, bookcase, chair, cobwebs, fireplace, floorWash, painting, rug, table } from '../kit/props';
+import { armchair, ball, bookcase, chair, cobwebs, cyl, fireplace, floorWash, painting, rug, table } from '../kit/props';
 
 /**
  * The Study - the last room anyone used.
@@ -57,18 +57,16 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       { consume: true },
     );
   }
-  room.geo('glass', new THREE.CylinderGeometry(0.07, 0.09, 0.22, 10), poseMatrix([-2.7, 0.9, -2.6]), { consume: true });
-  room.geo('glass', new THREE.CylinderGeometry(0.03, 0.03, 0.06, 8), poseMatrix([-2.55, 0.83, -2.3]), { consume: true });
-  room.geo('ironBlack', new THREE.CylinderGeometry(0.04, 0.05, 0.06, 8), poseMatrix([-1.7, 0.81, -2.5]), {
-    consume: true,
+  room.geo('glass', cyl(0.07, 0.09, 0.22, 10), poseMatrix([-2.7, 0.9, -2.6]), {});
+  room.geo('glass', cyl(0.03, 0.03, 0.06, 8), poseMatrix([-2.55, 0.83, -2.3]), {});
+  room.geo('ironBlack', cyl(0.04, 0.05, 0.06, 8), poseMatrix([-1.7, 0.81, -2.5]), {
   });
 
   // A green banker's lamp, still burning after all this time.
-  room.geo('brass', new THREE.CylinderGeometry(0.05, 0.08, 0.28, 8), poseMatrix([-1.9, 0.92, -2.15]), { consume: true });
-  room.geo('velvetGreen', new THREE.CylinderGeometry(0.13, 0.13, 0.12, 12, 1, true), poseMatrix([-1.9, 1.08, -2.15]), {
-    consume: true,
+  room.geo('brass', cyl(0.05, 0.08, 0.28, 8), poseMatrix([-1.9, 0.92, -2.15]), {});
+  room.geo('velvetGreen', cyl(0.13, 0.13, 0.12, 12, true), poseMatrix([-1.9, 1.08, -2.15]), {
   });
-  room.geo('bulb', new THREE.SphereGeometry(0.05, 8, 6), poseMatrix([-1.9, 1.04, -2.15]), { consume: true });
+  room.geo('bulb', ball(0.05, 8), poseMatrix([-1.9, 1.04, -2.15]), {});
   const lamp = new THREE.PointLight(0xffe0a8, 15, 10, 2);
   lamp.position.set(-1.9, 1.0, -2.15);
   room.light(lamp);
@@ -78,10 +76,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   bookcase(room, 'south', -2.5, 1.7, 3);
 
   // A globe on a stand, and the chair somebody sat in to look at it.
-  room.geo('woodDark', new THREE.CylinderGeometry(0.04, 0.22, 0.6, 10), poseMatrix([1.3, 0.3, 1.6]), { consume: true });
+  room.geo('woodDark', cyl(0.04, 0.22, 0.6, 10), poseMatrix([1.3, 0.3, 1.6]), {});
   // `bookTan`, not `paper`: a near-white sphere is the loudest thing in a dark
   // room, and this one read as a floating grey ball from two of the four doors.
-  room.geo('bookTan', new THREE.SphereGeometry(0.26, 14, 10), poseMatrix([1.3, 0.88, 1.6]), { consume: true });
+  room.geo('bookTan', ball(0.26, 14), poseMatrix([1.3, 0.88, 1.6]), {});
   room.geo('brass', new THREE.TorusGeometry(0.29, 0.014, 4, 16), tiltMatrix([1.3, 0.88, 1.6], [0, 0.4, 0.4]), {
     consume: true,
   });

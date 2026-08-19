@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { armchair, cobwebs, debris, flicker, lightShaft, painting, rug, sideboard, wallMirror } from '../kit/props';
+import { armchair, ball, cobwebs, cyl, debris, flicker, lightShaft, painting, rug, sideboard, wallMirror } from '../kit/props';
 
 /**
  * The Master Bedroom - the bed is made and the drapes are drawn round it.
@@ -71,8 +71,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     [-1.0, 1.1],
     [1.0, 1.1],
   ] as const) {
-    room.geo('woodDark', new THREE.CylinderGeometry(0.06, 0.08, 2.5, 8), poseMatrix([bx + dx, 1.25, bz + dz]), {
-      consume: true,
+    room.geo('woodDark', cyl(0.06, 0.08, 2.5, 8), poseMatrix([bx + dx, 1.25, bz + dz]), {
     });
   }
   room.box('woodDark', [2.2, 0.1, 0.1], [bx, 2.5, bz - 1.1]);
@@ -96,9 +95,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // and visually a wall: from the north doorway - which opens right beside the
   // bed head - the whole thing still read as one sheet of red.
   for (let i = 0; i < 6; i++) {
-    room.geo('velvetGold', new THREE.SphereGeometry(0.2, 8, 6), poseMatrix([bx - 0.95 + i * 0.38, 2.16, bz - 1.16]), {
+    room.geo('velvetGold', ball(0.2, 8), poseMatrix([bx - 0.95 + i * 0.38, 2.16, bz - 1.16]), {
       tile: 0.8,
-      consume: true,
     });
   }
   for (let i = 0; i < 4; i++) {
@@ -122,8 +120,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.geo('woodDark', new THREE.BoxGeometry(0.9, 1.0, 0.05), tiltMatrix([-3.3, 1.1, 1.2], [0, -Math.PI / 2, 0.1]), {
     consume: true,
   });
-  room.geo('brass', new THREE.CylinderGeometry(0.045, 0.06, 0.18, 8), poseMatrix([-2.6, 0.71, 0.9]), { consume: true });
-  room.geo('glass', new THREE.CylinderGeometry(0.04, 0.05, 0.14, 8), poseMatrix([-2.6, 0.69, 1.5]), { consume: true });
+  room.geo('brass', cyl(0.045, 0.06, 0.18, 8), poseMatrix([-2.6, 0.71, 0.9]), {});
+  room.geo('glass', cyl(0.04, 0.05, 0.14, 8), poseMatrix([-2.6, 0.69, 1.5]), {});
 
   sideboard(room, 'south', 2.6, 1.4);
   wallMirror(room, 'east', 1.0, 1.2, 0.8, 1.4);

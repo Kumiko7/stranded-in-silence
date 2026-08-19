@@ -341,7 +341,7 @@ Rules:
 | Metric | Budget |
 | --- | --- |
 | Draw calls | ≤ 40 |
-| Triangles | ≤ 21 000 |
+| Triangles | ≤ 10 000 **per cell** |
 | Real lights | ≤ `ctx.lightBudget` (2 for 1x1, +1 per extra cell, max 4) |
 | Shadow-casting lights | ≤ 1 |
 | Unique materials created | 0 (use `ctx.materials`) |
@@ -359,15 +359,47 @@ every time a pass reduces the worst room:
 | --- | --- | --- |
 | originally | 40 000 | 8 400 (the manor). Headroom nobody would use, so it never fired — Kerberos Deep spent the whole allowance a room at a time without tripping it, ending at 469k standing against the manor's 155k |
 | after abyss | 25 000 | `abyss.archive`, 23 878. Caught the crypt's bone chapel at 96 000 on its first build, all of it in one detail |
-| now | 21 000 | `crypt.ossuary`, 20 730 |
+| after the crypt | 21 000 | `crypt.ossuary`, 20 730 |
+| now | 10 000 per cell | `mansion.library`, 9 964. Every pack was cut for it |
 
-The last step down was paid for rather than declared: `abyss.archive` came from
-23 878 to 18 178 and `abyss.jelly` from 20 760 to 16 440, all of it the same
-reduction this file keeps recommending — segment counts on small round things
-there are hundreds of. Per-map totals are in
-[`../systems/RENDERING.md`](../systems/RENDERING.md) → "What each map costs";
-`tools/leakcheck.html?props=1` says which art function is spending it, which is a
-more useful place to start than a room.
+**The last step down is the only one that was asked for rather than earned**, and
+it is worth knowing why, because it is the first time this number drove the art
+instead of following it. Six packs standing together came to 1.6 M triangles and
+the frame could not carry them, so the budget was halved and the art brought to
+meet it. Nothing was found that gave it back in one place: a map is about forty
+thousand boxes and fifteen thousand small round things, and after the first pass
+every single line item in `tools/leakcheck.html?props=1` was between one and four
+per cent of its pack. It came instead from three passes over everything at once,
+in this order of yield:
+
+1. **A size ramp under every round primitive.** `sides(radius, asked)` in
+   `art/lib/build.ts` decides how many sides a round thing that big has earned
+   and every pack's `ball`/`cyl`/`ring`/`spike`/`disc` goes through it. It is a
+   `Math.min`, so it can only take detail off something too small to show it.
+   Worth about 15 %, and it is the reduction this file had already recommended
+   four times — it just had to stop being per-call-site to land.
+2. **Open-ended tubes wherever a chain hides its own caps.** A branch, a vine, a
+   rib, a worm tube: every cap but the two at the ends of the run is inside the
+   next link, and a closed cylinder pays for two discs nobody can see. `strut()`
+   takes an `open` flag for this.
+3. **About a third off the pitch of every course that runs round a wall**, with
+   the pieces grown to match so the course still reads as beaded rather than
+   gapped. A course in a `kit/shell.ts` is multiplied by the whole map before a
+   single prop is placed in a room.
+
+Only after those three was anything removed room by room, and then it was
+whichever prop `?props=1` charged a quarter of the room to — a wall of specimen
+jars, a stand of tube worms, a comb of brood cells. Per-map totals are in
+[`../systems/RENDERING.md`](../systems/RENDERING.md) → "What each map costs".
+
+**Triangles are counted per cell and the other budgets are not**, which is new
+with this step. A flat number worked while it sat two and a half times over a
+typical 1x1: the only rooms that reached it were 1x1s that had packed too much
+in, which is exactly what it was for. At 10 000 it sits ON a typical 1x1, so a
+flat number would flag every multi-cell room in the game however lean it was and
+drown the signal. Per cell is also what the frame actually cares about — what is
+drawn in one cell of a sight line — and it is what this file already told you to
+work out by hand.
 
 **Draw calls are the budget that matters most and the one hardest to spend
 well.** A frame on the heaviest map is 400-500 of them and the game is CPU-bound
@@ -376,15 +408,20 @@ the same number. A room at 35 draws is not the problem; twelve of them in one
 sight line is. That is why this number has not been ratcheted the way triangles
 have: what moves it is the culler, not the rooms.
 
-It is a flat number rather than per cell, deliberately: the rooms that get near
-it are 1x1s that packed too much in, not the set pieces. Two consequences the
-crypt pass ran into, both worth knowing before you argue with a warning:
+Draw calls and colliders are still flat numbers rather than per cell, and that is
+deliberate: the rooms that get near them are 1x1s that packed too much in, not
+the set pieces. Two consequences worth knowing before you argue with a warning:
 
 - **A multi-cell room will trip the flat numbers, and that can be right.** The
-  crypt's 2x2 is 36 800 triangles — over the budget, and 9 200 per cell, which is
-  less than most of its own 1x1s. Its 1x3 is 29 colliders, and about twenty of
-  those are the shell's own walls. Read a multi-cell warning per cell before
-  changing anything.
+  crypt's 1x3 is 34 colliders, and about twenty of those are the shell's own
+  walls. Read a multi-cell warning per cell before changing anything — which is
+  what the triangle budget now does for you, and the collider one still does not.
+- **Every budget is the worst case of that budget**, not one build's reading of
+  all of them. `validateArt.mjs` builds each room on every door combination and
+  three seeds and takes the maximum of each number separately, because they peak
+  on different combinations — a room's triangles peak with every door shut and
+  its colliders with them open. It used to report whichever build had the most
+  draw calls, which quietly understated the rest.
 - **Draw calls are counted per material *per shadow flag*.** `MeshBatcher` builds
   one mesh per material, and a second one if some of that material's geometry
   casts shadows and some does not — so a material shared between a shadowed tomb

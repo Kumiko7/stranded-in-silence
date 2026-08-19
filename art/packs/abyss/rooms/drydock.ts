@@ -2,7 +2,28 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { beacon, cageLamp, causticPatch, crate, debris, disc, diveSuit, drum, glowShaft, ladder, pipeRun, puddle, quad, railing, stripLight, valve, wallSign } from '../kit/props';
+import {
+  ball,
+  beacon,
+  cageLamp,
+  causticPatch,
+  crate,
+  cyl,
+  debris,
+  disc,
+  diveSuit,
+  drum,
+  glowShaft,
+  ladder,
+  pipeRun,
+  puddle,
+  quad,
+  railing,
+  spike,
+  stripLight,
+  valve,
+  wallSign,
+} from '../kit/props';
 
 /**
  * The Submersible Bay - two cells of hangar with a three-person boat in the
@@ -114,24 +135,21 @@ function build(ctx: RoomBuildContext): BuiltRoom {
    * you read up close, through the ports. Built along +X, nose to the west.
    */
   const body = ctx.materials.get('paintedWarn');
-  room.geo(body, new THREE.CylinderGeometry(0.86, 0.98, 4.2, 18), tiltMatrix([SUB_X, 1.68, SUB_Z], [0, 0, Math.PI / 2]), {
+  room.geo(body, cyl(0.86, 0.98, 4.2, 18), tiltMatrix([SUB_X, 1.68, SUB_Z], [0, 0, Math.PI / 2]), {
     tile: 1.2,
-    consume: true,
   });
-  room.geo(body, new THREE.SphereGeometry(0.86, 16, 12), poseMatrix([SUB_X - 2.1, 1.68, SUB_Z]), { tile: 0.9, consume: true });
-  room.geo(body, new THREE.ConeGeometry(0.98, 1.5, 16), tiltMatrix([SUB_X + 2.85, 1.68, SUB_Z], [0, 0, -Math.PI / 2]), {
+  room.geo(body, ball(0.86, 16), poseMatrix([SUB_X - 2.1, 1.68, SUB_Z]), { tile: 0.9 });
+  room.geo(body, spike(0.98, 1.5, 16), tiltMatrix([SUB_X + 2.85, 1.68, SUB_Z], [0, 0, -Math.PI / 2]), {
     tile: 0.8,
-    consume: true,
   });
   // Belly keel and hazard band, so the hull is not one uninterrupted tube.
   room.geo('steelDark', new THREE.BoxGeometry(4.6, 0.2, 0.5), poseMatrix([SUB_X, 0.9, SUB_Z]), { tile: 0.6, consume: true });
-  room.geo('steelDark', new THREE.CylinderGeometry(0.99, 0.99, 0.24, 18), tiltMatrix([SUB_X + 1.3, 1.68, SUB_Z], [0, 0, Math.PI / 2]), {
+  room.geo('steelDark', cyl(0.99, 0.99, 0.24, 18), tiltMatrix([SUB_X + 1.3, 1.68, SUB_Z], [0, 0, Math.PI / 2]), {
     tile: 0.4,
-    consume: true,
   });
 
   // The forward dome: three ports in a bolted ring, the middle one big.
-  room.geo('steelPale', new THREE.SphereGeometry(0.68, 14, 10), poseMatrix([SUB_X - 2.3, 1.68, SUB_Z]), { tile: 0.7, consume: true });
+  room.geo('steelPale', ball(0.68, 14), poseMatrix([SUB_X - 2.3, 1.68, SUB_Z]), { tile: 0.7 });
   for (const [dz, dy, r] of [
     [0, 0, 0.3],
     [-0.5, -0.06, 0.17],
@@ -147,9 +165,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   }
   // Lamp pods on the nose. Both dead, which is worse than both lit.
   for (const s of [-1, 1]) {
-    room.geo('steelDark', new THREE.CylinderGeometry(0.12, 0.14, 0.22, 9), tiltMatrix([SUB_X - 2.5, 2.24, SUB_Z + s * 0.5], [Math.PI / 2, 0, 0]), {
+    room.geo('steelDark', cyl(0.12, 0.14, 0.22, 9), tiltMatrix([SUB_X - 2.5, 2.24, SUB_Z + s * 0.5], [Math.PI / 2, 0, 0]), {
       tile: 0.3,
-      consume: true,
     });
     room.geo('plastic', disc(0.1, 10), poseMatrix([SUB_X - 2.63, 2.24, SUB_Z + s * 0.5], -Math.PI / 2), { castShadow: false, receiveShadow: false });
   }
@@ -160,12 +177,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     tile: 0.3,
     consume: true,
   });
-  room.geo('steelPale', new THREE.CircleGeometry(0.32, 14), tiltMatrix([SUB_X + 0.2, 2.94, SUB_Z], [0.9, 0.4, 0]), { tile: 0.3, consume: true });
+  room.geo('steelPale', disc(0.32, 14), tiltMatrix([SUB_X + 0.2, 2.94, SUB_Z], [0.9, 0.4, 0]), { tile: 0.3 });
   for (let i = 0; i < 5; i++) {
-    room.geo('steel', new THREE.CylinderGeometry(0.02, 0.02, 0.44, 5), tiltMatrix([SUB_X - 0.55, 2.72 - i * 0.36, SUB_Z], [Math.PI / 2, 0, Math.PI / 2]), {
+    room.geo('steel', cyl(0.02, 0.02, 0.44, 5), tiltMatrix([SUB_X - 0.55, 2.72 - i * 0.36, SUB_Z], [Math.PI / 2, 0, Math.PI / 2]), {
       tile: 0.2,
       castShadow: false,
-      consume: true,
     });
   }
 
@@ -187,11 +203,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     room.geo(
       'steelPale',
-      new THREE.CylinderGeometry(0.09, 0.11, len, 8),
+      cyl(0.09, 0.11, len, 8),
       tiltMatrix([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], [Math.acos((b[1] - a[1]) / len), Math.atan2(b[0] - a[0], b[2] - a[2]), 0]),
-      { tile: 0.4, consume: true },
+      { tile: 0.4 },
     );
-    room.geo('steelDark', new THREE.SphereGeometry(0.13, 8, 6), poseMatrix([b[0], b[1], b[2]]), { tile: 0.3, consume: true });
+    room.geo('steelDark', ball(0.13, 8), poseMatrix([b[0], b[1], b[2]]), { tile: 0.3 });
   }
   for (const s of [-1, 1]) {
     room.geo('steelPale', new THREE.BoxGeometry(0.34, 0.07, 0.09), tiltMatrix([SUB_X - 2.72, 0.16, SUB_Z - 3.0 + s * 0.1], [0, s * 0.5, -0.3]), {
@@ -209,9 +225,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     room.geo('steel', new THREE.BoxGeometry(0.22, 0.7, 0.3), poseMatrix([x, ceilingHeight - 0.3, SUB_Z - 0.2]), { tile: 0.4, consume: true });
   }
   room.box('steelDark', [0.44, 0.4, 0.4], [SUB_X + 0.2, ceilingHeight - 1.18, SUB_Z - 0.2], 0, { tile: 0.3, castShadow: false });
-  room.geo('cable', new THREE.CylinderGeometry(0.02, 0.02, 0.5, 5), poseMatrix([SUB_X + 0.2, ceilingHeight - 1.45, SUB_Z - 0.2]), {
+  room.geo('cable', cyl(0.02, 0.02, 0.5, 5), poseMatrix([SUB_X + 0.2, ceilingHeight - 1.45, SUB_Z - 0.2]), {
     castShadow: false,
-    consume: true,
   });
 
   pipeRun(

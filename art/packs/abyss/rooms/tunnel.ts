@@ -2,7 +2,20 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { bioMotes, causticPatch, debris, disc, dripLine, glowShaft, quad, railing, stripLight, swell, wallSign } from '../kit/props';
+import {
+  ball,
+  bioMotes,
+  causticPatch,
+  debris,
+  disc,
+  dripLine,
+  glowShaft,
+  quad,
+  railing,
+  stripLight,
+  swell,
+  wallSign,
+} from '../kit/props';
 
 /**
  * The Tunnel - twenty-four metres of walking through the sea.
@@ -133,9 +146,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const a = room.range(0, Math.PI * 2);
     room.geo(
       'rockDark',
-      new THREE.SphereGeometry(room.range(0.09, 0.2), 6, 5),
+      ball(room.range(0.09, 0.2), 6),
       tiltMatrix([room.range(-2.6, 2.6), ceilingHeight + room.range(0.3, 1.0), room.range(-3.0, 19.0)], [0, a, room.range(-0.2, 0.2)], [2.5, 0.75, 0.9]),
-      { castShadow: false, receiveShadow: false, consume: true },
+      { castShadow: false, receiveShadow: false },
     );
   }
 

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { cobwebs, debris, longcaseClock, pendantLamp, sconce, table } from '../kit/props';
+import { cobwebs, cyl, debris, longcaseClock, pendantLamp, sconce, table } from '../kit/props';
 
 /**
  * The Clock Room - forty-one clocks, all stopped at four minutes past three.
@@ -40,12 +40,10 @@ export const clocks: RoomBlueprint = {
 function wallClock(room: Room, x: number, y: number, z: number, rotationY: number, radius: number): void {
   const out = (d: number): [number, number, number] => [x - Math.sin(rotationY) * d, y, z - Math.cos(rotationY) * d];
 
-  room.geo('woodDark', new THREE.CylinderGeometry(radius + 0.04, radius + 0.04, 0.1, 16), tiltMatrix(out(0.05), [Math.PI / 2, rotationY, 0]), {
+  room.geo('woodDark', cyl(radius + 0.04, radius + 0.04, 0.1, 16), tiltMatrix(out(0.05), [Math.PI / 2, rotationY, 0]), {
     tile: 0.5,
-    consume: true,
   });
-  room.geo('bone', new THREE.CylinderGeometry(radius, radius, 0.02, 16), tiltMatrix(out(0.1), [Math.PI / 2, rotationY, 0]), {
-    consume: true,
+  room.geo('bone', cyl(radius, radius, 0.02, 16), tiltMatrix(out(0.1), [Math.PI / 2, rotationY, 0]), {
   });
   const face = out(0.12);
   for (let i = 0; i < 12; i++) {
@@ -95,9 +93,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 9; i++) {
     room.geo(
       'brass',
-      new THREE.CylinderGeometry(room.range(0.04, 0.09), room.range(0.04, 0.09), 0.03, 10),
+      cyl(room.range(0.04, 0.09), room.range(0.04, 0.09), 0.03, 10),
       poseMatrix([room.range(-0.9, 0.9), 0.88, room.range(-0.36, 0.36)], room.range(0, Math.PI)),
-      { consume: true },
+      {},
     );
   }
   for (let i = 0; i < 7; i++) {
@@ -108,10 +106,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       { consume: true },
     );
   }
-  room.geo('glass', new THREE.CylinderGeometry(0.16, 0.16, 0.34, 12, 1, true), poseMatrix([0.5, 1.03, -0.2]), {
-    consume: true,
+  room.geo('glass', cyl(0.16, 0.16, 0.34, 12, true), poseMatrix([0.5, 1.03, -0.2]), {
   });
-  room.geo('woodDark', new THREE.CylinderGeometry(0.2, 0.2, 0.04, 12), poseMatrix([0.5, 0.88, -0.2]), { consume: true });
+  room.geo('woodDark', cyl(0.2, 0.2, 0.04, 12), poseMatrix([0.5, 0.88, -0.2]), {});
 
   // A stool, and a case of pendulums against the far wall.
   room.box('woodDark', [0.42, 0.6, 0.42], [-0.4, 0, 1.3], 0.3);
@@ -119,8 +116,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.solid('woodPale', [1.3, 1.4, 0.34], [2.9, 0, 2.7], -Math.PI / 2, { tile: 1.2 });
   room.box('woodDark', [1.36, 0.05, 0.4], [2.9, 1.4, 2.7], -Math.PI / 2);
   for (let i = 0; i < 5; i++) {
-    room.geo('brass', new THREE.CylinderGeometry(0.06, 0.06, 0.012, 12), tiltMatrix([2.98, 0.6 + room.range(-0.1, 0.5), 2.2 + i * 0.24], [0, 0, Math.PI / 2]), {
-      consume: true,
+    room.geo('brass', cyl(0.06, 0.06, 0.012, 12), tiltMatrix([2.98, 0.6 + room.range(-0.1, 0.5), 2.2 + i * 0.24], [0, 0, Math.PI / 2]), {
     });
   }
 

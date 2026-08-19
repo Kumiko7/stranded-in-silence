@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { ball, boneDebris, breathe, disc, drools, glowShaft, polyps, strut } from '../kit/props';
+import { ball, boneDebris, breathe, cyl, disc, drools, glowShaft, polyps, strut } from '../kit/props';
 
 /**
  * The Cascade - a wall of vessels the size of drainpipes, one of which has
@@ -77,9 +77,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 6; i++) {
     room.geo(
       'blood',
-      new THREE.CylinderGeometry(0.02, 0.05, room.range(0.6, 2.4), 5),
+      cyl(0.02, 0.05, room.range(0.6, 2.4), 5),
       poseMatrix([-3.3 + room.range(-0.05, 0.12), room.range(0.5, 1.6), splitZ + room.range(-0.5, 0.5)]),
-      { castShadow: false, consume: true },
+      { castShadow: false },
     );
   }
   glowShaft(room, [-3.1, splitY, splitZ], [0.4, 0.3, 0.6], 1.5, true);

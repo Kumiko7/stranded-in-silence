@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { cageLamp, debris, dripLine, quad, specimenJar, stripLight } from '../kit/props';
+import { cageLamp, cyl, debris, dripLine, quad, specimenJar, stripLight } from '../kit/props';
 
 /**
  * The Sample Archive - everything the station ever caught, in a jar, in order.
@@ -81,21 +81,23 @@ function rackBay(
   // Diagonal bracing on the back of the bay: the detail that reads as racking.
   for (const s of [-1, 1]) {
     const a = at(s * length * 0.25, depth / 2 - 0.06);
-    room.geo('steelDark', new THREE.CylinderGeometry(0.016, 0.016, 1.5, 4), tiltMatrix([a[0], 1.6, a[2]], [0, spin, s * 0.62]), {
+    room.geo('steelDark', cyl(0.016, 0.016, 1.5, 4), tiltMatrix([a[0], 1.6, a[2]], [0, spin, s * 0.62]), {
       tile: 0.3,
       castShadow: false,
-      consume: true,
     });
   }
 
   for (const y of levels) {
-    const count = Math.max(3, Math.round(length / 0.26));
+    // A jar every 34 cm rather than every 26. The shelves are the room and a
+    // rack still reads as full at this pitch - the archive was placing ninety-six
+    // of the dearest prop in the pack, which is two thirds of the room.
+    const count = Math.max(3, Math.round(length / 0.46));
     for (let i = 0; i < count; i++) {
       const lx = -length / 2 + 0.12 + ((length - 0.24) * i) / (count - 1);
       if (claimed.some(([cy, cx]) => Math.abs(cy - y) < 0.1 && Math.abs(cx - lx) < 0.3)) continue;
       if (room.chance(0.12)) continue; // gaps, so it is not a wall of tins
       const p = at(lx, room.range(-0.05, 0.05));
-      specimenJar(room, p[0], y + 0.04, p[2], room.range(0.065, 0.095), room.range(0.16, 0.28), room.chance(0.58));
+      specimenJar(room, p[0], y + 0.04, p[2], room.range(0.095, 0.13), room.range(0.16, 0.28), room.chance(0.58));
     }
   }
   room.collider({ kind: 'box', center: [x, z], halfExtents: [length / 2 - 0.04, depth / 2 - 0.04], rotationY: spin });
@@ -129,10 +131,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     room.solid('steelDark', [0.5, 1.32, 0.74], [-3.42, 0, z], 0, { tile: 0.7 });
     for (let d = 0; d < 4; d++) {
       room.box('steelPale', [0.06, 0.28, 0.66], [-3.18, 0.06 + d * 0.32, z], 0, { tile: 0.3, castShadow: false });
-      room.geo('steel', new THREE.CylinderGeometry(0.018, 0.018, 0.14, 5), tiltMatrix([-3.14, 0.2 + d * 0.32, z], [Math.PI / 2, Math.PI / 2, Math.PI / 2]), {
+      room.geo('steel', cyl(0.018, 0.018, 0.14, 5), tiltMatrix([-3.14, 0.2 + d * 0.32, z], [Math.PI / 2, Math.PI / 2, Math.PI / 2]), {
         tile: 0.2,
         castShadow: false,
-        consume: true,
       });
     }
   }

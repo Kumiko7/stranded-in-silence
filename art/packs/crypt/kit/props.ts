@@ -28,7 +28,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { boxGeometry, mm, ownGeometryCache } from '../../../lib/build';
+import { bands, boxGeometry, mm, ownGeometryCache, sides } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
@@ -107,6 +107,7 @@ export function wallPose(
  */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 export function cyl(rTop: number, rBot: number, h: number, seg = 9, open = false): THREE.CylinderGeometry {
+  seg = sides(Math.max(Math.abs(rTop), Math.abs(rBot)), seg);
   const key = `${mm(rTop)},${mm(rBot)},${mm(h)},${seg},${open}`;
   let geo = cylCache.get(key);
   if (!geo) {
@@ -118,10 +119,11 @@ export function cyl(rTop: number, rBot: number, h: number, seg = 9, open = false
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 export function ball(r: number, seg = 9): THREE.SphereGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(mm(r), seg, Math.max(4, Math.round(seg / 2)));
+    geo = new THREE.SphereGeometry(mm(r), seg, bands(seg));
     sphereCache.set(key, geo);
   }
   return geo;
@@ -129,6 +131,7 @@ export function ball(r: number, seg = 9): THREE.SphereGeometry {
 
 const coneCache = new Map<string, THREE.ConeGeometry>();
 export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(h)},${seg}`;
   let geo = coneCache.get(key);
   if (!geo) {
@@ -140,13 +143,14 @@ export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 export function ring(r: number, tube: number, seg = 12): THREE.TorusGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
     // Six sides round the tube, not twelve: a 6 x 12 torus is 144 triangles for
     // a band nobody can resolve, and that detail was 15 % of a whole map once
     // (see systems/RENDERING.md).
-    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), sides(tube, 6), seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -165,6 +169,7 @@ export function quad(w: number, h: number): THREE.PlaneGeometry {
 
 const discCache = new Map<string, THREE.CircleGeometry>();
 export function disc(r: number, seg = 18): THREE.CircleGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = discCache.get(key);
   if (!geo) {
@@ -208,6 +213,7 @@ export function strut(
   radius: number,
   seg = 6,
   options: BatchOptions = {},
+  open = false,
 ): void {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
@@ -218,7 +224,7 @@ export function strut(
   const pitch = Math.acos(Math.min(1, Math.max(-1, dy / length)));
   room.geo(
     material,
-    cyl(radius, radius, length, seg),
+    cyl(radius, radius, length, seg, open),
     tiltMatrix([(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2], [pitch, yaw, 0]),
     { tile: 0.6, ...options },
   );
@@ -608,9 +614,10 @@ export function coronaLucis(room: Room, x: number, z: number, radius = 0.85, lit
     const a = (i / 3) * Math.PI * 2 + 0.3;
     strut(room, 'iron', [x + Math.cos(a) * radius * 0.8, y + 0.05, z + Math.sin(a) * radius * 0.8], [x, ceilingHeight - 0.06, z], 0.012, 4, FLAT);
   }
-  room.geo('iron', ring(radius, 0.035, 20), tiltMatrix([x, y, z], [Math.PI / 2, 0, 0]), FLAT);
-  room.geo('iron', ring(radius, 0.02, 20), tiltMatrix([x, y - 0.14, z], [Math.PI / 2, 0, 0]), FLAT);
-  const uprights = 10;
+  // One hoop, not two. A torus is the dearest thing in the kit and the lower
+  // course of the ring hung 14 cm under the upper one in the same silhouette.
+  room.geo('iron', ring(radius, 0.045, 20), tiltMatrix([x, y - 0.05, z], [Math.PI / 2, 0, 0]), FLAT);
+  const uprights = 5;
   for (let i = 0; i < uprights; i++) {
     const a = (i / uprights) * Math.PI * 2;
     const cx = x + Math.cos(a) * radius;
@@ -901,16 +908,14 @@ export function skull(room: Room, x: number, y: number, z: number, rotationY = 0
   // stone, and at `stoneDark` under a tallow lamp they were mid-grey on beige - a
   // cairn of them read as a pile of potatoes from four metres.
   for (const side of [-1, 1]) {
-    room.geo('bitumen', ball(s * 0.42, 4), poseMatrix(out(s * 0.94, s * 1.0, side * s * 0.44)), FLAT);
+    room.geo('bitumen', ball(s * 0.46, 4), poseMatrix(out(s * 0.94, s * 1.0, side * s * 0.44)), FLAT);
   }
-  room.geo('bitumen', ball(s * 0.24, 4), tiltMatrix(out(s * 0.98, s * 0.58), [0, rotationY, 0], [0.7, 1.4, 1]), FLAT);
-  // Cheekbones, and the jaw hanging open under them.
-  for (const side of [-1, 1]) {
-    room.box(material, [s * 0.3, s * 0.22, s * 0.4], out(s * 0.7, s * 0.66, side * s * 0.6), rotationY, { tile: 0.2, castShadow: false });
-  }
+  // The jaw, hanging open. The cheekbones that used to flank it were two more
+  // boxes on an 11 cm object read across a dark room, and the ossuary is a wall
+  // of these - what carries a skull is the two dark sockets and the open jaw.
   room.box(material, [s * 1.1, s * 0.3, s * 0.6], out(s * 0.62, s * 0.05), rotationY + 0.05, { tile: 0.2, castShadow: false });
-  // Teeth: one pale strip. Individual teeth at this size are noise.
-  room.box('bonePale', [s * 0.9, s * 0.1, s * 0.12], out(s * 0.86, s * 0.34), rotationY, { tile: 0.15, castShadow: false });
+  // No teeth. A pale strip 1 cm deep behind an open jaw was invisible from the
+  // far side of the room and the ossuary stands a hundred and forty of these.
 }
 
 /**
@@ -984,14 +989,24 @@ export function boneStack(room: Room, side: Side, along: number, width = 3.0, he
    */
   const wallSkull = (a: number, y: number, d: number, dark: boolean): void => {
     const p = at(a, y, d);
-    room.geo(dark ? 'boneDark' : 'bone', ball(0.105, 6), tiltMatrix(p, [0, rotationY, 0], [1, 1.1, 1.15]), { tile: 0.25 });
+    room.geo(dark ? 'boneDark' : 'bone', ball(0.12, 6), tiltMatrix(p, [0, rotationY, 0], [1, 1.1, 1.15]), { tile: 0.25 });
     for (const s of [-1, 1]) {
-      room.box('bitumen', [0.07, 0.05, 0.02], at(a + s * 0.038, y - 0.004, d + 0.09), rotationY, { tile: 0.2 });
+      room.box('bitumen', [0.075, 0.055, 0.02], at(a + s * 0.042, y - 0.004, d + 0.1), rotationY, { tile: 0.2 });
     }
     room.box(dark ? 'boneDark' : 'bonePale', [0.085, 0.036, 0.05], at(a, y - 0.085, d + 0.04), rotationY, { tile: 0.2 });
   };
 
-  const courseH = 0.3;
+  /** A femur laid end-on, its cap inside the wall behind it. */
+  const femur = (a: number, y: number, len: number, dark: boolean): void => {
+    strut(room, dark ? 'boneDark' : 'bone', at(a, y, 0.02), at(a, y + 0.01, len), 0.052, 5, NO_SHADOW, true);
+    room.geo('bonePale', ball(0.062, 6), poseMatrix(at(a, y + 0.01, len)), { tile: 0.2 });
+  };
+
+  // A coarser weave than the first pass. At 0.3 x 0.42 a two-metre panel was
+  // eighteen pieces of bone and a wall of them was the largest room in the pack;
+  // the stack reads as bone from the pattern and the shadow between the courses,
+  // and it holds that read at four courses of four.
+  const courseH = 0.36;
   const courses = Math.max(3, Math.floor(height / courseH));
   for (let c = 0; c < courses; c++) {
     const y = 0.1 + c * courseH;
@@ -1001,7 +1016,7 @@ export function boneStack(room: Room, side: Side, along: number, width = 3.0, he
     const skulls = c % 2 === 1;
     // Coarse on purpose. At 0.32 the femur ends were 3 cm discs in rows of sixteen,
     // which from a doorway is a rack of bottle bottoms rather than a wall of bone.
-    const pitch = skulls ? 0.42 : 0.44;
+    const pitch = skulls ? 0.72 : 0.74;
     const n = Math.floor(width / pitch);
     for (let i = 0; i < n; i++) {
       const a = -width / 2 + pitch * (i + 0.5) + (c % 2) * pitch * 0.28;
@@ -1013,9 +1028,7 @@ export function boneStack(room: Room, side: Side, along: number, width = 3.0, he
         // A femur end-on: a short five-sided cylinder pointing out of the wall with
         // its condyle on the end. The knuckle is the difference between a wall of
         // bone and a wall of dowels, and one six-sided ball each is what it costs.
-        const len = 0.22 + ((i * 3 + c) % 3) * 0.05;
-        strut(room, (i + c) % 5 === 0 ? 'boneDark' : 'bone', at(a, y + courseH * 0.42, 0.02), at(a, y + courseH * 0.44, len), 0.052, 5, NO_SHADOW);
-        room.geo('bonePale', ball(0.062, 6), poseMatrix(at(a, y + courseH * 0.44, len)), { tile: 0.2 });
+        femur(a, y + courseH * 0.42, 0.22 + ((i * 3 + c) % 3) * 0.05, (i + c) % 5 === 0);
       }
     }
     // A shelf plank between courses. It is the horizontal line that says somebody
@@ -1628,7 +1641,7 @@ export function puddle(room: Room, x: number, z: number, radius = 0.6): void {
 export function sporeCluster(room: Room, x: number, y: number, z: number, scale = 1, lit = false, intensity = 5, teal = false): void {
   const capMat = teal ? 'capTeal' : 'capViolet';
   room.geo('mycelium', disc(0.6 * scale, 12), tiltMatrix([x, y + 0.012, z], [-Math.PI / 2, room.range(0, 3), 0]), FLAT);
-  const count = 4 + Math.floor(room.range(0, 4));
+  const count = 3 + Math.floor(room.range(0, 3));
   let tallest = 0;
   for (let i = 0; i < count; i++) {
     const a = room.range(0, Math.PI * 2);

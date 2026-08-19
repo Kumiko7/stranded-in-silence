@@ -49,21 +49,24 @@ export const menagerie: RoomBlueprint = {
  * identical shapes is a wine rack.
  */
 function honeycomb(room: Room, xFace: number, faceSign: number, z0: number, z1: number, rotationY: number): void {
-  const cols = Math.floor((z1 - z0) / 0.42);
-  const rows = 6;
+  // A coarser grid than the first pass: five courses of holes at 52 cm rather
+  // than six at 42. Both faces of this run the length of the room, so the pitch
+  // is squared into the room's cost - it was two fifths of it.
+  const cols = Math.floor((z1 - z0) / 0.52);
+  const rows = 5;
   const x = xFace + faceSign * 0.24;
   room.box('surface.mudbrick', [0.48, 2.7, z1 - z0], [x, 0, (z0 + z1) / 2], 0, { tile: 0.9 });
   room.collider({ kind: 'box', center: [x, (z0 + z1) / 2], halfExtents: [0.2, (z1 - z0) / 2 - 0.04] });
   for (let r = 0; r < rows; r++) {
-    const y = 0.24 + r * 0.42;
+    const y = 0.24 + r * 0.5;
     // The shelf each course stands on, and the ribs between the holes.
     room.box('stoneWarmPale', [0.5, 0.05, z1 - z0], [x, y - 0.05, (z0 + z1) / 2], 0, { tile: 0.5, castShadow: false });
     for (let c = 0; c < cols; c++) {
-      const cz = z0 + 0.21 + c * 0.42;
-      room.box('surface.mudbrick', [0.5, 0.37, 0.06], [x, y, cz + 0.21], 0, { tile: 0.3, castShadow: false });
+      const cz = z0 + 0.26 + c * 0.52;
+      room.box('surface.mudbrick', [0.5, 0.44, 0.06], [x, y, cz + 0.26], 0, { tile: 0.3, castShadow: false });
       // The dark of the hole. Every one of these is a place something is lying
       // down, and the ones with nothing in them are the ones a player notices.
-      room.box('stoneDark', [0.3, 0.33, 0.34], [x - faceSign * 0.16, y, cz], 0, { tile: 0.3, castShadow: false });
+      room.box('stoneDark', [0.3, 0.4, 0.42], [x - faceSign * 0.16, y, cz], 0, { tile: 0.3, castShadow: false });
       if ((r * 5 + c * 3) % 11 === 0) continue;
       const long = (r + c) % 4 === 0;
       const len = long ? 0.3 : 0.19;

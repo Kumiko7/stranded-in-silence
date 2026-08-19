@@ -2,7 +2,20 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { bioMotes, bob, cageLamp, causticPatch, debris, jelly as jellyBody, quad, shelf, stripLight, swell, tankColumn } from '../kit/props';
+import {
+  bioMotes,
+  bob,
+  cageLamp,
+  causticPatch,
+  cyl,
+  debris,
+  jelly as jellyBody,
+  quad,
+  shelf,
+  stripLight,
+  swell,
+  tankColumn,
+} from '../kit/props';
 
 /**
  * The Drift - two columns of jellyfish, and nothing else.
@@ -111,20 +124,17 @@ function build(ctx: RoomBuildContext): BuiltRoom {
         if (Math.abs(y - 1.25) < 0.1 && Math.abs(z + 2.6) < 0.25) continue; // an item anchor's slot
         if (Math.abs(y - 1.78) < 0.1 && Math.abs(z - 2.6) < 0.25) continue;
         const h = room.range(0.24, 0.4);
-        room.geo('tankGlow', new THREE.CylinderGeometry(0.055, 0.055, h * 0.84, 10), poseMatrix([-3.44, y + 0.06 + h * 0.42, z]), {
+        room.geo('tankGlow', cyl(0.055, 0.055, h * 0.84, 10), poseMatrix([-3.44, y + 0.06 + h * 0.42, z]), {
           castShadow: false,
-          consume: true,
         });
         jellyBody(room, -3.44, y + 0.06 + h * 0.52, z, 0.04);
-        room.geo('glassPane', new THREE.CylinderGeometry(0.068, 0.068, h, 10, 1, true), poseMatrix([-3.44, y + 0.06 + h / 2, z]), {
+        room.geo('glassPane', cyl(0.068, 0.068, h, 10, true), poseMatrix([-3.44, y + 0.06 + h / 2, z]), {
           castShadow: false,
           receiveShadow: false,
-          consume: true,
         });
-        room.geo('steelPale', new THREE.CylinderGeometry(0.072, 0.068, 0.03, 10), poseMatrix([-3.44, y + 0.06 + h, z]), {
+        room.geo('steelPale', cyl(0.072, 0.068, 0.03, 10), poseMatrix([-3.44, y + 0.06 + h, z]), {
           tile: 0.2,
           castShadow: false,
-          consume: true,
         });
       }
       // A label plate under the course. Unreadable by design: art has no access

@@ -64,26 +64,42 @@ const CELL = 0.12;
  * grow. That means each is RATCHETED DOWN whenever a pass reduces the worst
  * room, and the history is the point:
  *
- *   triangles  40 000 -> 25 000 -> 21 000
+ *   triangles  40 000 -> 25 000 -> 21 000 -> 10 000
  *
  * 40 000 was headroom nobody was going to use and so never said anything - the
  * manor's worst room is 8 400, and Kerberos Deep spent the whole allowance a
  * room at a time without tripping it. 25 000 sat just above `abyss.archive` at
- * 23 878. 21 000 sits just above `crypt.ossuary` at 20 730, which is now the
- * largest 1x1 that ships: a pass over the biggest spenders took the archive to
- * 18 178 and `abyss.jelly` to 16 440, all of it segment counts on small round
- * things there are hundreds of. See docs/systems/RENDERING.md.
+ * 23 878, and 21 000 just above `crypt.ossuary` at 20 730.
+ *
+ * The last step is different from the three before it: it was asked for rather
+ * than earned, because the packs together were 1.6 M triangles standing and the
+ * frame could not carry them. Nothing was found that gave it back in one place -
+ * a map is forty thousand boxes and fifteen thousand small round things, and
+ * every line item was one to four per cent - so it came from three passes over
+ * everything at once: a size ramp under every round primitive (`sides()` in
+ * art/lib/build.ts), open-ended tubes wherever a chain hides its own caps, and
+ * about a third off the pitch of every course that runs round a wall. See
+ * docs/systems/RENDERING.md and docs/art/ROOM_REVIEW.md.
+ *
+ * TRIANGLES ARE COUNTED PER CELL, and the other budgets are not. A flat number
+ * worked while it sat two and a half times over a typical 1x1: the only rooms
+ * that reached it were 1x1s that had packed too much in, which is what it was
+ * for. At 10 000 it sits ON a typical 1x1, so a flat number would flag every
+ * multi-cell room in the game however lean it was, and drown the signal. Per
+ * cell is also what the frame actually cares about - what is drawn in a cell of
+ * a sight line - and it is what ROOM_FORMAT.md already told reviewers to work
+ * out by hand.
  *
  * `drawCalls` is deliberately NOT tightened, and it is the one that matters
  * most. Measured in the running game, a frame on the heaviest map is 400-500
  * draw calls and CPU-bound on submitting them - `tools/perf.html` reports frame
  * time and submission time side by side and they are the same number. But the
- * two rooms over 40 are a 3-cell (16 draws a cell) and the crypt's hinge room,
- * both argued in the docs, and every other room is at 30-38: tightening the
- * number would flag a dozen rooms without reducing anything. What would
- * actually move it is the culler, not the budget.
+ * rooms over 40 are multi-cell and the crypt's hinge room, both argued in the
+ * docs, and every other room is at 30-38: tightening the number would flag a
+ * dozen rooms without reducing anything. What would actually move it is the
+ * culler, not the budget.
  */
-const BUDGET = { drawCalls: 40, triangles: 21000, lights: 2, shadowLights: 1, colliders: 25 };
+const BUDGET = { drawCalls: 40, trianglesPerCell: 10000, lights: 2, shadowLights: 1, colliders: 25 };
 
 /** Packs that are scaffolding, not maps. See the note where this is used. */
 const SCAFFOLD_PACKS = new Set(['test']);
@@ -944,12 +960,23 @@ async function main() {
       checkMetadata(packId, blueprint, seenIds);
       checkDoorwaysClear(blueprint, containersAt(blueprint, containerArt));
 
+      // The worst case of each budget, not the worst-draw-call build's reading of
+      // all of them: they peak on different door combinations, and a budget that
+      // reports a number from somebody else's worst case is not a budget.
       let worst = null;
       const combos = doorCombos(blueprint);
       for (const doors of combos) {
         for (const seed of [1, 424242, 0x5eed]) {
           const result = checkBuild(packId, blueprint, doors, seed, library, THREE);
-          if (result && (!worst || result.stats.drawCalls > worst.stats.drawCalls)) worst = result;
+          if (!result) continue;
+          if (!worst) {
+            worst = result;
+            continue;
+          }
+          worst.stats.drawCalls = Math.max(worst.stats.drawCalls, result.stats.drawCalls);
+          worst.stats.triangles = Math.max(worst.stats.triangles, result.stats.triangles);
+          worst.colliders = Math.max(worst.colliders, result.colliders);
+          worst.lights = Math.max(worst.lights, result.lights);
         }
       }
 
@@ -972,8 +999,13 @@ async function main() {
         if (worst.stats.drawCalls > BUDGET.drawCalls) {
           warn(blueprint.id, `${worst.stats.drawCalls} draw calls, budget is ${BUDGET.drawCalls}`);
         }
-        if (worst.stats.triangles > BUDGET.triangles) {
-          warn(blueprint.id, `${worst.stats.triangles} triangles, budget is ${BUDGET.triangles}`);
+        const perCell = Math.round(worst.stats.triangles / blueprint.footprint.length);
+        if (perCell > BUDGET.trianglesPerCell) {
+          const each = blueprint.footprint.length > 1 ? ` (${perCell} per cell)` : '';
+          warn(
+            blueprint.id,
+            `${worst.stats.triangles} triangles${each}, budget is ${BUDGET.trianglesPerCell} per cell`,
+          );
         }
         if (worst.colliders > BUDGET.colliders) {
           warn(blueprint.id, `${worst.colliders} colliders, budget is about ${BUDGET.colliders}`);

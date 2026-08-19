@@ -20,7 +20,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { mm, ownGeometryCache } from '../../../lib/build';
+import { bands, mm, ownGeometryCache, sides } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { poseMatrix, subUV, tiltMatrix } from '../../../lib/merge';
@@ -85,11 +85,12 @@ export function wallPose(
  * grow for as long as the tab is open. Register every cache added here.
  */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
-export function cyl(rTop: number, rBot: number, h: number, seg = 10): THREE.CylinderGeometry {
-  const key = `${rTop},${rBot},${h},${seg}`;
+export function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THREE.CylinderGeometry {
+  seg = sides(Math.max(Math.abs(rTop), Math.abs(rBot)), seg);
+  const key = `${rTop},${rBot},${h},${seg},${open}`;
   let geo = cylCache.get(key);
   if (!geo) {
-    geo = new THREE.CylinderGeometry(rTop, rBot, h, seg);
+    geo = new THREE.CylinderGeometry(rTop, rBot, h, seg, 1, open);
     cylCache.set(key, geo);
   }
   return geo;
@@ -97,10 +98,11 @@ export function cyl(rTop: number, rBot: number, h: number, seg = 10): THREE.Cyli
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 export function ball(r: number, seg = 10): THREE.SphereGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(mm(r), seg, Math.max(4, Math.round(seg / 2)));
+    geo = new THREE.SphereGeometry(mm(r), seg, bands(seg));
     sphereCache.set(key, geo);
   }
   return geo;
@@ -108,6 +110,7 @@ export function ball(r: number, seg = 10): THREE.SphereGeometry {
 
 const coneCache = new Map<string, THREE.ConeGeometry>();
 export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(h)},${seg}`;
   let geo = coneCache.get(key);
   if (!geo) {
@@ -119,10 +122,11 @@ export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 export function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
-    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), sides(tube, 6), seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -141,6 +145,7 @@ export function quad(w: number, h: number): THREE.PlaneGeometry {
 
 const discCache = new Map<string, THREE.CircleGeometry>();
 export function disc(r: number, seg = 20): THREE.CircleGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = discCache.get(key);
   if (!geo) {
@@ -179,6 +184,7 @@ export function strut(
   radius: number,
   seg = 7,
   options: BatchOptions = {},
+  open = false,
 ): void {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
@@ -189,7 +195,7 @@ export function strut(
   const pitch = Math.acos(Math.min(1, Math.max(-1, dy / length)));
   room.geo(
     material,
-    cyl(radius, radius, length, seg),
+    cyl(radius, radius, length, seg, open),
     tiltMatrix([(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2], [pitch, yaw, 0]),
     { tile: 0.6, ...options },
   );
@@ -422,7 +428,10 @@ export function tendril(
   suckers = true,
   material = 'meat',
 ): void {
-  const segments = 9;
+  // Six joints, not nine. A tendril is the most repeated shape in the pack and
+  // the curl is what reads, not the number of links in it - and every joint
+  // already carries a ball, so the links are open-ended tubes.
+  const segments = 6;
   const curl = room.range(-0.5, 0.5);
   let px = x;
   let py = 0;
@@ -438,10 +447,12 @@ export function tendril(
     const ny = py + Math.cos(angle) * len;
     const nz = pz + Math.sin(angle) * Math.cos(facing) * len;
 
-    strut(room, material, [px, py, pz], [nx, ny, nz], radius, 8, { tile: 0.7 });
+    strut(room, material, [px, py, pz], [nx, ny, nz], radius, 8, { tile: 0.7 }, true);
     room.geo(material, ball(radius * 1.04, 8), poseMatrix([nx, ny, nz]), { tile: 0.7 });
 
-    if (suckers && i > 0 && i < segments - 1) {
+    // Suckers on every other joint. A torus is the dearest thing in the kit and
+  // a run of them at half the pitch reads the same at arm's length.
+    if (suckers && i % 2 === 1 && i < segments - 1) {
       // On the inside of the curl, where a real sucker face is. The torus lies
       // in its own XY plane, so a yaw alone points it out of the limb.
       const out = facing + Math.PI / 2;

@@ -80,11 +80,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   const column = (cx: number, cz: number, height: number, seed: number): void => {
     room.geo('rotProp', cyl(0.26, 0.42, height, 9), poseMatrix([cx, height / 2, cz]), { tile: 0.6, castShadow: true });
     // Mycelium running up the core, so the column is furred rather than turned.
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 6; i++) {
       const a = seed + i * 1.9;
       room.geo('mycelium', cyl(0.014, 0.02, height * 0.5, 4), tiltMatrix([cx + Math.cos(a) * 0.3, height * (0.2 + (i % 3) * 0.2), cz + Math.sin(a) * 0.3], [0.2, a, 0]), { tile: 0.2, castShadow: false, receiveShadow: false });
     }
-    const shelves = 9;
+    const shelves = 7;
     for (let i = 0; i < shelves; i++) {
       const t = i / shelves;
       const a = seed + t * 7.4;
@@ -96,9 +96,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       room.geo('gill', disc(r * 0.82, 14), tiltMatrix([px, y - 0.05, pz], [Math.PI / 2 - 0.12, a, 0]), { castShadow: false, receiveShadow: false });
       // Radial gill blades under the biggest ones, which is what stops the
       // underside reading as a painted disc.
-      if (i % 2 === 0) {
-        for (let k = 0; k < 7; k++) {
-          const g = a + (k / 7 - 0.5) * 2.2;
+      if (i % 3 === 0) {
+        for (let k = 0; k < 5; k++) {
+          const g = a + (k / 5 - 0.5) * 2.2;
           room.box('gill', [0.012, 0.03, r * 0.78], [px + Math.cos(g) * 0.05, y - 0.075, pz + Math.sin(g) * 0.05], -g + Math.PI / 2, { tile: 0.1, castShadow: false, receiveShadow: false });
         }
       }
@@ -112,10 +112,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   /* --- the floor ------------------------------------------------------------- */
   // Fruiting bodies at four sizes. A field of one mushroom is wallpaper; what
   // makes a fungal floor read is that the scales disagree.
-  toadstools(room, -1.6, 2.2, 1.2, 11, true);
-  toadstools(room, 2.1, -1.9, 1.0, 9, false);
-  toadstools(room, 0.4, -3.2, 0.8, 7, true);
-  toadstools(room, -3.2, 0.6, 0.7, 6, false);
+  toadstools(room, -1.6, 2.2, 1.2, 8, true);
+  toadstools(room, 2.1, -1.9, 1.0, 6, false);
+  toadstools(room, 0.4, -3.2, 0.8, 5, true);
+  toadstools(room, -3.2, 0.6, 0.7, 4, false);
 
   // Puffballs: big, pale and low, and they are the one shape in here that is not
   // on a stalk.

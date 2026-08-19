@@ -568,6 +568,33 @@ one place they were designed.
 
 ---
 
+### And the ones the 10 000-a-cell pass caught
+
+That pass was a budget change rather than a look review — every pack halved to
+meet 10 000 triangles a cell — so most of it is in
+[`../systems/RENDERING.md`](../systems/RENDERING.md). Three findings belong here,
+because they are about how art is authored rather than about what it costs.
+
+- **A default segment count is written once, for the biggest thing the helper
+  was first used on, and then paid on the hundreds of small things that came
+  later.** Every pack's `ball()` had a default in the 7-10 range, chosen for a
+  boulder, and was being called with it on two-centimetre motes. Nobody was
+  careless: the default is invisible at the call site, which is exactly why it
+  should not be a number. It is now `sides(radius, asked)`, and the size decides.
+- **When a reduction has to be made four times, it wants to move down a layer.**
+  "Segment counts on small round things there are hundreds of" is the oldest note
+  in this file. It had been applied by hand to the tube worms, the votive flames,
+  the mushroom caps and the dust motes — each time to whichever function the
+  profiler happened to name that week. Putting it under the helpers caught every
+  call in the game at once, including all the ones nobody had ever profiled.
+- **Growing the pieces is part of removing them.** Every count in this pass came
+  with a size increase: fewer beads on a register but each one wider, thirteen
+  lumps round a mouth instead of eighteen but each one bigger, four stamens on a
+  flower instead of six but each one thicker. A course that loses a third of its
+  pieces and keeps their size reads as gapped, which is a worse room; one that
+  keeps its coverage reads the same and costs a third less. **Check a density cut
+  on a contact sheet, not in a diff.**
+
 ## 5. Using it on a new pack
 
 Nothing in the tool is mansion-specific. Add the pack to `art/packs/index.ts` and a

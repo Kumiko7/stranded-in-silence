@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { ball, boneDebris, breathe, cocoon, disc, drools, lumenPod, resinFlow } from '../kit/props';
+import { ball, boneDebris, breathe, cocoon, cyl, disc, drools, lumenPod, resinFlow } from '../kit/props';
 
 /**
  * The Comb - a wall of cells, and most of them are still capped.
@@ -68,9 +68,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
         const roll = (row * 7 + i * 13) % 11;
         const depth = 0.28 + (roll % 3) * 0.05;
 
-        room.geo('chitinPlate', new THREE.CylinderGeometry(0.36, 0.38, depth, 6), tiltMatrix([x, y, z], [Math.PI / 2, yaw, 0]), {
+        room.geo('chitinPlate', cyl(0.36, 0.38, depth, 6), tiltMatrix([x, y, z], [Math.PI / 2, yaw, 0]), {
           tile: 0.5,
-          consume: true,
         });
         const face: [number, number, number] = [x + Math.sin(yaw) * depth * 0.55, y, z + Math.cos(yaw) * depth * 0.55];
 

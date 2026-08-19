@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { ball, boneDebris, breathe, drools, lumenPod, organSac, polyps, resinFlow } from '../kit/props';
+import { ball, boneDebris, breathe, cyl, drools, lumenPod, organSac, polyps, resinFlow } from '../kit/props';
 
 /**
  * The Coil - sixteen metres of gut, and the only room in the map you cannot see
@@ -89,9 +89,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const s = i % 2 === 0 ? -1 : 1;
     room.geo(
       'meatPale',
-      new THREE.CylinderGeometry(0.06, 0.13, room.range(0.5, 1.1), 6),
+      cyl(0.06, 0.13, room.range(0.5, 1.1), 6),
       tiltMatrix([x, room.range(0.5, 2.4), s * 3.5], [s * 0.9, 0, 0]),
-      { tile: 0.4, consume: true },
+      { tile: 0.4 },
     );
   }
 
@@ -131,12 +131,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   lumenPod(room, [-3.3, 0.9, -1.4], 0.24, true, true, 10);
   room.solid('meat', [0.5, 0.9, 0.7], [-3.5, 0, -1.4], 0, { tile: 0.7 });
   lumenPod(room, [11.3, 1.2, 1.2], 0.22, true, true, 9);
-  room.geo('meatPale', new THREE.CylinderGeometry(0.14, 0.22, 1.2, 8), poseMatrix([11.45, 0.6, 1.2]), { tile: 0.6, consume: true });
+  room.geo('meatPale', cyl(0.14, 0.22, 1.2, 8), poseMatrix([11.45, 0.6, 1.2]), { tile: 0.6 });
 
   // And one in the middle, tucked behind the widest fold: a tube lit only from
   // its two ends has a black waist exactly where the cover is.
   lumenPod(room, [4.2, 1.1, 3.3], 0.2, true, false, 9);
-  room.geo('meatPale', new THREE.CylinderGeometry(0.12, 0.2, 1.1, 8), poseMatrix([4.2, 0.55, 3.42]), { tile: 0.6, consume: true });
+  room.geo('meatPale', cyl(0.12, 0.2, 1.1, 8), poseMatrix([4.2, 0.55, 3.42]), { tile: 0.6 });
 
   for (const [index, lamp] of room.lights.entries()) breathe(room, lamp, [10, 9, 9][index] ?? 9, 0.18, 0.8 + index * 0.2);
 

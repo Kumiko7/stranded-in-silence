@@ -67,6 +67,16 @@ throws.
 Every room calls `ctx.kit.shell(ctx)` first, then decorates. This guarantees door
 openings always line up between adjacent rooms regardless of who authored them.
 
+`kit/props.ts` opens with the pack's own size-keyed geometry caches - `ball`,
+`cyl`, `ring`, `spike`, `disc`. **Copy them from an existing pack rather than
+writing them**, and in particular keep the `sides(...)` call at the top of each:
+it resolves the caller's segment count against the size of the thing being built
+(`art/lib/build.ts`), and it is what stops a default chosen for a boulder being
+paid on a thousand two-centimetre motes. Build every round thing in the pack
+through them, in the shell as well as in the rooms - it is a third of the pack's
+geometry and a `new THREE.SphereGeometry` at a call site gets neither the cache
+nor the ramp.
+
 ## 4. Rooms — at least 15
 
 Write each one to [`ROOM_FORMAT.md`](ROOM_FORMAT.md). Before you start, list 15+
@@ -286,7 +296,7 @@ not a surface.
 - [ ] Every room declares ≥ 2 `patrolPoint`s
 - [ ] Pack entry added to `config/maps.json`, strings added to `en.json`
 - [ ] A lobby poster exists *(only once the lobby scene lands — plan step 29)*
-- [ ] `npm run validate:art` passes
+- [ ] `npm run validate:art` passes — no room over 10 000 triangles a cell
 - [ ] Every room reviewed on a contact sheet — [`ROOM_REVIEW.md`](ROOM_REVIEW.md)
 - [ ] Played a full run start to exit without getting stuck
 

@@ -2,7 +2,21 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { bench, bioMotes, cageLamp, causticPatch, debris, disc, dripLine, pipeRun, quad, stripLight, swell } from '../kit/props';
+import {
+  ball,
+  bench,
+  bioMotes,
+  cageLamp,
+  causticPatch,
+  cyl,
+  debris,
+  disc,
+  dripLine,
+  pipeRun,
+  quad,
+  stripLight,
+  swell,
+} from '../kit/props';
 
 /**
  * The Hatchery - forty small tanks, and something got out of one of them.
@@ -45,44 +59,38 @@ export const hatchery: RoomBlueprint = {
 /** One incubator: a lit cylinder of water with a clutch in it and a feed line. */
 function incubator(room: Room, x: number, z: number, y: number, radius: number, open: boolean): void {
   const height = 0.52;
-  room.geo('steelDark', new THREE.CylinderGeometry(radius * 1.12, radius * 1.18, 0.05, 12), poseMatrix([x, y + 0.025, z]), {
+  room.geo('steelDark', cyl(radius * 1.12, radius * 1.18, 0.05, 12), poseMatrix([x, y + 0.025, z]), {
     tile: 0.3,
-    consume: true,
   });
   if (!open) {
     // The water first, then the glass over it: a lit volume never gets a
     // translucent film in front of it (ROOM_REVIEW.md §4), and the acrylic here
     // carries almost no opacity so the glow comes through clean.
-    room.geo('tankGlow', new THREE.CylinderGeometry(radius * 0.9, radius * 0.9, height * 0.86, 12), poseMatrix([x, y + height * 0.48, z]), {
+    room.geo('tankGlow', cyl(radius * 0.9, radius * 0.9, height * 0.86, 12), poseMatrix([x, y + height * 0.48, z]), {
       castShadow: false,
-      consume: true,
     });
     for (let i = 0; i < 5; i++) {
       const a = room.range(0, Math.PI * 2);
       const r = Math.sqrt(room.rng()) * radius * 0.55;
-      room.geo('canvasPale', new THREE.SphereGeometry(radius * room.range(0.13, 0.22), 6, 5), poseMatrix([x + Math.cos(a) * r, y + room.range(0.1, 0.4), z + Math.sin(a) * r]), {
+      room.geo('canvasPale', ball(radius * room.range(0.13, 0.22), 6), poseMatrix([x + Math.cos(a) * r, y + room.range(0.1, 0.4), z + Math.sin(a) * r]), {
         castShadow: false,
-        consume: true,
       });
     }
   } else {
     room.geo('waterDeep', disc(radius * 0.9, 12), tiltMatrix([x, y + 0.06, z], [-Math.PI / 2, 0, 0]), { castShadow: false, receiveShadow: false });
   }
-  room.geo('glassPane', new THREE.CylinderGeometry(radius, radius, height, 14, 1, true), poseMatrix([x, y + height / 2, z]), {
+  room.geo('glassPane', cyl(radius, radius, height, 14, true), poseMatrix([x, y + height / 2, z]), {
     castShadow: false,
     receiveShadow: false,
-    consume: true,
   });
   if (!open) {
-    room.geo('steelPale', new THREE.CylinderGeometry(radius * 1.06, radius * 1.02, 0.06, 12), poseMatrix([x, y + height, z]), {
+    room.geo('steelPale', cyl(radius * 1.06, radius * 1.02, 0.06, 12), poseMatrix([x, y + height, z]), {
       tile: 0.3,
-      consume: true,
     });
   }
   // The feed line, dropping out of the ceiling into the lid.
-  room.geo('rubber', new THREE.CylinderGeometry(0.012, 0.012, room.ctx.dims.ceilingHeight - y - height - 0.2, 4), poseMatrix([x, (room.ctx.dims.ceilingHeight + y + height) / 2 - 0.1, z]), {
+  room.geo('rubber', cyl(0.012, 0.012, room.ctx.dims.ceilingHeight - y - height - 0.2, 4), poseMatrix([x, (room.ctx.dims.ceilingHeight + y + height) / 2 - 0.1, z]), {
     castShadow: false,
-    consume: true,
   });
 }
 
@@ -132,9 +140,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.geo('puddle', disc(0.8, 14), tiltMatrix([1.8, 0.013, 3.2], [-Math.PI / 2, 0, 0]), { castShadow: false, receiveShadow: false });
   room.geo('puddle', disc(0.42, 12), tiltMatrix([1.2, 0.013, 2.5], [-Math.PI / 2, 0, 0]), { castShadow: false, receiveShadow: false });
   for (let i = 0; i < 5; i++) {
-    room.geo('canvasPale', new THREE.SphereGeometry(room.range(0.03, 0.055), 6, 5), poseMatrix([room.range(1.2, 2.4), 0.03, room.range(2.4, 3.4)]), {
+    room.geo('canvasPale', ball(room.range(0.03, 0.055), 6), poseMatrix([room.range(1.2, 2.4), 0.03, room.range(2.4, 3.4)]), {
       castShadow: false,
-      consume: true,
     });
   }
 

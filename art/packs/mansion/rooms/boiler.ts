@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { cobwebs, debris, flicker, pipeRun, sconce } from '../kit/props';
+import { cobwebs, cyl, debris, flicker, pipeRun, sconce } from '../kit/props';
 
 /**
  * The Boiler Room - the only thing in the house that is still working.
@@ -43,13 +43,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // The furnace: a riveted iron drum with a door that has never been shut.
   const fx = 2.4;
   const fz = -2.9;
-  room.geo('ironBlack', new THREE.CylinderGeometry(1.0, 1.0, 2.4, 16), tiltMatrix([fx, 1.1, fz], [0, 0, Math.PI / 2]), {
+  room.geo('ironBlack', cyl(1.0, 1.0, 2.4, 16), tiltMatrix([fx, 1.1, fz], [0, 0, Math.PI / 2]), {
     tile: 1.6,
-    consume: true,
   });
   for (const dx of [-1.15, 1.15]) {
-    room.geo('rust', new THREE.CylinderGeometry(1.05, 1.05, 0.14, 16), tiltMatrix([fx + dx, 1.1, fz], [0, 0, Math.PI / 2]), {
-      consume: true,
+    room.geo('rust', cyl(1.05, 1.05, 0.14, 16), tiltMatrix([fx + dx, 1.1, fz], [0, 0, Math.PI / 2]), {
     });
   }
   room.solid('ironBlack', [2.6, 0.4, 1.5], [fx, 0, fz]);
@@ -75,10 +73,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   flicker(room, furnace, 17, 0.24, 3.6);
 
   // Flue and pressure gauges.
-  room.geo('rust', new THREE.CylinderGeometry(0.24, 0.24, 1.2, 10), poseMatrix([fx, 2.8, fz]), { consume: true });
+  room.geo('rust', cyl(0.24, 0.24, 1.2, 10), poseMatrix([fx, 2.8, fz]), {});
   for (const dx of [-0.6, -0.2, 0.2]) {
-    room.geo('brass', new THREE.CylinderGeometry(0.11, 0.11, 0.06, 12), tiltMatrix([fx + dx, 1.95, fz + 0.9], [Math.PI / 2, 0, 0]), {
-      consume: true,
+    room.geo('brass', cyl(0.11, 0.11, 0.06, 12), tiltMatrix([fx + dx, 1.95, fz + 0.9], [Math.PI / 2, 0, 0]), {
     });
     room.geo('ironBlack', new THREE.BoxGeometry(0.01, 0.07, 0.01), tiltMatrix([fx + dx, 1.98, fz + 0.94], [0, 0, room.range(-1, 1)]), {
       consume: true,
@@ -101,8 +98,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     );
   }
   room.blockCircle(2.5, 2.7, 1.0);
-  room.geo('woodPale', new THREE.CylinderGeometry(0.03, 0.03, 1.4, 6), tiltMatrix([1.2, 0.6, 1.9], [0.3, 0.8, 0.5]), {
-    consume: true,
+  room.geo('woodPale', cyl(0.03, 0.03, 1.4, 6), tiltMatrix([1.2, 0.6, 1.9], [0.3, 0.8, 0.5]), {
   });
   room.box('iron', [0.3, 0.04, 0.36], [0.9, 0.02, 1.5], 0.8);
 
@@ -112,8 +108,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('rust', [0.2, 0.28, 0.2], [-1.9, 0.94, 3.0], 0.3);
   room.box('woodPale', [2.0, 0.05, 0.3], [-2.4, 1.5, 3.5]);
   for (let i = 0; i < 5; i++) {
-    room.geo('rust', new THREE.CylinderGeometry(0.08, 0.08, 0.2, 8), poseMatrix([-3.2 + i * 0.42, 1.65, 3.5]), {
-      consume: true,
+    room.geo('rust', cyl(0.08, 0.08, 0.2, 8), poseMatrix([-3.2 + i * 0.42, 1.65, 3.5]), {
     });
   }
 

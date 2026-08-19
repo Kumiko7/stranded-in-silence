@@ -81,7 +81,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('natron', [pitHalf * 2 - 0.3, 0.1, halfW * 2 - 0.3], [0, 0, pitZ], 0, { tile: 0.9, castShadow: false });
   room.box('fleshRot', [pitHalf * 2 - 0.8, 0.06, halfW * 2 - 0.6], [0, 0.1, pitZ], 0, { tile: 0.7, castShadow: false });
   for (let i = 0; i < 4; i++) {
-    boneHeap(room, -1.6 + i * 1.1, pitZ + room.range(-0.45, 0.45), 0.5, 11);
+    boneHeap(room, -1.6 + i * 1.1, pitZ + room.range(-0.45, 0.45), 0.55, 8);
   }
   // Two arms out of the lime, reaching for the kerb. Nothing else in the room
   // needed to be added after this.

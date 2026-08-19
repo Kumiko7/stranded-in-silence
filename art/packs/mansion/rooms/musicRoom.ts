@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { candelabra, chair, chandelier, cobwebs, curtains, debris, rug, sconce, sideboard } from '../kit/props';
+import { candelabra, chair, chandelier, cobwebs, curtains, cyl, debris, rug, sconce, sideboard } from '../kit/props';
 
 /**
  * The Music Room - the lid is up and the sheet music is on the floor.
@@ -63,9 +63,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   ] as const) {
     room.geo(
       'woodDark',
-      new THREE.CylinderGeometry(0.06, 0.075, 0.72, 8),
+      cyl(0.06, 0.075, 0.72, 8),
       poseMatrix([px + dx * Math.cos(0.2) + dz * Math.sin(0.2), 0.36, pz - dx * Math.sin(0.2) + dz * Math.cos(0.2)]),
-      { consume: true },
+      {},
     );
   }
   // Keys, and the fallboard nobody closed.
@@ -83,8 +83,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     tile: 1.6,
     consume: true,
   });
-  room.geo('woodDark', new THREE.CylinderGeometry(0.02, 0.02, 0.9, 6), tiltMatrix([px + 0.7, 1.35, pz + 0.2], [0.25, 0.2, 0]), {
-    consume: true,
+  room.geo('woodDark', cyl(0.02, 0.02, 0.9, 6), tiltMatrix([px + 0.7, 1.35, pz + 0.2], [0.25, 0.2, 0]), {
   });
   candelabra(room, [px - 0.6, 0.98, pz + 0.2], 3);
 
@@ -108,9 +107,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const t = i / 14;
     room.geo(
       'silver',
-      new THREE.CylinderGeometry(0.004, 0.004, 1.2 - t * 0.7, 4),
+      cyl(0.004, 0.004, 1.2 - t * 0.7, 4),
       tiltMatrix([hx + 0.06 + t * 0.42, 0.28 + (1.2 - t * 0.7) / 2, hz + t * 0.28], [0, 0.6, -0.1]),
-      { consume: true },
+      {},
     );
   }
   room.blockCircle(hx + 0.2, hz + 0.15, 0.42);
@@ -125,8 +124,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     );
   }
   // A music stand, folded over.
-  room.geo('ironBlack', new THREE.CylinderGeometry(0.015, 0.015, 1.2, 5), tiltMatrix([-1.4, 0.14, 2.4], [1.4, 0.9, 0]), {
-    consume: true,
+  room.geo('ironBlack', cyl(0.015, 0.015, 1.2, 5), tiltMatrix([-1.4, 0.14, 2.4], [1.4, 0.9, 0]), {
   });
   room.box('ironBlack', [0.36, 0.02, 0.26], [-2.1, 0.02, 2.6], 0.9);
 
@@ -134,7 +132,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   chandelier(room, -0.6, -0.6, 0.66, true, 2);
   sconce(room, 'south', 2.5, 2.15, false);
   sideboard(room, 'south', 2.5, 1.3);
-  room.geo('silver', new THREE.CylinderGeometry(0.09, 0.13, 0.3, 10), poseMatrix([2.1, 1.07, 3.44]), { consume: true });
+  room.geo('silver', cyl(0.09, 0.13, 0.3, 10), poseMatrix([2.1, 1.07, 3.44]), {});
   curtains(room, 'north', 2.5, 1.8, 2.6);
 
   debris(room, -2.6, 2.4, 1.2, 8);

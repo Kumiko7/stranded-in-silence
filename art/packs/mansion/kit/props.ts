@@ -14,7 +14,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { mm, ownGeometryCache } from '../../../lib/build';
+import { bands, mm, ownGeometryCache, sides } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { poseMatrix, subUV, tiltMatrix } from '../../../lib/merge';
@@ -85,7 +85,8 @@ const cylCache = new Map<string, THREE.CylinderGeometry>();
  * brightest face on a cylinder, which is how a bowl of coals becomes a bowl of
  * soup (docs/art/ROOM_REVIEW.md).
  */
-function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THREE.CylinderGeometry {
+export function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THREE.CylinderGeometry {
+  seg = sides(Math.max(Math.abs(rTop), Math.abs(rBot)), seg);
   const key = `${rTop},${rBot},${h},${seg},${open ? 1 : 0}`;
   let geo = cylCache.get(key);
   if (!geo) {
@@ -96,11 +97,12 @@ function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THR
 }
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
-function ball(r: number, seg = 10): THREE.SphereGeometry {
+export function ball(r: number, seg = 10): THREE.SphereGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(r, seg, Math.max(4, seg / 2));
+    geo = new THREE.SphereGeometry(mm(r), seg, bands(seg));
     sphereCache.set(key, geo);
   }
   return geo;
@@ -108,10 +110,11 @@ function ball(r: number, seg = 10): THREE.SphereGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
-    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), sides(tube, 6), seg);
     torusCache.set(key, geo);
   }
   return geo;

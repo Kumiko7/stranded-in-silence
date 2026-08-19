@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { ball, boneDebris, breathe, drools, gillSlits, lumenPod, polyps, resinFlow, toothRow } from '../kit/props';
+import { ball, boneDebris, breathe, cyl, drools, gillSlits, lumenPod, polyps, resinFlow, spike, toothRow } from '../kit/props';
 
 /**
  * The Gizzard - the room where the beast keeps its teeth in the wrong place.
@@ -56,9 +56,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const wear = 1 - Math.exp(-Math.pow(x / 1.4, 2));
       room.geo(
         'tooth',
-        new THREE.ConeGeometry(0.14, 0.3 + wear * 0.45, 6),
+        spike(0.14, 0.3 + wear * 0.45, 6),
         tiltMatrix([x, 1.5 + (0.3 + wear * 0.45) / 2 - 0.05, z - s * 0.24], [-s * 0.35, 0, 0]),
-        { tile: 0.4, consume: true },
+        { tile: 0.4 },
       );
     }
     room.geo('chitinDark', new THREE.BoxGeometry(4.3, 0.16, 0.7), poseMatrix([0, 1.52, z]), { tile: 0.8, consume: true });
@@ -67,9 +67,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const x = -1.5 + i;
       room.geo(
         'meat',
-        new THREE.CylinderGeometry(0.13, 0.19, 1.7, 7),
+        cyl(0.13, 0.19, 1.7, 7),
         tiltMatrix([x, 0.85, z + s * 0.5], [s * 0.28, 0, 0]),
-        { tile: 0.6, consume: true },
+        { tile: 0.6 },
       );
     }
   }
@@ -95,9 +95,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     room.geo('grit', ball(r, 12), tiltMatrix([x, 0.05, z], [0, room.range(0, 3), 0], [1, 0.34, 1]), { tile: 1.0 });
     boneDebris(room, x, z, r * 0.9, 10);
   }
-  room.geo('bonePale', new THREE.CylinderGeometry(0.11, 0.15, 1.5, 8), tiltMatrix([-3.2, 0.24, 1.9], [1.35, 0.7, 0]), {
+  room.geo('bonePale', cyl(0.11, 0.15, 1.5, 8), tiltMatrix([-3.2, 0.24, 1.9], [1.35, 0.7, 0]), {
     tile: 0.5,
-    consume: true,
   });
   room.geo('scute', new THREE.BoxGeometry(0.9, 0.09, 0.7), tiltMatrix([3.1, 0.3, 2.7], [0.2, 0.9, 0.25]), {
     tile: 0.7,

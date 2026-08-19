@@ -26,7 +26,7 @@
  */
 import * as THREE from 'three';
 import type { Cell, Side } from '../../../lib/contract';
-import { boxGeometry, mm, ownGeometryCache } from '../../../lib/build';
+import { bands, boxGeometry, mm, ownGeometryCache, sides } from '../../../lib/build';
 import type { BatchOptions } from '../../../lib/merge';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
 import type { Room, Vec3 } from '../rooms/common';
@@ -94,6 +94,7 @@ export function wallPose(
  */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 export function cyl(rTop: number, rBot: number, h: number, seg = 9, open = false): THREE.CylinderGeometry {
+  seg = sides(Math.max(Math.abs(rTop), Math.abs(rBot)), seg);
   const key = `${mm(rTop)},${mm(rBot)},${mm(h)},${seg},${open}`;
   let geo = cylCache.get(key);
   if (!geo) {
@@ -105,10 +106,11 @@ export function cyl(rTop: number, rBot: number, h: number, seg = 9, open = false
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 export function ball(r: number, seg = 8): THREE.SphereGeometry {
+  seg = sides(r, seg);
   const key = `${r},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(mm(r), seg, Math.max(4, Math.round(seg / 2)));
+    geo = new THREE.SphereGeometry(mm(r), seg, bands(seg));
     sphereCache.set(key, geo);
   }
   return geo;
@@ -116,6 +118,7 @@ export function ball(r: number, seg = 8): THREE.SphereGeometry {
 
 const coneCache = new Map<string, THREE.ConeGeometry>();
 export function spike(r: number, h: number, seg = 6): THREE.ConeGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(h)},${seg}`;
   let geo = coneCache.get(key);
   if (!geo) {
@@ -127,13 +130,14 @@ export function spike(r: number, h: number, seg = 6): THREE.ConeGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 export function ring(r: number, tube: number, seg = 12): THREE.TorusGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
     // Six sides on the tube, not sixteen: a collar 8 mm thick seen through fog
     // is the single easiest place in a pack to spend 40,000 triangles nobody can
     // resolve (docs/systems/RENDERING.md).
-    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), sides(tube, 6), seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -152,6 +156,7 @@ export function quad(w: number, h: number): THREE.PlaneGeometry {
 
 const discCache = new Map<string, THREE.CircleGeometry>();
 export function disc(r: number, seg = 16): THREE.CircleGeometry {
+  seg = sides(r, seg);
   const key = `${r},${seg}`;
   let geo = discCache.get(key);
   if (!geo) {

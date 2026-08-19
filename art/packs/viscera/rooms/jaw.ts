@@ -2,7 +2,20 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { ball, boneDebris, breathe, drools, glowShaft, lumenPod, polyps, resinFlow, spike, strut, toothRow } from '../kit/props';
+import {
+  ball,
+  boneDebris,
+  breathe,
+  cyl,
+  drools,
+  glowShaft,
+  lumenPod,
+  polyps,
+  resinFlow,
+  spike,
+  strut,
+  toothRow,
+} from '../kit/props';
 
 /**
  * The Second Mouth - an L of chamber with a jaw in it, and the jaw is open.
@@ -160,9 +173,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   ];
   for (const [x, y, z, r, warm, power] of lamps) {
     lumenPod(room, [x, y, z], r, true, warm, power);
-    room.geo('meatPale', new THREE.CylinderGeometry(0.13, 0.24, y, 8), poseMatrix([x + (Math.abs(x) > 4 ? 0 : Math.sign(x) * 0.24), y / 2, z + (Math.abs(x) > 4 ? -0.16 : 0)]), {
+    room.geo('meatPale', cyl(0.13, 0.24, y, 8), poseMatrix([x + (Math.abs(x) > 4 ? 0 : Math.sign(x) * 0.24), y / 2, z + (Math.abs(x) > 4 ? -0.16 : 0)]), {
       tile: 0.6,
-      consume: true,
     });
   }
   for (const [index, lamp] of room.lights.entries()) breathe(room, lamp, lamps[index]?.[5] ?? 12, 0.18, 0.7 + index * 0.2);

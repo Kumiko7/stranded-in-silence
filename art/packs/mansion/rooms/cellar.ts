@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { barrel, candleCluster, cobwebs, debris, flicker, pendantLamp } from '../kit/props';
+import { barrel, candleCluster, cobwebs, cyl, debris, flicker, pendantLamp } from '../kit/props';
 
 /**
  * The Wine Cellar - eleven hundred bottles and somebody drank the good ones.
@@ -64,19 +64,24 @@ function wineRack(room: Room, x: number, z: number, width: number, rotationY: nu
     const y = 0.22 + r * 0.36;
     room.box('woodPale', [width - 0.06, 0.03, 0.44], [x, y, z], rotationY);
     for (let c = 0; c < cols; c++) {
-      if (room.chance(0.24)) continue;
+      // A rack this full is a rack nobody has drunk from. Two in five cells
+      // empty reads as a cellar in use, and this room places eight racks.
+      if (room.chance(0.4)) continue;
       const s = -width / 2 + 0.17 + c * 0.34;
       const px = x + Math.cos(rotationY) * s;
       const pz = z - Math.sin(rotationY) * s;
       room.geo(
         room.chance(0.35) ? 'bookGreen' : 'glass',
-        new THREE.CylinderGeometry(0.05, 0.05, 0.34, 8),
+        cyl(0.05, 0.05, 0.34, 8),
         tiltMatrix([px, y + 0.08, pz], [Math.PI / 2, rotationY, 0]),
-        { consume: true },
+        {},
       );
-      room.geo('wax', new THREE.CylinderGeometry(0.026, 0.026, 0.12, 6), tiltMatrix([px - Math.sin(rotationY) * 0.22, y + 0.08, pz - Math.cos(rotationY) * 0.22], [Math.PI / 2, rotationY, 0]), {
-        consume: true,
-      });
+      // The foil capsule, on about half of them. A rack where every neck is
+      // wrapped is a shop shelf, and the capsule is a third of a bottle's cost.
+      if (room.chance(0.5)) {
+        room.geo('wax', cyl(0.026, 0.026, 0.12, 6), tiltMatrix([px - Math.sin(rotationY) * 0.22, y + 0.08, pz - Math.cos(rotationY) * 0.22], [Math.PI / 2, rotationY, 0]), {
+        });
+      }
     }
   }
 }
@@ -97,8 +102,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('woodPale', [2.6, 0.08, 0.9], [-2.4, 0.86, 2.6], 0.03, { tile: 1.4 });
   candleCluster(room, [-2.9, 0.94, 2.6]);
   for (let i = 0; i < 3; i++) {
-    room.geo('glass', new THREE.CylinderGeometry(0.045, 0.06, 0.16, 8), poseMatrix([-2.0 + i * 0.3, 0.94, 2.5 + room.range(-0.2, 0.2)]), {
-      consume: true,
+    room.geo('glass', cyl(0.045, 0.06, 0.16, 8), poseMatrix([-2.0 + i * 0.3, 0.94, 2.5 + room.range(-0.2, 0.2)]), {
     });
   }
 
@@ -152,9 +156,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
         const s = -((count - r - 1) * 0.115) / 2 + c * 0.115;
         room.geo(
           room.chance(0.35) ? 'bookGreen' : 'glass',
-          new THREE.CylinderGeometry(0.05, 0.05, 0.3, 7),
+          cyl(0.05, 0.05, 0.3, 7),
           tiltMatrix([bx + Math.cos(rot) * s, 0.055 + r * 0.098, bz - Math.sin(rot) * s], [Math.PI / 2, rot, 0]),
-          { consume: true },
+          {},
         );
       }
     }

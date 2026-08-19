@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { ball, boneDebris, breathe, chitinShelf, gillSlits, lumenPod, resinFlow, spike, toothRow } from '../kit/props';
+import { ball, boneDebris, breathe, chitinShelf, cyl, gillSlits, lumenPod, resinFlow, spike, toothRow } from '../kit/props';
 
 /**
  * The Dentition - a room the beast grows its spares in.
@@ -63,9 +63,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
       room.geo('tooth', spike(r, h, 8), tiltMatrix([x, h / 2, z], [0, 0, lean]), { tile: 0.6 });
       // The root socket, and the gum it is still growing out of.
-      room.geo('bonePale', new THREE.CylinderGeometry(r * 1.35, r * 1.5, 0.16, 9), poseMatrix([x, 0.08, z]), {
+      room.geo('bonePale', cyl(r * 1.35, r * 1.5, 0.16, 9), poseMatrix([x, 0.08, z]), {
         tile: 0.4,
-        consume: true,
       });
       room.geo('meat', ball(r * 1.5, 8), tiltMatrix([x, 0.06, z], [0, 0, 0], [1, 0.4, 1]), { tile: 0.4 });
       room.blockCircle(x, z, r * 1.15);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { cageLamp, debris, dripLine, quad, shelf, stripLight } from '../kit/props';
+import { ball, cageLamp, cyl, debris, dripLine, quad, shelf, stripLight } from '../kit/props';
 
 /**
  * Crew Quarters - eight bunks, and nobody has slept in them for a long time.
@@ -61,9 +61,8 @@ function bunkStack(room: Room, x: number, z: number, rotationY: number): void {
     room.box('painted', [1.62, 0.05, 0.6], [x, y + 0.18, z], rotationY, { tile: 0.6 });
     // A pillow at one end, and the lip that stops you rolling out of the top one.
     const head = at(-0.68, 0);
-    room.geo('canvasPale', new THREE.SphereGeometry(0.2, 8, 6), tiltMatrix([head[0], y + 0.2, head[2]], [0, rotationY, 0], [1.5, 0.5, 1.1]), {
+    room.geo('canvasPale', ball(0.2, 8), tiltMatrix([head[0], y + 0.2, head[2]], [0, rotationY, 0], [1.5, 0.5, 1.1]), {
       tile: 0.4,
-      consume: true,
     });
     const front = at(0, -0.42);
     room.box('steelPale', [1.9, 0.16, 0.05], [front[0], y + 0.07, front[2]], rotationY, { tile: 0.4 });
@@ -80,17 +79,15 @@ function bunkStack(room: Room, x: number, z: number, rotationY: number): void {
   }
   for (let i = 0; i < 3; i++) {
     const p = at(0.93, 0);
-    room.geo('steel', new THREE.CylinderGeometry(0.016, 0.016, 0.6, 5), tiltMatrix([p[0], 0.6 + i * 0.32, p[2]], [Math.PI / 2, rotationY, Math.PI / 2]), {
+    room.geo('steel', cyl(0.016, 0.016, 0.6, 5), tiltMatrix([p[0], 0.6 + i * 0.32, p[2]], [Math.PI / 2, rotationY, Math.PI / 2]), {
       tile: 0.2,
       castShadow: false,
-      consume: true,
     });
   }
   // A reading lamp over the lower bunk, dead, and a personal shelf above it.
   const back = at(-0.5, 0.36);
-  room.geo('steelDark', new THREE.CylinderGeometry(0.04, 0.05, 0.12, 7), tiltMatrix([back[0], 0.85, back[2]], [Math.PI / 2, rotationY, 0]), {
+  room.geo('steelDark', cyl(0.04, 0.05, 0.12, 7), tiltMatrix([back[0], 0.85, back[2]], [Math.PI / 2, rotationY, 0]), {
     tile: 0.2,
-    consume: true,
   });
   room.collider({ kind: 'box', center: [x, z], halfExtents: [0.93, 0.38], rotationY });
 }
@@ -166,10 +163,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
    */
   for (let i = 0; i < 3; i++) {
     const z = 0.4 + i * 0.42;
-    room.geo('steel', new THREE.CylinderGeometry(0.014, 0.014, 0.1, 5), tiltMatrix([-3.62, 1.86, z], [Math.PI / 2, Math.PI / 2, 0]), {
+    room.geo('steel', cyl(0.014, 0.014, 0.1, 5), tiltMatrix([-3.62, 1.86, z], [Math.PI / 2, Math.PI / 2, 0]), {
       tile: 0.2,
       castShadow: false,
-      consume: true,
     });
     room.box('canvasSuit', [0.34, 1.0, 0.11], [-3.52, 0.86, z], Math.PI / 2, { tile: 0.5, castShadow: false });
     room.box('canvasSuit', [0.22, 0.36, 0.14], [-3.5, 1.7, z], Math.PI / 2, { tile: 0.4, castShadow: false });

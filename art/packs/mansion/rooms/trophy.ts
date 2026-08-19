@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { armchair, cobwebs, debris, fireplace, rug, sconce, table, wallWash } from '../kit/props';
+import { armchair, ball, cobwebs, cyl, debris, fireplace, rug, sconce, table, wallWash } from '../kit/props';
 
 /**
  * The Trophy Room - forty pairs of eyes and none of them blink.
@@ -43,9 +43,8 @@ function trophyHead(room: Room, x: number, y: number, z: number, rotationY: numb
   // plaque from across a room, which is not what "forty pairs of eyes" means.
   room.geo('woodDark', new THREE.BoxGeometry(0.56, 0.64, 0.06), poseMatrix([x, y, z], rotationY), { tile: 0.4, consume: true });
   room.geo('gilt', new THREE.BoxGeometry(0.6, 0.68, 0.03), poseMatrix(out(0.02), rotationY), { tile: 0.4, consume: true });
-  room.geo('fur', new THREE.SphereGeometry(0.22, 10, 8), poseMatrix(out(0.18), rotationY), { consume: true });
-  room.geo('fur', new THREE.CylinderGeometry(0.08, 0.15, 0.4, 8), tiltMatrix(out(0.4), [Math.PI / 2 - 0.2, rotationY, 0]), {
-    consume: true,
+  room.geo('fur', ball(0.22, 10), poseMatrix(out(0.18), rotationY), {});
+  room.geo('fur', cyl(0.08, 0.15, 0.4, 8), tiltMatrix(out(0.4), [Math.PI / 2 - 0.2, rotationY, 0]), {
   });
   for (const s of [-1, 1]) {
     const ear = out(0.16);
@@ -60,9 +59,9 @@ function trophyHead(room: Room, x: number, y: number, z: number, rotationY: numb
   for (const s of [-0.1, 0.1]) {
     room.geo(
       'ironBlack',
-      new THREE.SphereGeometry(0.035, 6, 5),
+      ball(0.035, 6),
       poseMatrix([eyes[0] + Math.cos(rotationY) * s, y + 0.08, eyes[2] - Math.sin(rotationY) * s]),
-      { consume: true },
+      {},
     );
   }
   if (!antlers) return;
@@ -71,12 +70,12 @@ function trophyHead(room: Room, x: number, y: number, z: number, rotationY: numb
       const base = out(0.16);
       room.geo(
         'bone',
-        new THREE.CylinderGeometry(0.014, 0.022, 0.3 - i * 0.06, 5),
+        cyl(0.014, 0.022, 0.3 - i * 0.06, 5),
         tiltMatrix(
           [base[0] + Math.cos(rotationY) * s * (0.09 + i * 0.07), y + 0.24 + i * 0.11, base[2] - Math.sin(rotationY) * s * (0.09 + i * 0.07)],
           [0, rotationY, s * (0.5 + i * 0.2)],
         ),
-        { consume: true },
+        {},
       );
     }
   }
@@ -90,7 +89,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   rug(room, 0, -0.2, 3.6, 2.6, 0.12);
 
   // The skin on the rug: a head, four splayed limbs and a tail.
-  room.geo('fur', new THREE.SphereGeometry(0.24, 10, 8), poseMatrix([0, 0.04, -1.5]), { consume: true });
+  room.geo('fur', ball(0.24, 10), poseMatrix([0, 0.04, -1.5]), {});
   for (const [dx, dz] of [
     [-0.8, -0.6],
     [0.8, -0.6],
@@ -119,7 +118,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     if (i === 2) continue;
     const z = 2.4 - 0.6 + i * 0.4;
     room.geo('woodDark', new THREE.BoxGeometry(0.06, 1.1, 0.09), poseMatrix([3.0, 1.14, z]), { consume: true });
-    room.geo('ironBlack', new THREE.CylinderGeometry(0.016, 0.016, 0.7, 6), poseMatrix([3.0, 1.9, z]), { consume: true });
+    room.geo('ironBlack', cyl(0.016, 0.016, 0.7, 6), poseMatrix([3.0, 1.9, z]), {});
   }
 
   // A card table with the hunting log still on it.

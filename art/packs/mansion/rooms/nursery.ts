@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { cobwebs, debris, flicker, floorWash, painting, rug, trunk } from '../kit/props';
+import { cobwebs, cyl, debris, flicker, floorWash, painting, rug, trunk } from '../kit/props';
 
 /**
  * The Nursery - boarded up from the inside.
@@ -56,14 +56,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     [-0.66, 0.38],
     [0.66, 0.38],
   ] as const) {
-    room.geo('iron', new THREE.CylinderGeometry(0.025, 0.025, 0.9, 6), poseMatrix([-2.2 + dx, 0.45, 2.5 + dz]), {
-      consume: true,
+    room.geo('iron', cyl(0.025, 0.025, 0.9, 6), poseMatrix([-2.2 + dx, 0.45, 2.5 + dz]), {
     });
   }
   for (let i = 0; i < 9; i++) {
     const t = -0.62 + i * 0.155;
-    room.geo('iron', new THREE.CylinderGeometry(0.014, 0.014, 0.52, 5), poseMatrix([-2.2 + t, 0.6, 2.09]), {
-      consume: true,
+    room.geo('iron', cyl(0.014, 0.014, 0.52, 5), poseMatrix([-2.2 + t, 0.6, 2.09]), {
     });
   }
   room.box('linen', [1.3, 0.1, 0.74], [-2.2, 0.3, 2.5], 0.1, { tile: 1 });
@@ -90,8 +88,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     [-0.3, 0.12],
     [0.3, 0.12],
   ] as const) {
-    room.geo('woodPale', new THREE.CylinderGeometry(0.035, 0.035, 0.4, 6), poseMatrix([hx + dx * 0.8, 0.24, hz + dz]), {
-      consume: true,
+    room.geo('woodPale', cyl(0.035, 0.035, 0.4, 6), poseMatrix([hx + dx * 0.8, 0.24, hz + dz]), {
     });
   }
   room.blockCircle(hx, hz, 0.5);

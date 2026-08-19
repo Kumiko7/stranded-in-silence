@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { ball, bilePool, boneDebris, drools, lumenCluster, nerveRun, polyps, tendril, toothRow } from '../kit/props';
+import { ball, bilePool, boneDebris, cyl, disc, drools, lumenCluster, nerveRun, polyps, tendril, toothRow } from '../kit/props';
 
 /**
  * The Gullet - where you came in, and the last part of the beast that was glad
@@ -62,9 +62,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     ] as const) {
       room.geo(
         'meat',
-        new THREE.CylinderGeometry(thickness, thickness * 1.2, cellSize, 8),
+        cyl(thickness, thickness * 1.2, cellSize, 8),
         tiltMatrix([dx * (cellSize / 2 - 0.28), y, dz * (cellSize / 2 - 0.28)], [0, rot, Math.PI / 2]),
-        { tile: 0.8, consume: true },
+        { tile: 0.8 },
       );
     }
   }
@@ -84,9 +84,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const a = room.range(0, Math.PI * 2);
     room.geo(
       'bonePale',
-      new THREE.CylinderGeometry(0.028, 0.045, room.range(0.4, 0.85), 6),
+      cyl(0.028, 0.045, room.range(0.4, 0.85), 6),
       tiltMatrix([bx + Math.cos(a) * 0.48, room.range(0.55, 1.0), bz + Math.sin(a) * 0.48], [room.range(0.6, 1.4), a, 0]),
-      { tile: 0.4, consume: true },
+      { tile: 0.4 },
     );
   }
   room.blockCircle(bx, bz, 0.72);
@@ -126,11 +126,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   bilePool(room, 2.6, 2.7, 0.85, true, 8);
 
   // The pool has eaten into the floor around itself.
-  room.geo('slick', new THREE.CircleGeometry(1.45, 18), tiltMatrix([2.6, 0.02, 2.7], [-Math.PI / 2, 0, 0]), {
+  room.geo('slick', disc(1.45, 18), tiltMatrix([2.6, 0.02, 2.7], [-Math.PI / 2, 0, 0]), {
     castShadow: false,
     receiveShadow: false,
     tile: 1.4,
-    consume: true,
   });
   room.geo('grit', new THREE.TorusGeometry(1.45, 0.06, 5, 20), poseMatrix([2.6, 0.025, 2.7]), {
     castShadow: false,

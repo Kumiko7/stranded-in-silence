@@ -41,6 +41,7 @@ import type { BuiltPiece, Cell, Collider, PackKit, RoomBuildContext, Side } from
 import { SIDES, doorKey } from '../../../lib/contract';
 import { boxCollider, boxGeometry } from '../../../lib/build';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
+import { ball, cyl, spike } from './props';
 import * as tex from '../textures';
 
 export type FloorStyle = 'hex' | 'grate' | 'ferro' | 'scorch' | 'basalt' | 'ash' | 'obsidian' | 'sulphur' | 'slag';
@@ -362,10 +363,10 @@ export function addShell(
           strip(slab.offset, slab.width, y - 0.05, 0.14, 0.02, crustMat, 0.34);
           strip(slab.offset, slab.width, y + 0.005, 0.035, 0.055, ctx.materials.get('lumenAmber'), 0.4);
           // Fins across it, at a spacing that lets more light past than it stops.
-          const fins = Math.max(2, Math.round(slab.width / 0.46));
+          const fins = Math.max(2, Math.round(slab.width / 0.7));
           for (let i = 0; i < fins; i++) {
             const x = slab.offset - slab.width / 2 + (slab.width * (i + 0.5)) / fins;
-            strip(x, 0.085, y - 0.075, 0.24, 0.085, steelDark, 0.25);
+            strip(x, 0.115, y - 0.075, 0.24, 0.085, steelDark, 0.25);
           }
           strip(slab.offset, slab.width, y + 0.165, 0.05, 0.11, steelMat, 0.4);
         } else if (registerStyle === 'fissure') {
@@ -373,11 +374,11 @@ export function addShell(
           // a line. A continuous glowing strip on a cave wall reads as a strip
           // light somebody screwed to the rock.
           strip(slab.offset, slab.width, y - 0.09, 0.24, 0.07, rockMat, 0.5);
-          const count = Math.max(2, Math.round(slab.width / 0.46));
+          const count = Math.max(2, Math.round(slab.width / 0.7));
           for (let i = 0; i < count; i++) {
             const x = slab.offset - slab.width / 2 + (slab.width * (i + 0.5)) / count;
-            const h = 0.07 + ((i * 37) % 7) / 60;
-            strip(x, 0.2 + ((i * 13) % 5) / 30, y - h / 2, h, 0.1, crustMat, 0.26);
+            const h = 0.08 + ((i * 37) % 7) / 52;
+            strip(x, 0.29 + ((i * 13) % 5) / 24, y - h / 2, h, 0.1, crustMat, 0.26);
           }
         } else if (registerStyle === 'cold') {
           // The absence of it: the same channel, running an arc-white service
@@ -391,10 +392,10 @@ export function addShell(
           // The bio strand's version: a vein that has grown along the channel,
           // in the one colour that belongs to neither half of the map.
           strip(slab.offset, slab.width, y - 0.08, 0.22, 0.06, ctx.materials.get('sinew'), 0.4);
-          const count = Math.max(2, Math.round(slab.width / 0.42));
+          const count = Math.max(2, Math.round(slab.width / 0.64));
           for (let i = 0; i < count; i++) {
             const x = slab.offset - slab.width / 2 + (slab.width * (i + 0.5)) / count;
-            strip(x, 0.16, y - 0.02, 0.09, 0.085, ctx.materials.get('chitin'), 0.24);
+            strip(x, 0.24, y - 0.02, 0.09, 0.085, ctx.materials.get('chitin'), 0.24);
           }
         }
       }
@@ -404,7 +405,7 @@ export function addShell(
         if (built) {
           // Stiffeners: the vertical ribs that make a band read as plate rather
           // than as a stripe of paint.
-          const count = Math.max(1, Math.round(slab.width / 0.95));
+          const count = Math.max(1, Math.round(slab.width / 1.4));
           for (let i = 0; i <= count; i++) {
             const x = slab.offset - slab.width / 2 + (slab.width * i) / count;
             strip(x, 0.075, KICK_HEIGHT, bandHeight - KICK_HEIGHT, 0.035, steelMat, 0.5);
@@ -497,9 +498,9 @@ export function addShell(
           put(steelPale, 0.12, 0.1, 0.17, s * (half + 0.22), y, 0.25, 0, 0.25);
           batch.add(
             graphiteMat,
-            new THREE.CylinderGeometry(0.035, 0.035, 0.15, 6),
+            cyl(0.035, 0.035, 0.15, 6),
             tiltMatrix(at(s * (half + 0.22), y, 0.32), [Math.PI / 2, yaw, 0]),
-            { tile: 0.3, castShadow: false, consume: true },
+            { tile: 0.3, castShadow: false },
           );
         }
       }
@@ -524,7 +525,11 @@ export function addShell(
       // Sampled all the way round as one loop rather than as jambs plus a
       // lintel: the corners are exactly where a four-piece frame gives itself
       // away, and a natural opening has no corners at all.
-      const steps = 18;
+      // Thirteen lumps, not eighteen, each one bigger to close the gaps that
+      // leaves, and through `ball()` so the ramp in lib/build.ts can size them:
+      // a mouth is built on every opening of every room, so its step count is
+      // multiplied by the whole map before a single prop is placed in one.
+      const steps = 13;
       for (let i = 0; i < steps; i++) {
         const t = i / steps;
         const a = t * Math.PI * 2;
@@ -534,12 +539,12 @@ export function addShell(
         // Roughly equidimensional lumps: stretched along the ring they come out
         // as a chain of sausages, which reads as something anatomical rather
         // than as broken rock.
-        const lump = 0.17 + Math.abs(Math.sin(a * 2.4 + 0.9)) * 0.1;
+        const lump = 0.21 + Math.abs(Math.sin(a * 2.4 + 0.9)) * 0.11;
         batch.add(
           rockMat,
-          new THREE.SphereGeometry(lump, 6, 5),
+          ball(lump),
           tiltMatrix(at(along, rise, 0.08 + lump * 0.3), [0, yaw, a], [1.1, 0.95, 0.85]),
-          { tile: 0.5, castShadow: false, consume: true },
+          { tile: 0.5, castShadow: false },
         );
       }
       // Two drips of cooled lava over the head of the opening: the flow that got
@@ -547,9 +552,9 @@ export function addShell(
       for (const s of [-1, 1]) {
         batch.add(
           cinderMat,
-          new THREE.ConeGeometry(0.1, 0.42, 5),
+          spike(0.1, 0.42, 5),
           tiltMatrix(at(s * half * 0.62, head + 0.02, 0.13), [Math.PI, yaw, 0]),
-          { tile: 0.3, castShadow: false, consume: true },
+          { tile: 0.3, castShadow: false },
         );
       }
     } else {
@@ -673,9 +678,9 @@ export function addShell(
         for (const s of [-1, 1]) {
           batch.add(
             rockMat,
-            new THREE.SphereGeometry(0.16 + rng() * 0.09, 6, 5),
+            ball(0.16 + rng() * 0.09, 6),
             tiltMatrix(at(drift + (s * w) / 2, y, 0.06), [0, yaw, rng() * 3], [1.05, 1.25, 0.7]),
-            { tile: 0.4, castShadow: false, consume: true },
+            { tile: 0.4, castShadow: false },
           );
         }
       }
@@ -688,10 +693,9 @@ export function addShell(
       const r = Math.min(opening.width, h) * 0.46;
       pane(ctx.materials.get('backdropSky'), r * 2.3, r * 2.3, 0, midY, -0.5);
       // The barrel of the bore, so the sky is at the far end of a tube.
-      batch.add(rockMat, new THREE.CylinderGeometry(r * 1.05, r * 1.05, 1.1, 16, 1, true), tiltMatrix(at(0, midY, -0.5), [Math.PI / 2, yaw, 0]), {
+      batch.add(rockMat, cyl(r * 1.05, r * 1.05, 1.1, 16, true), tiltMatrix(at(0, midY, -0.5), [Math.PI / 2, yaw, 0]), {
         tile: 0.7,
         castShadow: false,
-        consume: true,
       });
       // A steel liner ring where it was cut through the wall, and a grating over
       // it - the hole is real, and this is what stops things coming down it.
@@ -822,18 +826,18 @@ export function addShell(
       for (let i = 0; i < 5; i++) {
         batch.add(
           ctx.materials.get('rockDark'),
-          new THREE.SphereGeometry(r(0.14, 0.3), 6, 4),
+          ball(r(0.14, 0.3), 6),
           tiltMatrix(at(r(-span, span), floorY - 0.02, r(back * 0.85, back * 0.3)), [0, r(0, 3), 0], [1.6, 0.35, 1.2]),
-          { tile: 0.5, castShadow: false, consume: true },
+          { tile: 0.5, castShadow: false },
         );
       }
       // The fountain: a column of bright specks going up and falling back.
       for (let i = 0; i < 14; i++) {
         batch.add(
           ctx.materials.get('lumenMolten'),
-          new THREE.SphereGeometry(r(0.02, 0.055), 4, 3),
+          ball(r(0.02, 0.055), 4),
           poseMatrix(at(r(-span * 0.5, span * 0.5), floorY + r(0.05, opening.y1 - floorY), back * r(0.5, 0.85))),
-          { castShadow: false, consume: true },
+          { castShadow: false },
         );
       }
     } else if (scene === 'gantry') {
@@ -866,17 +870,17 @@ export function addShell(
       for (let i = 0; i < 20; i++) {
         batch.add(
           ctx.materials.get('ashPale'),
-          new THREE.SphereGeometry(r(0.012, 0.03), 4, 3),
+          ball(r(0.012, 0.03), 4),
           poseMatrix(at(r(-span * 1.2, span * 1.2), r(opening.y0, opening.y1), r(back * 0.9, back * 0.15))),
-          { castShadow: false, consume: true },
+          { castShadow: false },
         );
       }
       for (let i = 0; i < 3; i++) {
         batch.add(
           ctx.materials.get('rockDark'),
-          new THREE.SphereGeometry(r(0.2, 0.4), 6, 4),
+          ball(r(0.2, 0.4), 6),
           tiltMatrix(at(r(-span, span), opening.y0 - 0.1, back * 0.8), [0, r(0, 3), 0], [1.4, 0.6, 1]),
-          { tile: 0.6, castShadow: false, consume: true },
+          { tile: 0.6, castShadow: false },
         );
       }
     } else {
@@ -893,17 +897,17 @@ export function addShell(
       for (let i = 0; i < 4; i++) {
         batch.add(
           ctx.materials.get('cinder'),
-          new THREE.SphereGeometry(r(0.1, 0.24), 6, 4),
+          ball(r(0.1, 0.24), 6),
           tiltMatrix(at(r(-span, span), r(opening.y0, opening.y1), r(back * 0.85, back * 0.35)), [0, r(0, 3), 0], [1.3, 0.8, 1.1]),
-          { tile: 0.5, castShadow: false, consume: true },
+          { tile: 0.5, castShadow: false },
         );
       }
       for (let i = 0; i < 12; i++) {
         batch.add(
           ctx.materials.get('ember'),
-          new THREE.SphereGeometry(r(0.012, 0.032), 4, 3),
+          ball(r(0.012, 0.032), 4),
           poseMatrix(at(r(-span * 1.1, span * 1.1), r(opening.y0 - 0.2, opening.y1), r(back * 0.9, back * 0.2))),
-          { castShadow: false, consume: true },
+          { castShadow: false },
         );
       }
     }
@@ -962,17 +966,17 @@ export function addShell(
           const radius = radii[i] ?? 0.1;
           batch.add(
             i % 3 === 0 ? ctx.materials.get('copperBus') : steelMat,
-            new THREE.CylinderGeometry(radius, radius, cellSize, 8),
+            cyl(radius, radius, cellSize, 8),
             tiltMatrix([cx, y, z], [0, 0, Math.PI / 2]),
-            { tile: 0.7, ...CEILING_OPTS, consume: true },
+            { tile: 0.7, ...CEILING_OPTS },
           );
           // Lagging bandages and flanges: a pipe without joints is a rod.
           for (const t of [-0.3, 0.14]) {
             batch.add(
               ctx.materials.get('canvasPale'),
-              new THREE.CylinderGeometry(radius * 1.45, radius * 1.45, 0.16, 8),
+              cyl(radius * 1.45, radius * 1.45, 0.16, 8),
               tiltMatrix([cx + t * cellSize, y, z], [0, 0, Math.PI / 2]),
-              { tile: 0.3, ...CEILING_OPTS, consume: true },
+              { tile: 0.3, ...CEILING_OPTS },
             );
           }
           for (const t of [-0.34, 0.02, 0.36]) {
@@ -999,10 +1003,9 @@ export function addShell(
             });
           }
           for (const [dz, radius] of [[-0.1, 0.055], [0.02, 0.075], [0.13, 0.04]] as const) {
-            batch.add(cableMat, new THREE.CylinderGeometry(radius, radius, cellSize, 6), tiltMatrix([cx, y + 0.05, z + dz], [0, 0, Math.PI / 2]), {
+            batch.add(cableMat, cyl(radius, radius, cellSize, 6), tiltMatrix([cx, y + 0.05, z + dz], [0, 0, Math.PI / 2]), {
               tile: 0.4,
               ...CEILING_OPTS,
-              consume: true,
             });
           }
         }
@@ -1051,10 +1054,9 @@ export function addShell(
           const ax = cx - cellSize / 2 + cellSize * ((((i * 5) % 13) + 0.5) / 13);
           const az = cz - cellSize / 2 + cellSize * ((((i * 7) % 13) + 0.5) / 13);
           const size = 0.55 + ((i * 37) % 11) / 14;
-          batch.add(i % 3 === 0 ? cinderMat : rockMat, new THREE.SphereGeometry(size, 7, 5), tiltMatrix([ax, ceilingHeight + size * 0.62, az], [0, i, 0], [1.35, 0.4, 1.25]), {
+          batch.add(i % 3 === 0 ? cinderMat : rockMat, ball(size, 7), tiltMatrix([ax, ceilingHeight + size * 0.62, az], [0, i, 0], [1.35, 0.4, 1.25]), {
             tile: 1.2,
             ...CEILING_OPTS,
-            consume: true,
           });
         }
         break;
@@ -1075,10 +1077,9 @@ export function addShell(
           for (let i = 0; i < 6; i++) {
             const ax = cx - cellSize / 2 + cellSize * ((i + 0.5 + ((row * 3) % 4) * 0.1) / 6);
             const len = 0.18 + ((i * 41 + row * 13) % 11) / 22;
-            batch.add(cinderMat, new THREE.ConeGeometry(0.085, len, 5), poseMatrix([ax, ceilingHeight - 0.2 - len / 2, az]), {
+            batch.add(cinderMat, spike(0.085, len, 5), poseMatrix([ax, ceilingHeight - 0.2 - len / 2, az]), {
               tile: 0.35,
               ...CEILING_OPTS,
-              consume: true,
             });
           }
         }

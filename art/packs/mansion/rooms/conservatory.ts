@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { cobwebs, creeper, deadPlant, debris, lightShaft, pendantLamp } from '../kit/props';
+import { cobwebs, creeper, cyl, deadPlant, debris, lightShaft, pendantLamp } from '../kit/props';
 
 /**
  * The Conservatory - the garden got in.
@@ -81,8 +81,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   }
   // Two cast-iron ribs carrying it, down the walls the generator never opens.
   for (const side of [-1, 1]) {
-    room.geo('ironBlack', new THREE.CylinderGeometry(0.05, 0.06, ceilingHeight - 0.4, 8), poseMatrix([side * 3.3, (ceilingHeight - 0.4) / 2, -3.3]), {
-      consume: true,
+    room.geo('ironBlack', cyl(0.05, 0.06, ceilingHeight - 0.4, 8), poseMatrix([side * 3.3, (ceilingHeight - 0.4) / 2, -3.3]), {
     });
     room.geo('ironBlack', new THREE.TorusGeometry(0.5, 0.04, 4, 10, Math.PI / 2), tiltMatrix([side * 3.3, ceilingHeight - 0.9, -3.3], [0, side > 0 ? Math.PI : Math.PI / 2, side > 0 ? Math.PI / 2 : 0]), {
       consume: true,
@@ -101,21 +100,20 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   }
 
   // A wrought-iron table and two chairs, rusted into the marble.
-  room.geo('rust', new THREE.CylinderGeometry(0.62, 0.62, 0.05, 16), poseMatrix([1.9, 0.84, -2.4]), { consume: true });
-  room.geo('rust', new THREE.CylinderGeometry(0.06, 0.14, 0.82, 8), poseMatrix([1.9, 0.41, -2.4]), { consume: true });
+  room.geo('rust', cyl(0.62, 0.62, 0.05, 16), poseMatrix([1.9, 0.84, -2.4]), {});
+  room.geo('rust', cyl(0.06, 0.14, 0.82, 8), poseMatrix([1.9, 0.41, -2.4]), {});
   room.blockCircle(1.9, -2.4, 0.6);
   for (const [cx, cz, rot] of [
     [1.9, -1.35, 0],
     [0.9, -2.5, -1.4],
   ] as const) {
-    room.geo('rust', new THREE.CylinderGeometry(0.24, 0.24, 0.05, 12), poseMatrix([cx, 0.44, cz]), { consume: true });
+    room.geo('rust', cyl(0.24, 0.24, 0.05, 12), poseMatrix([cx, 0.44, cz]), {});
     room.geo('rust', new THREE.TorusGeometry(0.22, 0.02, 4, 12), tiltMatrix([cx, 0.66, cz], [0.35, rot, 0]), {
       consume: true,
     });
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2;
-      room.geo('rust', new THREE.CylinderGeometry(0.015, 0.015, 0.44, 5), poseMatrix([cx + Math.cos(a) * 0.17, 0.22, cz + Math.sin(a) * 0.17]), {
-        consume: true,
+      room.geo('rust', cyl(0.015, 0.015, 0.44, 5), poseMatrix([cx + Math.cos(a) * 0.17, 0.22, cz + Math.sin(a) * 0.17]), {
       });
     }
     room.blockCircle(cx, cz, 0.28);

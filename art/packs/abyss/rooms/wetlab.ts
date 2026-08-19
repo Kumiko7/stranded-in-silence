@@ -2,7 +2,20 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { bench, cageLamp, debris, disc, drain, dripLine, quad, shelf, specimenJar, stripLight, tankColumn } from '../kit/props';
+import {
+  bench,
+  cageLamp,
+  cyl,
+  debris,
+  disc,
+  drain,
+  dripLine,
+  quad,
+  shelf,
+  specimenJar,
+  stripLight,
+  tankColumn,
+} from '../kit/props';
 
 /**
  * The Wet Lab - where whatever came up in the trawl was taken apart.
@@ -78,9 +91,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   ] as const) {
     room.box('steelPale', [len, 0.02, 0.035], [x, 0.94, z], room.range(0, 3), { tile: 0.3, castShadow: false });
   }
-  room.geo('steelPale', new THREE.CylinderGeometry(0.16, 0.19, 0.06, 12), poseMatrix([0.74, 0.97, 0.22]), {
+  room.geo('steelPale', cyl(0.16, 0.19, 0.06, 12), poseMatrix([0.74, 0.97, 0.22]), {
     tile: 0.3,
-    consume: true,
   });
 
   /* --- the jars --------------------------------------------------------------- */

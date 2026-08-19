@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { bench, cageLamp, debris, disc, drain, dripLine, quad, shelf, stripLight, wallSign } from '../kit/props';
+import { ball, bench, cageLamp, cyl, debris, disc, drain, dripLine, quad, shelf, spike, stripLight, wallSign } from '../kit/props';
 
 /**
  * Decontamination - tile, drains, and six showers that all ran at once.
@@ -65,25 +65,22 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // All of it sits at |z| > 1.2 or hard against the plate, so the fore-and-aft
   // lane down the middle of the room never has anything in it.
   const manifoldY = 2.45;
-  room.geo('steel', new THREE.CylinderGeometry(0.075, 0.075, 6.4, 10), tiltMatrix([3.28, manifoldY, 0], [Math.PI / 2, Math.PI / 2, 0]), {
+  room.geo('steel', cyl(0.075, 0.075, 6.4, 10), tiltMatrix([3.28, manifoldY, 0], [Math.PI / 2, Math.PI / 2, 0]), {
     tile: 0.6,
-    consume: true,
   });
   for (let i = 0; i < 6; i++) {
     const z = -2.75 + i * 1.1;
-    room.geo('steel', new THREE.CylinderGeometry(0.025, 0.025, 0.34, 6), poseMatrix([3.28, manifoldY - 0.2, z]), {
+    room.geo('steel', cyl(0.025, 0.025, 0.34, 6), poseMatrix([3.28, manifoldY - 0.2, z]), {
       tile: 0.2,
       castShadow: false,
-      consume: true,
     });
-    room.geo('steelPale', new THREE.ConeGeometry(0.11, 0.1, 12), poseMatrix([3.28, manifoldY - 0.4, z]), { tile: 0.2, consume: true });
+    room.geo('steelPale', spike(0.11, 0.1, 12), poseMatrix([3.28, manifoldY - 0.4, z]), { tile: 0.2 });
     room.geo('steelDark', disc(0.1, 12), tiltMatrix([3.28, manifoldY - 0.45, z], [Math.PI / 2, 0, 0]), { castShadow: false, receiveShadow: false });
     // Two of them still dribbling.
     if (i === 1 || i === 4) {
-      room.geo('puddle', new THREE.CylinderGeometry(0.006, 0.004, manifoldY - 0.45, 4), poseMatrix([3.28, (manifoldY - 0.45) / 2, z]), {
+      room.geo('puddle', cyl(0.006, 0.004, manifoldY - 0.45, 4), poseMatrix([3.28, (manifoldY - 0.45) / 2, z]), {
         castShadow: false,
         receiveShadow: false,
-        consume: true,
       });
     }
   }
@@ -96,17 +93,15 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   /* --- the suit rack ---------------------------------------------------------------- */
   // Down the west wall between the two lockers: hooks, hangers and five suits.
-  room.geo('steel', new THREE.CylinderGeometry(0.03, 0.03, 3.2, 6), tiltMatrix([-3.28, 2.15, 0], [Math.PI / 2, Math.PI / 2, 0]), {
+  room.geo('steel', cyl(0.03, 0.03, 3.2, 6), tiltMatrix([-3.28, 2.15, 0], [Math.PI / 2, Math.PI / 2, 0]), {
     tile: 0.4,
-    consume: true,
   });
   for (let i = 0; i < 5; i++) {
     const z = -1.4 + i * 0.72;
     const lean = room.range(-0.05, 0.05);
-    room.geo('steelDark', new THREE.CylinderGeometry(0.012, 0.012, 0.16, 5), poseMatrix([-3.28, 2.05, z]), {
+    room.geo('steelDark', cyl(0.012, 0.012, 0.16, 5), poseMatrix([-3.28, 2.05, z]), {
       tile: 0.2,
       castShadow: false,
-      consume: true,
     });
     room.box('canvasSuit', [0.4, 1.15, 0.16], [-3.34, 0.82, z], Math.PI / 2 + lean, { tile: 0.5, castShadow: false });
     room.box('canvasSuit', [0.26, 0.4, 0.2], [-3.32, 1.55, z], Math.PI / 2 + lean, { tile: 0.4, castShadow: false });
@@ -114,7 +109,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   }
   // The sixth is on the floor where somebody stepped out of it.
   room.box('canvasSuit', [1.2, 0.16, 0.44], [-1.9, 0.005, -1.4], 0.5, { tile: 0.5, castShadow: false });
-  room.geo('steelPale', new THREE.SphereGeometry(0.22, 9, 7), poseMatrix([-1.4, 0.2, -1.15]), { tile: 0.4, consume: true });
+  room.geo('steelPale', ball(0.22, 9), poseMatrix([-1.4, 0.2, -1.15]), { tile: 0.4 });
 
   /* --- the bench and the wash-down gear ---------------------------------------------- */
   // Pulled forward off the west plate: a locker anchor sits at z = 2.7 on that
@@ -122,7 +117,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   bench(room, -2.5, 1.4, 1.6, 0.7, 0.94, Math.PI / 2);
   shelf(room, 'east', -1.9, 1.5, 1.2, 0.36);
   for (const z of [1.45, 2.35]) {
-    room.geo('plastic', new THREE.CylinderGeometry(0.09, 0.09, 0.26, 10), poseMatrix([3.42, 1.68, z]), { tile: 0.3, consume: true });
+    room.geo('plastic', cyl(0.09, 0.09, 0.26, 10), poseMatrix([3.42, 1.68, z]), { tile: 0.3 });
   }
   wallSign(room, 'east', 3.0, 2.15);
   wallSign(room, 'west', -3.0, 2.15);

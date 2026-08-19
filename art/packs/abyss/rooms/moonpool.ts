@@ -2,7 +2,24 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { beacon, bioMotes, bubbleColumn, cageLamp, causticPatch, crate, debris, disc, diveSuit, drum, glowShaft, puddle, railing, stripLight } from '../kit/props';
+import {
+  beacon,
+  bioMotes,
+  bubbleColumn,
+  cageLamp,
+  causticPatch,
+  crate,
+  cyl,
+  debris,
+  disc,
+  diveSuit,
+  drum,
+  glowShaft,
+  puddle,
+  railing,
+  spike,
+  stripLight,
+} from '../kit/props';
 
 /**
  * The Moon Pool - a hole in the floor of the world.
@@ -121,22 +138,19 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // An A-frame over the west side with the hoist block hanging off it. Nothing
   // about a moon pool works without a way to lift something out of it.
   for (const s of [-1, 1]) {
-    room.geo('steel', new THREE.CylinderGeometry(0.075, 0.09, 3.0, 8), tiltMatrix([-2.55, 1.5, s * 1.9], [s * 0.26, 0, 0]), {
+    room.geo('steel', cyl(0.075, 0.09, 3.0, 8), tiltMatrix([-2.55, 1.5, s * 1.9], [s * 0.26, 0, 0]), {
       tile: 0.5,
-      consume: true,
     });
   }
-  room.geo('steel', new THREE.CylinderGeometry(0.08, 0.08, 4.1, 8), tiltMatrix([-2.45, 2.95, 0], [Math.PI / 2, 0, 0]), {
+  room.geo('steel', cyl(0.08, 0.08, 4.1, 8), tiltMatrix([-2.45, 2.95, 0], [Math.PI / 2, 0, 0]), {
     tile: 0.5,
-    consume: true,
   });
   room.box('steelDark', [0.3, 0.34, 0.24], [-2.45, 2.5, 0.3], 0, { tile: 0.3, castShadow: false });
-  room.geo('cable', new THREE.CylinderGeometry(0.018, 0.018, 1.5, 5), poseMatrix([-2.45, 1.78, 0.3]), {
+  room.geo('cable', cyl(0.018, 0.018, 1.5, 5), poseMatrix([-2.45, 1.78, 0.3]), {
     tile: 0.3,
     castShadow: false,
-    consume: true,
   });
-  room.geo('steel', new THREE.ConeGeometry(0.11, 0.36, 7), poseMatrix([-2.45, 0.95, 0.3]), { tile: 0.3, consume: true });
+  room.geo('steel', spike(0.11, 0.36, 7), poseMatrix([-2.45, 0.95, 0.3]), { tile: 0.3 });
 
   /* --- the divers ---------------------------------------------------------------- */
   /**
@@ -166,10 +180,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // A tool shelf on the fore bulkhead, with the spanners still racked on it.
   room.box('steelPale', [1.5, 0.05, 0.4], [2.4, 1.4, -3.48], 0, { tile: 0.7 });
   for (let i = 0; i < 4; i++) {
-    room.geo('steelDark', new THREE.CylinderGeometry(0.02, 0.02, room.range(0.2, 0.42), 5), tiltMatrix([1.9 + i * 0.3, 1.62, -3.44], [0, 0, room.range(-0.2, 0.2)]), {
+    room.geo('steelDark', cyl(0.02, 0.02, room.range(0.2, 0.42), 5), tiltMatrix([1.9 + i * 0.3, 1.62, -3.44], [0, 0, room.range(-0.2, 0.2)]), {
       tile: 0.2,
       castShadow: false,
-      consume: true,
     });
   }
 
@@ -181,10 +194,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   stripLight(room, -2.9, 2.2, 2.2, Math.PI / 2, true, false, 10);
   // Hung off the trusses on a stem, not floating: a beacon with no mount reads
   // as a yellow card stuck to the middle of the air.
-  room.geo('steelDark', new THREE.CylinderGeometry(0.035, 0.035, 0.62, 6), poseMatrix([0, ceilingHeight - 0.34, 0]), {
+  room.geo('steelDark', cyl(0.035, 0.035, 0.62, 6), poseMatrix([0, ceilingHeight - 0.34, 0]), {
     tile: 0.3,
     castShadow: false,
-    consume: true,
   });
   beacon(room, 0, ceilingHeight - 0.95, 0, true, 12);
   cageLamp(room, 'north', 2.6, 2.2, false, false);

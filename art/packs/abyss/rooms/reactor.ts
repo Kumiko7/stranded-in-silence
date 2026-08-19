@@ -2,7 +2,23 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { beacon, controlDesk, debris, drum, gauge, glowShaft, pipeRun, quad, railing, stripLight, swell, valve, wallSign } from '../kit/props';
+import {
+  ball,
+  beacon,
+  controlDesk,
+  cyl,
+  debris,
+  drum,
+  gauge,
+  glowShaft,
+  pipeRun,
+  quad,
+  railing,
+  stripLight,
+  swell,
+  valve,
+  wallSign,
+} from '../kit/props';
 
 /**
  * The Core - the only thing on the station still doing what it was built for.
@@ -60,17 +76,14 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   /* --- the vessel ------------------------------------------------------------------ */
   // Plinth, barrel, dome, and the belly bands round it. Backed hard against the
   // fore bulkhead, which is the one wall this room never opens as a hatchway.
-  room.geo('steelDark', new THREE.CylinderGeometry(CORE_R * 1.2, CORE_R * 1.3, 0.28, 20), poseMatrix([0, 0.14, CORE_Z]), {
+  room.geo('steelDark', cyl(CORE_R * 1.2, CORE_R * 1.3, 0.28, 20), poseMatrix([0, 0.14, CORE_Z]), {
     tile: 0.7,
-    consume: true,
   });
-  room.geo('steel', new THREE.CylinderGeometry(CORE_R, CORE_R, ceilingHeight - 0.9, 22), poseMatrix([0, 0.28 + (ceilingHeight - 0.9) / 2, CORE_Z]), {
+  room.geo('steel', cyl(CORE_R, CORE_R, ceilingHeight - 0.9, 22), poseMatrix([0, 0.28 + (ceilingHeight - 0.9) / 2, CORE_Z]), {
     tile: 1.1,
-    consume: true,
   });
-  room.geo('steelPale', new THREE.SphereGeometry(CORE_R, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2), poseMatrix([0, ceilingHeight - 0.62, CORE_Z]), {
+  room.geo('steelPale', ball(CORE_R, 20), poseMatrix([0, ceilingHeight - 0.62, CORE_Z]), {
     tile: 1.0,
-    consume: true,
   });
   for (const y of [0.9, 1.9, 2.7]) {
     room.geo('steelDark', new THREE.TorusGeometry(CORE_R + 0.03, 0.075, 6, 22), tiltMatrix([0, y, CORE_Z], [Math.PI / 2, 0, 0]), {
@@ -81,10 +94,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // Bolt heads round the middle band, because a pressure vessel is bolted.
   for (let i = 0; i < 16; i++) {
     const a = (i / 16) * Math.PI * 2;
-    room.geo('steelPale', new THREE.CylinderGeometry(0.045, 0.045, 0.07, 6), tiltMatrix([Math.sin(a) * (CORE_R + 0.1), 1.9, CORE_Z + Math.cos(a) * (CORE_R + 0.1)], [Math.PI / 2, a, 0]), {
+    room.geo('steelPale', cyl(0.045, 0.045, 0.07, 6), tiltMatrix([Math.sin(a) * (CORE_R + 0.1), 1.9, CORE_Z + Math.cos(a) * (CORE_R + 0.1)], [Math.PI / 2, a, 0]), {
       tile: 0.2,
       castShadow: false,
-      consume: true,
     });
   }
 

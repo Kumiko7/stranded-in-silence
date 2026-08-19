@@ -24,6 +24,7 @@ import * as THREE from 'three';
 import type { BuiltPiece, Cell, Collider, PackKit, RoomBuildContext, Side } from '../../../lib/contract';
 import { SIDES, doorKey } from '../../../lib/contract';
 import { boxCollider, boxGeometry } from '../../../lib/build';
+import { ball, spike } from './props';
 import { MeshBatcher, poseMatrix, subUV, tiltMatrix } from '../../../lib/merge';
 import * as tex from '../textures';
 
@@ -323,7 +324,7 @@ export function addShell(
       if (bandStyle !== 'none' && slab.y1 > bandHeight) {
         strip(slab.offset, slab.width, bandHeight, 0.07, 0.1, cartilageMat, 0.8);
         // Buttress ribs: the vertical struts that make a band read as armour.
-        const count = Math.max(1, Math.round(slab.width / 0.86));
+        const count = Math.max(1, Math.round(slab.width / 1.3));
         for (let i = 0; i <= count; i++) {
           const x = slab.offset - slab.width / 2 + (slab.width * i) / count;
           strip(x, 0.09, SILL_HEIGHT, bandHeight - SILL_HEIGHT, 0.045, cartilageMat, 0.5);
@@ -400,7 +401,7 @@ export function addShell(
        * The radial squash is what does the work - each segment is a stretched
        * sphere lying along the ring, thickest where the purse is tightest.
        */
-      const steps = 22;
+      const steps = 16;
       for (let i = 0; i < steps; i++) {
         const t = i / steps;
         const a = t * Math.PI * 2;
@@ -408,17 +409,17 @@ export function addShell(
         const along = Math.sign(Math.cos(a)) * Math.pow(Math.abs(Math.cos(a)), 0.6) * (half + 0.14);
         const rise = head / 2 + Math.sign(Math.sin(a)) * Math.pow(Math.abs(Math.sin(a)), 0.6) * (head / 2 + 0.1);
         if (rise < 0.06) continue; // the floor takes the bottom of the ring
-        const bulge = 0.11 + Math.abs(Math.sin(a * 3 + 0.7)) * 0.055;
+        const bulge = 0.13 + Math.abs(Math.sin(a * 3 + 0.7)) * 0.065;
         batch.add(
           meatMat,
-          new THREE.SphereGeometry(bulge, 8, 6),
+          ball(bulge),
           tiltMatrix(at(along, rise, 0.16 + bulge * 0.5), [0, yaw, a], [1, 2.1, 1.35]),
-          { tile: 0.4, castShadow: false, consume: true },
+          { tile: 0.4, castShadow: false },
         );
       }
       // The inner lip: darker, wetter, set back into the throat of the opening.
-      for (let i = 0; i < 14; i++) {
-        const t = i / 14;
+      for (let i = 0; i < 10; i++) {
+        const t = i / 10;
         const a = t * Math.PI * 2;
         const along = Math.sign(Math.cos(a)) * Math.pow(Math.abs(Math.cos(a)), 0.6) * (half + 0.02);
         const rise = head / 2 + Math.sign(Math.sin(a)) * Math.pow(Math.abs(Math.sin(a)), 0.6) * (head / 2 - 0.02);
@@ -513,7 +514,7 @@ export function addShell(
       // An eye set in the wall, looking in. The single most unsettling thing the
       // shell can do, so it is rationed to one or two rooms.
       const r = Math.min(opening.width, h) * 0.46;
-      batch.add(ctx.materials.get('sclera'), new THREE.SphereGeometry(r * 1.12, 16, 12), poseMatrix(at(0, midY, -0.02)), {
+      batch.add(ctx.materials.get('sclera'), ball(r * 1.12, 16), poseMatrix(at(0, midY, -0.02)), {
         castShadow: false,
       });
       const disc = subUV(new THREE.CircleGeometry(r, 24), 0, 0, 0.5, 0.5);
@@ -700,9 +701,9 @@ export function addShell(
           const size = i === 4 ? 0.9 : 0.6;
           batch.add(
             ctx.materials.get('surface.membrane'),
-            new THREE.SphereGeometry(size, 12, 8),
+            ball(size, 12),
             tiltMatrix([cx + Math.cos(a) * r, ceilingHeight - size * 0.42, cz + Math.sin(a) * r], [0, a, 0], [1, 0.62, 1]),
-            { tile: 1.4, castShadow: false, consume: true },
+            { tile: 1.4, castShadow: false },
           );
         }
         break;
@@ -712,10 +713,9 @@ export function addShell(
           const ax = cx - cellSize / 2 + cellSize * (((i * 5) % 12) + 0.5) / 12;
           const az = cz - cellSize / 2 + cellSize * (((i * 7) % 12) + 0.5) / 12;
           const len = 0.3 + ((i * 37) % 11) / 22;
-          batch.add(toothMat, new THREE.ConeGeometry(0.09, len, 6), poseMatrix([ax, ceilingHeight - len / 2 - 0.04, az]), {
+          batch.add(toothMat, spike(0.09, len, 6), poseMatrix([ax, ceilingHeight - len / 2 - 0.04, az]), {
             tile: 0.4,
             ...CEILING_OPTS,
-            consume: true,
           });
         }
         break;

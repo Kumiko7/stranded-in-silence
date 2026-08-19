@@ -2,7 +2,20 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { candleCluster, chair, cobwebs, curtains, debris, flicker, floorWash, oilLamp, rug, sideboard } from '../kit/props';
+import {
+  ball,
+  candleCluster,
+  chair,
+  cobwebs,
+  curtains,
+  cyl,
+  debris,
+  flicker,
+  floorWash,
+  oilLamp,
+  rug,
+  sideboard,
+} from '../kit/props';
 
 /**
  * The Séance Parlour - the chairs are still pulled in and the glass is on the E.
@@ -59,18 +72,17 @@ function build(ctx: RoomBuildContext): BuiltRoom {
    * (below) is at table height and off to one side, which is the other half of
    * the fix.
    */
-  room.geo('velvetGold', new THREE.CylinderGeometry(0.86, 1.02, 0.78, 20), poseMatrix([0, 0.39, 0]), {
+  room.geo('velvetGold', cyl(0.86, 1.02, 0.78, 20), poseMatrix([0, 0.39, 0]), {
     tile: 1.4,
-    consume: true,
   });
   for (let i = 0; i < 14; i++) {
     const a = (i / 14) * Math.PI * 2;
     const r = 0.99;
     room.geo(
       'velvetGold',
-      new THREE.CylinderGeometry(0.05, 0.075, 0.72, 5),
+      cyl(0.05, 0.075, 0.72, 5),
       poseMatrix([Math.cos(a) * r, 0.36, Math.sin(a) * r]),
-      { tile: 0.7, consume: true },
+      { tile: 0.7 },
     );
   }
   room.geo('velvetRed', new THREE.TorusGeometry(1.01, 0.03, 4, 22), tiltMatrix([0, 0.06, 0], [Math.PI / 2, 0, 0]), {
@@ -79,16 +91,14 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.geo('velvetRed', new THREE.TorusGeometry(0.94, 0.035, 4, 22), tiltMatrix([0, 0.7, 0], [Math.PI / 2, 0, 0]), {
     consume: true,
   });
-  room.geo('velvetGold', new THREE.CylinderGeometry(0.92, 0.92, 0.04, 20), poseMatrix([0, 0.79, 0]), {
+  room.geo('velvetGold', cyl(0.92, 0.92, 0.04, 20), poseMatrix([0, 0.79, 0]), {
     tile: 1.4,
-    consume: true,
   });
   room.blockCircle(0, 0, 0.92);
 
   // The board, the planchette on E, and a ring of hand-worn candle wax.
   room.geo('bookTan', new THREE.BoxGeometry(0.62, 0.02, 0.44), poseMatrix([0, 0.81, 0], 0.12), { consume: true });
-  room.geo('woodDark', new THREE.CylinderGeometry(0.06, 0.07, 0.03, 3), poseMatrix([0.24, 0.83, -0.2], 0.7), {
-    consume: true,
+  room.geo('woodDark', cyl(0.06, 0.07, 0.03, 3), poseMatrix([0.24, 0.83, -0.2], 0.7), {
   });
   candleCluster(room, [-0.5, 0.81, 0.35]);
   candleCluster(room, [0.45, 0.81, 0.45]);
@@ -113,11 +123,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // A gramophone with the needle still down.
   room.solid('wood', [0.7, 0.9, 0.62], [2.7, 0, -1.4], -Math.PI / 2, { tile: 1 });
-  room.geo('brass', new THREE.CylinderGeometry(0.34, 0.06, 0.6, 14, 1, true), tiltMatrix([2.55, 1.32, -1.4], [-0.5, -0.4, 0]), {
-    consume: true,
+  room.geo('brass', cyl(0.34, 0.06, 0.6, 14, true), tiltMatrix([2.55, 1.32, -1.4], [-0.5, -0.4, 0]), {
   });
-  room.geo('ironBlack', new THREE.CylinderGeometry(0.24, 0.24, 0.012, 18), poseMatrix([2.7, 0.92, -1.4]), {
-    consume: true,
+  room.geo('ironBlack', cyl(0.24, 0.24, 0.012, 18), poseMatrix([2.7, 0.92, -1.4]), {
   });
 
   // Every mirror covered. One sheet has slipped.
@@ -134,9 +142,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // fall of the cloth and the chair backs are lit across rather than from above.
   oilLamp(room, [-3.15, 0.91, -3.5], true, 'velvetRed');
   floorWash(room, 'warmWash', 0, 0, 2.6);
-  room.geo('glass', new THREE.SphereGeometry(0.16, 12, 10), poseMatrix([-2.6, 1.06, -3.44]), { consume: true });
-  room.geo('woodDark', new THREE.CylinderGeometry(0.13, 0.16, 0.06, 12), poseMatrix([-2.6, 0.95, -3.44]), {
-    consume: true,
+  room.geo('glass', ball(0.16, 12), poseMatrix([-2.6, 1.06, -3.44]), {});
+  room.geo('woodDark', cyl(0.13, 0.16, 0.06, 12), poseMatrix([-2.6, 0.95, -3.44]), {
   });
   room.box('bookRed', [0.24, 0.06, 0.3], [-2.9, 0.0, 2.6], 0.8);
 

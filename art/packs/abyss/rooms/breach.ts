@@ -4,12 +4,14 @@ import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
 import {
   anemones,
+  ball,
   beacon,
   bioMotes,
   boulder,
   cageLamp,
   causticPatch,
   coralHead,
+  cyl,
   debris,
   disc,
   drum,
@@ -20,6 +22,7 @@ import {
   puddle,
   siltDrift,
   siltFall,
+  spike,
   stripLight,
   swell,
   tubeWorms,
@@ -128,9 +131,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     // Fangs of steel where it parted.
     room.geo(
       'steelDark',
-      new THREE.ConeGeometry(room.range(0.07, 0.16), room.range(0.3, 0.75), 4),
+      spike(room.range(0.07, 0.16), room.range(0.3, 0.75), 4),
       tiltMatrix([x + jitterX * 1.6, room.range(0.4, 1.0), z + jitterZ * 1.6], [room.range(-0.5, 0.5), room.range(0, 3), room.range(-0.6, 0.6)]),
-      { tile: 0.3, castShadow: false, consume: true },
+      { tile: 0.3, castShadow: false },
     );
     // The silt coming through.
     if (i % 2 === 0) siltDrift(room, x + room.range(-0.8, 0.8), z + room.range(-0.8, 0.8), room.range(0.7, 1.4));
@@ -151,9 +154,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     if (x < -3.4 || x > 3.4 || z > 11.4) continue;
     room.geo(
       room.chance(0.55) ? 'surface.silt' : 'surface.basalt',
-      new THREE.CircleGeometry(room.range(0.8, 1.9), 9),
+      disc(room.range(0.8, 1.9), 9),
       tiltMatrix([x, room.range(0.02, 0.05), z], [-Math.PI / 2, room.range(0, 3), 0]),
-      { tile: 2.4, castShadow: false, consume: true },
+      { tile: 2.4, castShadow: false },
     );
   }
 
@@ -164,9 +167,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const z = room.range(2.0, 10.6);
     room.geo(
       'rockDark',
-      new THREE.SphereGeometry(room.range(0.6, 1.35), 8, 6),
+      ball(room.range(0.6, 1.35), 8),
       tiltMatrix([x - 1.0, room.range(0.2, 1.6), z], [0, room.range(0, 3), 0], [1.3, 1.0, 1.2]),
-      { tile: 1.3, castShadow: false, consume: true },
+      { tile: 1.3, castShadow: false },
     );
   }
   boulder(room, -2.2, 8.6, 0.85, 0.95);
@@ -217,12 +220,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     false,
   );
   // The pipe run ends where the plate tore. It is snapped off, and it is dripping.
-  room.geo('rust', new THREE.CylinderGeometry(0.11, 0.09, 0.3, 8), tiltMatrix([4.0, 1.25, -0.9], [0.9, 0.4, 0]), { tile: 0.3, consume: true });
+  room.geo('rust', cyl(0.11, 0.09, 0.3, 8), tiltMatrix([4.0, 1.25, -0.9], [0.9, 0.4, 0]), { tile: 0.3 });
   for (let i = 0; i < 4; i++) {
-    room.geo('puddle', new THREE.CylinderGeometry(0.006, 0.005, 1.1, 4), poseMatrix([4.1 + room.range(-0.1, 0.1), 0.6, -0.75 + room.range(-0.1, 0.1)]), {
+    room.geo('puddle', cyl(0.006, 0.005, 1.1, 4), poseMatrix([4.1 + room.range(-0.1, 0.1), 0.6, -0.75 + room.range(-0.1, 0.1)]), {
       castShadow: false,
       receiveShadow: false,
-      consume: true,
     });
   }
   puddle(room, 4.3, -0.4, 1.0);

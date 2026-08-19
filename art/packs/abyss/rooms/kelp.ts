@@ -2,7 +2,22 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { anemones, bioMotes, boulder, causticPatch, encrust, glowShaft, kelpStand, siltDrift, sway, swell, tubeWorms, urchin } from '../kit/props';
+import {
+  anemones,
+  ball,
+  bioMotes,
+  boulder,
+  causticPatch,
+  encrust,
+  glowShaft,
+  kelpStand,
+  siltDrift,
+  spike,
+  sway,
+  swell,
+  tubeWorms,
+  urchin,
+} from '../kit/props';
 
 /**
  * The Kelp Deck - a compartment the sea took back and planted.
@@ -66,9 +81,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const a = (i / 9) * Math.PI * 2 + 0.3;
     room.geo(
       'rust',
-      new THREE.ConeGeometry(room.range(0.1, 0.2), room.range(0.25, 0.6), 4),
+      spike(room.range(0.1, 0.2), room.range(0.25, 0.6), 4),
       tiltMatrix([-0.4 + Math.cos(a) * 1.25, 0.16, -0.6 + Math.sin(a) * 1.25], [room.range(0.5, 1.2), a, room.range(-0.4, 0.4)]),
-      { tile: 0.3, castShadow: false, consume: true },
+      { tile: 0.3, castShadow: false },
     );
   }
   siltDrift(room, -0.4, -0.6, 1.5);
@@ -136,9 +151,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 6; i++) {
     room.geo(
       'surface.crust',
-      new THREE.SphereGeometry(room.range(0.2, 0.44), 7, 5),
+      ball(room.range(0.2, 0.44), 7),
       tiltMatrix([room.range(1.6, 3.3), room.range(0, 0.9), 3.4], [0, room.range(0, 3), 0], [1.2, 0.9, 0.7]),
-      { tile: 0.6, castShadow: false, consume: true },
+      { tile: 0.6, castShadow: false },
     );
   }
 

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { cobwebs, debris, lightShaft, oilLamp, pendantLamp, sheetedShape, trunk } from '../kit/props';
+import { ball, cobwebs, cyl, debris, lightShaft, oilLamp, pendantLamp, sheetedShape, trunk } from '../kit/props';
 
 /**
  * The Attic (L-shaped) - everything the family stopped wanting.
@@ -93,13 +93,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   trunk(room, -1.2, 9.6, 0.2, false);
 
   // A cistern in the corner, dripping into a bucket that overflowed long ago.
-  room.geo('rust', new THREE.CylinderGeometry(0.72, 0.72, 1.2, 14), poseMatrix([9.8, 0.6, 2.6]), {
+  room.geo('rust', cyl(0.72, 0.72, 1.2, 14), poseMatrix([9.8, 0.6, 2.6]), {
     tile: 1.4,
-    consume: true,
   });
   room.blockCircle(9.8, 2.6, 0.76);
-  room.geo('copper', new THREE.CylinderGeometry(0.03, 0.03, 1.8, 6), poseMatrix([9.8, 2.1, 1.8]), { consume: true });
-  room.geo('rust', new THREE.CylinderGeometry(0.2, 0.16, 0.28, 10), poseMatrix([9.8, 0.14, 1.6]), { consume: true });
+  room.geo('copper', cyl(0.03, 0.03, 1.8, 6), poseMatrix([9.8, 2.1, 1.8]), {});
+  room.geo('rust', cyl(0.2, 0.16, 0.28, 10), poseMatrix([9.8, 0.14, 1.6]), {});
   room.geo('mirror', new THREE.CircleGeometry(0.7, 14), tiltMatrix([9.6, 0.014, 1.5], [-Math.PI / 2, 0, 0]), {
     castShadow: false,
     consume: true,
@@ -118,13 +117,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // A tailor's dummy, which is exactly the wrong shape to see out of the corner
   // of your eye.
-  room.geo('linen', new THREE.CylinderGeometry(0.2, 0.26, 0.66, 12), poseMatrix([-2.9, 1.16, 3.4]), {
+  room.geo('linen', cyl(0.2, 0.26, 0.66, 12), poseMatrix([-2.9, 1.16, 3.4]), {
     tile: 0.9,
-    consume: true,
   });
-  room.geo('linen', new THREE.SphereGeometry(0.16, 10, 8), poseMatrix([-2.9, 1.62, 3.4]), { consume: true });
-  room.geo('woodDark', new THREE.CylinderGeometry(0.03, 0.03, 0.9, 6), poseMatrix([-2.9, 0.45, 3.4]), { consume: true });
-  room.geo('woodDark', new THREE.CylinderGeometry(0.24, 0.24, 0.04, 12), poseMatrix([-2.9, 0.02, 3.4]), { consume: true });
+  room.geo('linen', ball(0.16, 10), poseMatrix([-2.9, 1.62, 3.4]), {});
+  room.geo('woodDark', cyl(0.03, 0.03, 0.9, 6), poseMatrix([-2.9, 0.45, 3.4]), {});
+  room.geo('woodDark', cyl(0.24, 0.24, 0.04, 12), poseMatrix([-2.9, 0.02, 3.4]), {});
   room.blockCircle(-2.9, 3.4, 0.3);
 
   // Four lights, which is the whole budget an L-shaped three-cell room gets. One

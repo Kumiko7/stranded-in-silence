@@ -2,7 +2,21 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { candelabra, chair, chandelier, cobwebs, column, curtains, debris, lightShaft, oilLamp, rug, sheetedShape } from '../kit/props';
+import {
+  ball,
+  candelabra,
+  chair,
+  chandelier,
+  cobwebs,
+  column,
+  curtains,
+  cyl,
+  debris,
+  lightShaft,
+  oilLamp,
+  rug,
+  sheetedShape,
+} from '../kit/props';
 
 /**
  * The Ballroom (2x2) - two hundred and fifty square metres of nothing.
@@ -99,15 +113,14 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.geo('brass', new THREE.TorusGeometry(0.62, 0.018, 4, 18), tiltMatrix([cx + 0.3, 0.4, cz - 0.2], [1.2, 0.9, 0.3]), {
     consume: true,
   });
-  room.geo('brass', new THREE.CylinderGeometry(0.05, 0.07, 0.8, 8), tiltMatrix([cx - 0.2, 0.3, cz + 0.3], [0.4, 0, 1.1]), {
-    consume: true,
+  room.geo('brass', cyl(0.05, 0.07, 0.8, 8), tiltMatrix([cx - 0.2, 0.3, cz + 0.3], [0.4, 0, 1.1]), {
   });
   for (let i = 0; i < 20; i++) {
     room.geo(
       'glass',
-      new THREE.SphereGeometry(0.03, 6, 5),
+      ball(0.03, 6),
       poseMatrix([cx + room.range(-1.6, 1.6), 0.03, cz + room.range(-1.6, 1.6)]),
-      { consume: true },
+      {},
     );
   }
   room.blockCircle(cx, cz, 1.0);
@@ -138,12 +151,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const a = (i / 3) * Math.PI * 2 + 0.4;
       room.geo(
         'ironBlack',
-        new THREE.CylinderGeometry(0.012, 0.016, 0.34, 5),
+        cyl(0.012, 0.016, 0.34, 5),
         tiltMatrix([sx + Math.cos(a) * 0.1, 0.32, sz + Math.sin(a) * 0.1], [0.55, -a, 0]),
-        { consume: true },
+        {},
       );
     }
-    room.geo('ironBlack', new THREE.CylinderGeometry(0.016, 0.024, 1.0, 6), poseMatrix([sx, 0.68, sz]), { consume: true });
+    room.geo('ironBlack', cyl(0.016, 0.024, 1.0, 6), poseMatrix([sx, 0.68, sz]), {});
     room.geo('ironBlack', new THREE.BoxGeometry(0.44, 0.3, 0.02), tiltMatrix([sx, 1.28, sz + 0.05], [-0.5, 0.2, 0]), {
       consume: true,
     });

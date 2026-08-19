@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { ball, boneDebris, drools, heartbeat, lumenPod, nerveRun, polyps, strut } from '../kit/props';
+import { ball, boneDebris, cyl, drools, heartbeat, lumenPod, nerveRun, polyps, strut } from '../kit/props';
 
 /**
  * The Heart - the one room in the map that is unmistakably a machine, and the
@@ -47,11 +47,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // A plinth of cartilage it sits in, so it is not a ball on the carpet. Kept
   // small: at the 1.7 m it started on, the mass filled the whole frame from
   // every doorway and the room had nothing else in it.
-  room.geo('cartilage', new THREE.CylinderGeometry(1.0, 1.2, 0.4, 16), poseMatrix([0, 0.2, 0]), {
+  room.geo('cartilage', cyl(1.0, 1.2, 0.4, 16), poseMatrix([0, 0.2, 0]), {
     tile: 1.1,
-    consume: true,
   });
-  room.geo('meatDark', new THREE.CylinderGeometry(0.86, 1.0, 0.28, 16), poseMatrix([0, 0.48, 0]), { tile: 0.8, consume: true });
+  room.geo('meatDark', cyl(0.86, 1.0, 0.28, 16), poseMatrix([0, 0.48, 0]), { tile: 0.8 });
   room.blockCircle(0, 0, 1.15);
 
   /**

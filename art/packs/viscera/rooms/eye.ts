@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, subUV, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { ball, breathe, disc, drools, eyeOn, fleshFolds, glowShaft, polyps } from '../kit/props';
+import { ball, breathe, cyl, disc, drools, eyeOn, fleshFolds, glowShaft, polyps, spike } from '../kit/props';
 
 /**
  * The Regard - a chamber with an eye in the roof of it, and nineteen smaller
@@ -81,9 +81,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const x = -1.25 + i * 0.31;
       room.geo(
         'tooth',
-        new THREE.ConeGeometry(0.045, 0.42, 5),
+        spike(0.045, 0.42, 5),
         tiltMatrix([x, eyeY - 0.34, s * 1.98], [s * 1.05, 0, 0]),
-        { tile: 0.3, consume: true },
+        { tile: 0.3 },
       );
     }
   }
@@ -92,9 +92,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const a = (i / 8) * Math.PI * 2;
     room.geo(
       'vein',
-      new THREE.CylinderGeometry(0.05, 0.09, 2.1, 5),
+      cyl(0.05, 0.09, 2.1, 5),
       tiltMatrix([Math.cos(a) * 2.3, eyeY - 0.22, Math.sin(a) * 2.3], [Math.PI / 2 - 0.35, Math.PI / 2 - a, 0]),
-      { tile: 0.4, consume: true },
+      { tile: 0.4 },
     );
   }
   glowShaft(room, [0, eyeY - 0.9, 0], [0, 0.1, 0], 2.2, true);

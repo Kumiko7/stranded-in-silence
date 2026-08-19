@@ -2,7 +2,21 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { bioMotes, boulder, debris, disc, encrust, glowShaft, siltDrift, smokerChimney, siltFall, tubeWorms, urchin } from '../kit/props';
+import {
+  ball,
+  bioMotes,
+  boulder,
+  cyl,
+  debris,
+  disc,
+  encrust,
+  glowShaft,
+  siltDrift,
+  siltFall,
+  smokerChimney,
+  tubeWorms,
+  urchin,
+} from '../kit/props';
 
 /**
  * The Smokers - the warm room, and the only one down here that is warm for a
@@ -68,7 +82,6 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // lamp sits at the mouth rather than inside the stack, so it rims the flanges
   // and underlights the smoke instead of lighting the inside of a cone.
   smokerChimney(room, -2.6, -2.6, 2.55, true, 19);
-  smokerChimney(room, 2.75, -2.45, 1.7, false);
   smokerChimney(room, 2.6, 2.75, 2.1, true, 13);
 
   // Shimmer over each mouth: hot water refracting, as two small faint discs.
@@ -86,9 +99,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 4; i++) {
     room.geo(
       'smokePlume',
-      new THREE.SphereGeometry(room.range(0.5, 0.85), 8, 6),
+      ball(room.range(0.5, 0.85), 8),
       tiltMatrix([room.range(-2.4, 2.4), ceilingHeight - room.range(0.1, 0.3), room.range(-2.4, 2.4)], [0, room.range(0, 3), 0], [1.4, 0.3, 1.4]),
-      { castShadow: false, receiveShadow: false, consume: true },
+      { castShadow: false, receiveShadow: false },
     );
   }
   /**
@@ -100,26 +113,27 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 5; i++) {
     room.geo(
       'bacterialMat',
-      new THREE.CircleGeometry(room.range(0.24, 0.5), 11),
+      disc(room.range(0.24, 0.5), 11),
       tiltMatrix([room.range(-3.0, 3.0), 0.018, room.range(-3.0, 3.0)], [-Math.PI / 2, room.range(0, 3), 0]),
-      { castShadow: false, receiveShadow: false, tile: 1.2, consume: true },
+      { castShadow: false, receiveShadow: false, tile: 1.2 },
     );
   }
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < 5; i++) {
     room.geo(
       'bacterialMat',
-      new THREE.SphereGeometry(room.range(0.14, 0.3), 7, 5),
+      ball(room.range(0.16, 0.34), 7),
       tiltMatrix([room.range(-3.2, 3.2), room.range(0.4, 1.9), room.chance(0.5) ? -3.5 : 3.5], [0, room.range(0, 3), 0], [1.4, 0.7, 0.6]),
-      { castShadow: false, tile: 0.5, consume: true },
+      { castShadow: false, tile: 0.5 },
     );
   }
 
   /* --- what lives on them ------------------------------------------------------------ */
-  tubeWorms(room, -1.9, -2.2, 12, 0.7, 1.15);
-  tubeWorms(room, -2.95, -1.7, 8, 0.5, 0.85);
-  tubeWorms(room, 2.2, -2.95, 7, 0.5, 0.8);
-  tubeWorms(room, 2.1, 2.5, 9, 0.55, 0.9);
-  tubeWorms(room, 3.15, 1.9, 6, 0.4, 0.7);
+  // Fewer worms and a size up on each. A stand of these is read as a mass and
+  // the count was set before the pack knew what a worm cost.
+  tubeWorms(room, -1.9, -2.2, 8, 0.7, 1.3);
+  tubeWorms(room, -2.95, -1.7, 5, 0.5, 0.95);
+  tubeWorms(room, 2.2, -2.95, 5, 0.5, 0.9);
+  tubeWorms(room, 2.1, 2.5, 6, 0.55, 1.0);
 
   /**
    * Crabs. Flat pale bodies on eight legs with the claws held forward - the one
@@ -133,26 +147,25 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     [2.95, 0.5, -2.05, 0.11],
   ] as const) {
     const spin = room.range(0, Math.PI * 2);
-    room.geo('shellWhite', new THREE.SphereGeometry(size, 8, 6), tiltMatrix([x, y + size * 0.5, z], [0, spin, 0], [1.35, 0.5, 1]), {
+    room.geo('shellWhite', ball(size, 8), tiltMatrix([x, y + size * 0.5, z], [0, spin, 0], [1.35, 0.5, 1]), {
       tile: 0.3,
       castShadow: false,
-      consume: true,
     });
     for (let i = 0; i < 8; i++) {
       const a = spin + (i / 8) * Math.PI * 2;
       room.geo(
         'shellWhite',
-        new THREE.CylinderGeometry(0.008, 0.012, size * 1.5, 4),
+        cyl(0.008, 0.012, size * 1.5, 4),
         tiltMatrix([x + Math.cos(a) * size, y + size * 0.36, z + Math.sin(a) * size], [1.15, Math.PI / 2 - a, 0]),
-        { castShadow: false, consume: true },
+        { castShadow: false },
       );
     }
     for (const s of [-1, 1]) {
       room.geo(
         'shellWhite',
-        new THREE.SphereGeometry(size * 0.42, 6, 5),
+        ball(size * 0.42, 6),
         tiltMatrix([x + Math.cos(spin + s * 0.5) * size * 1.7, y + size * 0.4, z + Math.sin(spin + s * 0.5) * size * 1.7], [0, spin, 0], [1.5, 0.6, 0.8]),
-        { castShadow: false, consume: true },
+        { castShadow: false },
       );
     }
   }
@@ -170,7 +183,6 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   siltDrift(room, -0.9, -1.9, 1.1);
   siltFall(room, 1.1, 1.9);
   urchin(room, 0.2, 0.02, -3.1, 0.15);
-  urchin(room, -2.7, 0.02, 0.6, 0.12);
   debris(room, 1.2, 1.6, 1.2, 9);
   debris(room, -1.4, -0.4, 0.9, 7);
 

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { ball, boneDebris, breathe, drools, glowShaft, lumenPod, polyps, strut } from '../kit/props';
+import { ball, boneDebris, breathe, cyl, drools, glowShaft, lumenPod, polyps, strut } from '../kit/props';
 
 /**
  * The Windpipe - twenty-four metres of airway, and the longest sight line in
@@ -146,9 +146,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   ];
   for (const [x, y, z, warm, power] of lamps) {
     lumenPod(room, [x, y, z], 0.23, true, warm, power);
-    room.geo('meatPale', new THREE.CylinderGeometry(0.13, 0.23, y, 8), poseMatrix([x + Math.sign(x) * 0.2, y / 2, z]), {
+    room.geo('meatPale', cyl(0.13, 0.23, y, 8), poseMatrix([x + Math.sign(x) * 0.2, y / 2, z]), {
       tile: 0.6,
-      consume: true,
     });
   }
   for (const [index, lamp] of room.lights.entries()) breathe(room, lamp, lamps[index]?.[4] ?? 11, 0.16, 0.5 + index * 0.15);

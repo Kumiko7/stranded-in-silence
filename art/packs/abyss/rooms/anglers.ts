@@ -2,7 +2,21 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { bioMotes, causticPatch, controlDesk, crate, debris, glowShaft, quad, railing, stripLight, swell } from '../kit/props';
+import {
+  ball,
+  bioMotes,
+  causticPatch,
+  controlDesk,
+  crate,
+  cyl,
+  debris,
+  glowShaft,
+  quad,
+  railing,
+  spike,
+  stripLight,
+  swell,
+} from '../kit/props';
 
 /**
  * The Deep Tank - the exhibit, and the reason nobody works this shift alone.
@@ -79,21 +93,18 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   const dark = room.mat('rockDark');
 
   // The skull: a flattened mass, wider than the window is tall.
-  room.geo(dark, new THREE.SphereGeometry(1.15, 16, 11), tiltMatrix([HEAD_X, 1.62, 0.2], [0, 0.5, 0.1], [1.0, 0.86, 1.35]), {
+  room.geo(dark, ball(1.15, 16), tiltMatrix([HEAD_X, 1.62, 0.2], [0, 0.5, 0.1], [1.0, 0.86, 1.35]), {
     tile: 1.4,
     castShadow: false,
-    consume: true,
   });
   // The body, running out of frame aft. Two masses, each bigger than the last.
-  room.geo(dark, new THREE.SphereGeometry(1.35, 14, 10), tiltMatrix([HEAD_X + 1.1, 1.75, 1.6], [0, 0.6, 0], [1.1, 0.9, 1.5]), {
+  room.geo(dark, ball(1.35, 14), tiltMatrix([HEAD_X + 1.1, 1.75, 1.6], [0, 0.6, 0], [1.1, 0.9, 1.5]), {
     tile: 1.6,
     castShadow: false,
-    consume: true,
   });
-  room.geo(dark, new THREE.SphereGeometry(1.1, 12, 9), tiltMatrix([HEAD_X + 0.7, 1.5, -1.9], [0, 0.4, 0], [1.0, 0.8, 1.4]), {
+  room.geo(dark, ball(1.1, 12), tiltMatrix([HEAD_X + 0.7, 1.5, -1.9], [0, 0.4, 0], [1.0, 0.8, 1.4]), {
     tile: 1.5,
     castShadow: false,
-    consume: true,
   });
 
   /**
@@ -113,9 +124,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const len = (0.16 + Math.cos(t * Math.PI) * 0.28) * (arc > 0 ? 1 : 0.86);
       room.geo(
         'shellWhite',
-        new THREE.ConeGeometry(len * 0.28, len, 5),
+        spike(len * 0.28, len, 5),
         tiltMatrix([x, yBase - arc * (len / 2) - drop, 0.2 + z], [arc > 0 ? Math.PI : 0, 0, t * 0.4]),
-        { tile: 0.3, castShadow: false, consume: true },
+        { tile: 0.3, castShadow: false },
       );
     }
     // The gum line the teeth are set in.
@@ -129,12 +140,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // The eye: a dark sphere set proud of the skull with a small cold pupil ring.
   // Set PROUD, not sunk - an iris tucked inside its own eyeball renders as a
   // black pit, which is the failure ROOM_REVIEW.md §4 records twice.
-  room.geo('glassPane', new THREE.SphereGeometry(0.24, 12, 9), poseMatrix([HEAD_X - 0.62, 2.05, -0.75]), {
+  room.geo('glassPane', ball(0.24, 12), poseMatrix([HEAD_X - 0.62, 2.05, -0.75]), {
     castShadow: false,
     receiveShadow: false,
-    consume: true,
   });
-  room.geo('lumenCyan', new THREE.SphereGeometry(0.1, 9, 7), poseMatrix([HEAD_X - 0.78, 2.05, -0.82]), { castShadow: false, consume: true });
+  room.geo('lumenCyan', ball(0.1, 9), poseMatrix([HEAD_X - 0.78, 2.05, -0.82]), { castShadow: false });
 
   /**
    * The illicium: a rod off the brow, arching forward until the lure is a hand's
@@ -155,20 +165,20 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const len = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
     room.geo(
       dark,
-      new THREE.CylinderGeometry(0.05, 0.065, len, 6),
+      cyl(0.05, 0.065, len, 6),
       tiltMatrix([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], [Math.acos((b[1] - a[1]) / len), Math.atan2(b[0] - a[0], b[2] - a[2]), 0]),
-      { tile: 0.4, castShadow: false, consume: true },
+      { tile: 0.4, castShadow: false },
     );
   }
   const tip = arc[arc.length - 1] ?? [HEAD_X - 1.3, 1.95, 0.1];
-  room.geo('lumenAmber', new THREE.SphereGeometry(0.16, 12, 9), poseMatrix([tip[0], tip[1], tip[2]]), { castShadow: false, consume: true });
+  room.geo('lumenAmber', ball(0.16, 12), poseMatrix([tip[0], tip[1], tip[2]]), { castShadow: false });
   for (let i = 0; i < 7; i++) {
     const a = (i / 7) * Math.PI * 2;
     room.geo(
       'lumenAmber',
-      new THREE.CylinderGeometry(0.008, 0.004, 0.34, 4),
+      cyl(0.008, 0.004, 0.34, 4),
       tiltMatrix([tip[0], tip[1] - 0.22, tip[2]], [0.3, a, 0]),
-      { castShadow: false, consume: true },
+      { castShadow: false },
     );
   }
   // Its own light, in the water, throwing the animal's shadow onto the backdrop.

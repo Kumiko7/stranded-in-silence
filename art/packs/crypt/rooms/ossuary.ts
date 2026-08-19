@@ -53,7 +53,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     dado: 'bone',
     dadoHeight: 0.9,
     lamps: 'votive',
-    lampSpacing: 2.9,
+    lampSpacing: 3.6,
     mouth: 'gothic',
   });
 
@@ -67,7 +67,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // in two dimensions where they stop in three.
   for (const side of ['north', 'east', 'south', 'west'] as const) {
     for (const s of [-1, 1]) {
-      boneStack(room, side, s * 2.45, 2.0, room.range(1.2, 1.45));
+      boneStack(room, side, s * 2.45, 2.0, room.range(1.1, 1.3));
     }
   }
 
@@ -78,13 +78,13 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // No collider: it is 16 cm tall, collision is a 2D floor test, and a step you
   // can see over should never be an invisible wall (ROOM_FORMAT.md §5).
   room.box('stonePale', [1.5, 0.16, 1.5], [0, 0, 0], 0.3, { tile: 0.7 });
-  boneHeap(room, 0, 0, 0.58, 13);
+  boneHeap(room, 0, 0, 0.66, 7);
   // Five round the base and one on top, all of them larger than life: a skull only
   // reads as a skull if its two sockets are resolvable, and at 1.0 scale from four
   // metres away a cairn of them is a pile of potatoes.
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2 + 0.3;
-    skull(room, Math.cos(a) * 0.38, 0.16, Math.sin(a) * 0.38, a + Math.PI, 1.35, i % 3 === 0 ? 'boneDark' : 'bone');
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + 0.3;
+    skull(room, Math.cos(a) * 0.38, 0.16, Math.sin(a) * 0.38, a + Math.PI, 1.45, i % 3 === 0 ? 'boneDark' : 'bone');
   }
   skull(room, 0, 0.42, 0, room.range(0, 6), 1.5);
   for (const a of [0.4, 1.97]) {
@@ -126,13 +126,13 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // A course of skulls high on two walls, above the stacks and above every
   // doorway, where a mason put the ones with something wrong with them.
-  for (let i = 0; i < 4; i++) {
-    skull(room, -3.3 + i * 0.34, 2.66, -3.48, Math.PI + room.range(-0.3, 0.3), 0.95, i === 1 ? 'boneDark' : 'bone');
-    skull(room, 3.48, 2.66, 2.0 + i * 0.34, Math.PI / 2 + room.range(-0.3, 0.3), 0.95, i === 2 ? 'boneDark' : 'bone');
+  for (let i = 0; i < 2; i++) {
+    skull(room, -3.2 + i * 0.5, 2.66, -3.48, Math.PI + room.range(-0.3, 0.3), 1.15, i === 1 ? 'boneDark' : 'bone');
+    skull(room, 3.48, 2.66, 2.1 + i * 0.5, Math.PI / 2 + room.range(-0.3, 0.3), 1.15, i === 0 ? 'boneDark' : 'bone');
   }
 
-  debris(room, -2.0, -3.0, 0.7, 6);
-  debris(room, 3.0, 1.8, 0.6, 6);
+  debris(room, -2.0, -3.0, 0.75, 4);
+  debris(room, 3.0, 1.8, 0.65, 4);
   dustMotes(room, 0, 1.7, 0, 2.2, 16);
 
   return room.finish();

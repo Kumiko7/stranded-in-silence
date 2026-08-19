@@ -2,7 +2,21 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { ball, bilePool, boneDebris, boneSlab, breathe, chitinShelf, drools, lumenPod, nerveRun, ribArch, strut, vertebrae } from '../kit/props';
+import {
+  ball,
+  bilePool,
+  boneDebris,
+  boneSlab,
+  breathe,
+  chitinShelf,
+  cyl,
+  drools,
+  lumenPod,
+  nerveRun,
+  ribArch,
+  strut,
+  vertebrae,
+} from '../kit/props';
 
 /**
  * The Nave - four cells of ribcage, and the biggest volume in the map.
@@ -78,15 +92,13 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 17; i++) {
     const x = -3.6 + i * 0.98;
     const y = ceilingHeight - 0.42 - Math.sin((i / 16) * Math.PI) * 0.22;
-    room.geo('bone', new THREE.CylinderGeometry(0.4, 0.44, 0.62, 12), tiltMatrix([x, y, 4], [0, 0, Math.PI / 2]), {
+    room.geo('bone', cyl(0.4, 0.44, 0.62, 12), tiltMatrix([x, y, 4], [0, 0, Math.PI / 2]), {
       tile: 0.9,
       castShadow: false,
-      consume: true,
     });
-    room.geo('cartilage', new THREE.CylinderGeometry(0.34, 0.34, 0.2, 12), tiltMatrix([x + 0.49, y, 4], [0, 0, Math.PI / 2]), {
+    room.geo('cartilage', cyl(0.34, 0.34, 0.2, 12), tiltMatrix([x + 0.49, y, 4], [0, 0, Math.PI / 2]), {
       tile: 0.4,
       castShadow: false,
-      consume: true,
     });
     // The neural spine: a fin standing up off each vertebra, into the roof.
     room.geo('bonePale', new THREE.BoxGeometry(0.5, 0.5, 0.16), poseMatrix([x, y + 0.42, 4]), {
@@ -96,9 +108,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     });
   }
   // The cord inside it, showing between vertebrae.
-  room.geo('nerve', new THREE.CylinderGeometry(0.12, 0.12, 17, 8), tiltMatrix([4, ceilingHeight - 0.52, 4], [0, 0, Math.PI / 2]), {
+  room.geo('nerve', cyl(0.12, 0.12, 17, 8), tiltMatrix([4, ceilingHeight - 0.52, 4], [0, 0, Math.PI / 2]), {
     castShadow: false,
-    consume: true,
   });
 
   /* --- the ribs ---------------------------------------------------------------- */
@@ -131,9 +142,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const a = (i / 9) * Math.PI * 2;
     room.geo(
       'bonePale',
-      new THREE.CylinderGeometry(0.06, 0.09, room.range(0.7, 1.5), 6),
+      cyl(0.06, 0.09, room.range(0.7, 1.5), 6),
       tiltMatrix([4 + Math.cos(a) * 2.2, room.range(0.1, 0.5), 4 + Math.sin(a) * 2.2], [room.range(1.0, 1.5), a, 0]),
-      { tile: 0.4, consume: true },
+      { tile: 0.4 },
     );
   }
 

@@ -2,7 +2,20 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { bioMotes, bubbleColumn, debris, disc, encrust, glowShaft, ring, siltDrift, swell, urchin } from '../kit/props';
+import {
+  ball,
+  bioMotes,
+  bubbleColumn,
+  debris,
+  disc,
+  encrust,
+  glowShaft,
+  ring,
+  siltDrift,
+  spike,
+  swell,
+  urchin,
+} from '../kit/props';
 
 /**
  * The Brine Pool - a lake at the bottom of the sea.
@@ -85,9 +98,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const lift = 0.12 + Math.max(0, Math.sin(a)) * 0.16;
     room.geo(
       'surface.salt',
-      new THREE.SphereGeometry(room.range(0.16, 0.3), 7, 5),
+      ball(room.range(0.16, 0.3), 7),
       tiltMatrix([POOL_X + Math.cos(a) * (POOL_R + 0.14), lift * 0.4, POOL_Z + Math.sin(a) * (POOL_R + 0.14)], [0, a, 0], [1, lift * 3.2, 1.5]),
-      { tile: 0.6, castShadow: false, consume: true },
+      { tile: 0.6, castShadow: false },
     );
   }
   room.blockCircle(POOL_X, POOL_Z, POOL_R + 0.15);
@@ -102,9 +115,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const len = room.range(0.14, 0.42);
     room.geo(
       'surface.salt',
-      new THREE.ConeGeometry(len * 0.42, len, 4),
+      spike(len * 0.42, len, 4),
       tiltMatrix([x, len * 0.4, z], [room.range(-0.35, 0.35), room.range(0, 3), room.range(-0.35, 0.35)]),
-      { tile: 0.4, castShadow: false, consume: true },
+      { tile: 0.4, castShadow: false },
     );
   }
 
@@ -115,18 +128,17 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const size = room.range(0.05, 0.11);
     room.geo(
       'urchin',
-      new THREE.SphereGeometry(size, 6, 5),
+      ball(size, 6),
       tiltMatrix([POOL_X + Math.cos(a) * r, size * 0.4, POOL_Z + Math.sin(a) * r], [0, a, room.range(-0.4, 0.4)], [1.7, 0.62, 1]),
-      { tile: 0.3, castShadow: false, consume: true },
+      { tile: 0.3, castShadow: false },
     );
   }
   // And the ones that got it wrong: pale shells inside the rim, on the bottom.
   for (let i = 0; i < 9; i++) {
     const a = room.range(0, Math.PI * 2);
     const r = Math.sqrt(room.rng()) * (POOL_R - 0.25);
-    room.geo('shellWhite', new THREE.SphereGeometry(room.range(0.05, 0.1), 6, 5), tiltMatrix([POOL_X + Math.cos(a) * r, -0.26, POOL_Z + Math.sin(a) * r], [0, a, 0], [1.6, 0.5, 1]), {
+    room.geo('shellWhite', ball(room.range(0.05, 0.1), 6), tiltMatrix([POOL_X + Math.cos(a) * r, -0.26, POOL_Z + Math.sin(a) * r], [0, a, 0], [1.6, 0.5, 1]), {
       castShadow: false,
-      consume: true,
     });
   }
   bubbleColumn(room, POOL_X - 0.5, POOL_Z - 0.4, 0.02, ceilingHeight - 0.5, 13);
@@ -170,11 +182,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // The ceiling over the pool, lit from below. Nothing else in the pack does
   // this, and it is the single cue that tells you which way up the room is.
-  room.geo('surface.caustic', new THREE.CircleGeometry(2.2, 18), tiltMatrix([POOL_X, ceilingHeight - 0.5, POOL_Z], [Math.PI / 2, 0, 0]), {
+  room.geo('surface.caustic', disc(2.2, 18), tiltMatrix([POOL_X, ceilingHeight - 0.5, POOL_Z], [Math.PI / 2, 0, 0]), {
     castShadow: false,
     receiveShadow: false,
     tile: 3.4,
-    consume: true,
   });
 
   const pane = room.lights[0];

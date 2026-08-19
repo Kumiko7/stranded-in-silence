@@ -2,7 +2,20 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { anemones, bioMotes, boulder, causticPatch, debris, encrust, glowShaft, siltDrift, swell, urchin } from '../kit/props';
+import {
+  anemones,
+  ball,
+  bioMotes,
+  boulder,
+  causticPatch,
+  cyl,
+  debris,
+  encrust,
+  glowShaft,
+  siltDrift,
+  swell,
+  urchin,
+} from '../kit/props';
 
 /**
  * The Drowned Court - the thing the station was built on top of.
@@ -85,7 +98,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   /* --- the columns ----------------------------------------------------------------- */
   for (const [x, z, r] of COLUMNS) {
     // Base, plinth, fluted shaft in drums, capital, and a stub of architrave.
-    room.geo('rockPale', new THREE.CylinderGeometry(r * 1.35, r * 1.5, 0.2, 12), poseMatrix([x, 0.1, z]), { tile: 0.8, consume: true });
+    room.geo('rockPale', cyl(r * 1.35, r * 1.5, 0.2, 12), poseMatrix([x, 0.1, z]), { tile: 0.8 });
     room.geo('rockPale', new THREE.BoxGeometry(r * 2.9, 0.16, r * 2.9), poseMatrix([x, 0.28, z]), { tile: 0.8, consume: true });
     const drums = 5;
     for (let d = 0; d < drums; d++) {
@@ -93,9 +106,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const rr = r * (1 - d * 0.035);
       room.geo(
         'rockPale',
-        new THREE.CylinderGeometry(rr * 0.96, rr, h * 0.97, 14),
+        cyl(rr * 0.96, rr, h * 0.97, 14),
         tiltMatrix([x + room.range(-0.03, 0.03), 0.36 + h * (d + 0.5), z + room.range(-0.03, 0.03)], [0, room.range(0, 3), 0]),
-        { tile: 1.0, consume: true },
+        { tile: 1.0 },
       );
     }
     // Flutes: eight shallow grooves, faked as pale ribs standing off the shaft.
@@ -103,35 +116,31 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const a = (f / 8) * Math.PI * 2;
       room.geo(
         'rockDark',
-        new THREE.CylinderGeometry(0.035, 0.035, ceilingHeight - 1.0, 4),
+        cyl(0.035, 0.035, ceilingHeight - 1.0, 4),
         poseMatrix([x + Math.cos(a) * r * 0.98, 0.36 + (ceilingHeight - 1.0) / 2, z + Math.sin(a) * r * 0.98]),
-        { tile: 0.5, castShadow: false, consume: true },
+        { tile: 0.5, castShadow: false },
       );
     }
-    room.geo('rockPale', new THREE.CylinderGeometry(r * 1.25, r * 0.95, 0.22, 14), poseMatrix([x, ceilingHeight - 0.5, z]), {
+    room.geo('rockPale', cyl(r * 1.25, r * 0.95, 0.22, 14), poseMatrix([x, ceilingHeight - 0.5, z]), {
       tile: 0.6,
-      consume: true,
     });
     room.geo('rockPale', new THREE.BoxGeometry(r * 3.1, 0.28, r * 3.1), poseMatrix([x, ceilingHeight - 0.25, z]), { tile: 0.8, consume: true });
     encrust(room, x, 0.3, z, r * 1.4, 8);
     room.blockCircle(x, z, r + 0.12);
   }
   // The fifth, broken off at knee height, out in the open.
-  room.geo('rockPale', new THREE.CylinderGeometry(0.4, 0.46, 0.52, 14), tiltMatrix([2.9, 0.26, 2.9], [0.06, 0.4, 0.03]), {
+  room.geo('rockPale', cyl(0.4, 0.46, 0.52, 14), tiltMatrix([2.9, 0.26, 2.9], [0.06, 0.4, 0.03]), {
     tile: 0.8,
-    consume: true,
   });
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;
-    room.geo('rockPale', new THREE.SphereGeometry(room.range(0.08, 0.16), 6, 5), poseMatrix([2.9 + Math.cos(a) * 0.4, 0.52, 2.9 + Math.sin(a) * 0.38]), {
+    room.geo('rockPale', ball(room.range(0.08, 0.16), 6), poseMatrix([2.9 + Math.cos(a) * 0.4, 0.52, 2.9 + Math.sin(a) * 0.38]), {
       tile: 0.4,
-      consume: true,
     });
   }
   // Its drum, on the floor beside it, half sunk.
-  room.geo('rockPale', new THREE.CylinderGeometry(0.42, 0.42, 0.6, 14), tiltMatrix([1.4, 0.36, 3.3], [Math.PI / 2, 0.7, 0.1]), {
+  room.geo('rockPale', cyl(0.42, 0.42, 0.6, 14), tiltMatrix([1.4, 0.36, 3.3], [Math.PI / 2, 0.7, 0.1]), {
     tile: 0.8,
-    consume: true,
   });
 
   /* --- the figure ------------------------------------------------------------------- */
@@ -147,36 +156,30 @@ function build(ctx: RoomBuildContext): BuiltRoom {
    * absence.
    */
   room.solid('rockPale', [1.2, 0.62, 1.0], [0, 0, 0], 0.06, { tile: 0.9 });
-  room.geo('rockPale', new THREE.CylinderGeometry(0.3, 0.42, 1.25, 12), tiltMatrix([0, 1.24, 0], [0, 0.3, 0.03]), {
+  room.geo('rockPale', cyl(0.3, 0.42, 1.25, 12), tiltMatrix([0, 1.24, 0], [0, 0.3, 0.03]), {
     tile: 0.8,
-    consume: true,
   });
   // Drapery: three shallow folds down the front of the shaft.
   for (const s of [-0.18, 0.02, 0.2]) {
-    room.geo('rockDark', new THREE.CylinderGeometry(0.05, 0.07, 1.1, 5), tiltMatrix([s, 1.22, 0.35], [0.04, 0, room.range(-0.05, 0.05)]), {
+    room.geo('rockDark', cyl(0.05, 0.07, 1.1, 5), tiltMatrix([s, 1.22, 0.35], [0.04, 0, room.range(-0.05, 0.05)]), {
       tile: 0.4,
       castShadow: false,
-      consume: true,
     });
   }
   // Shoulders, and a head that is mostly gone.
-  room.geo('rockPale', new THREE.SphereGeometry(0.36, 10, 7), tiltMatrix([0, 1.88, 0], [0, 0.3, 0], [1.35, 0.6, 0.9]), {
+  room.geo('rockPale', ball(0.36, 10), tiltMatrix([0, 1.88, 0], [0, 0.3, 0], [1.35, 0.6, 0.9]), {
     tile: 0.6,
-    consume: true,
   });
-  room.geo('rockPale', new THREE.SphereGeometry(0.19, 9, 7), tiltMatrix([0.02, 2.16, 0.03], [0.1, 0.4, 0.08], [1, 1.15, 0.95]), {
+  room.geo('rockPale', ball(0.19, 9), tiltMatrix([0.02, 2.16, 0.03], [0.1, 0.4, 0.08], [1, 1.15, 0.95]), {
     tile: 0.5,
-    consume: true,
   });
-  room.geo('rockDark', new THREE.SphereGeometry(0.14, 8, 6), tiltMatrix([0.03, 2.2, 0.19], [0, 0, 0], [1, 1, 0.5]), {
+  room.geo('rockDark', ball(0.14, 8), tiltMatrix([0.03, 2.2, 0.19], [0, 0, 0], [1, 1, 0.5]), {
     tile: 0.4,
     castShadow: false,
-    consume: true,
   });
   // One arm still attached, hanging; the other broken at the shoulder.
-  room.geo('rockPale', new THREE.CylinderGeometry(0.08, 0.1, 0.9, 7), tiltMatrix([-0.34, 1.4, 0.13], [0.1, 0, 0.14]), {
+  room.geo('rockPale', cyl(0.08, 0.1, 0.9, 7), tiltMatrix([-0.34, 1.4, 0.13], [0.1, 0, 0.14]), {
     tile: 0.4,
-    consume: true,
   });
   encrust(room, 0, 0.64, 0, 0.55, 9);
 

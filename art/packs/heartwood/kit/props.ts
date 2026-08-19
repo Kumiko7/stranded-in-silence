@@ -33,7 +33,7 @@
  */
 import * as THREE from 'three';
 import type { Cell, Side } from '../../../lib/contract';
-import { boxGeometry, mm, ownGeometryCache } from '../../../lib/build';
+import { bands, boxGeometry, mm, ownGeometryCache, sides } from '../../../lib/build';
 import type { BatchOptions } from '../../../lib/merge';
 import { MeshBatcher, poseMatrix, tiltMatrix } from '../../../lib/merge';
 import type { Room, Vec3 } from '../rooms/common';
@@ -101,6 +101,7 @@ export function wallPose(
  */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 export function cyl(rTop: number, rBot: number, h: number, seg = 8, open = false): THREE.CylinderGeometry {
+  seg = sides(Math.max(Math.abs(rTop), Math.abs(rBot)), seg);
   const key = `${mm(rTop)},${mm(rBot)},${mm(h)},${seg},${open}`;
   let geo = cylCache.get(key);
   if (!geo) {
@@ -112,10 +113,11 @@ export function cyl(rTop: number, rBot: number, h: number, seg = 8, open = false
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 export function ball(r: number, seg = 7): THREE.SphereGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(mm(r), seg, Math.max(4, Math.round(seg / 2)));
+    geo = new THREE.SphereGeometry(mm(r), seg, bands(seg));
     sphereCache.set(key, geo);
   }
   return geo;
@@ -123,6 +125,7 @@ export function ball(r: number, seg = 7): THREE.SphereGeometry {
 
 const coneCache = new Map<string, THREE.ConeGeometry>();
 export function spike(r: number, h: number, seg = 6): THREE.ConeGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(h)},${seg}`;
   let geo = coneCache.get(key);
   if (!geo) {
@@ -134,13 +137,14 @@ export function spike(r: number, h: number, seg = 6): THREE.ConeGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 export function ring(r: number, tube: number, seg = 12): THREE.TorusGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
     // Five sides on the tube, not sixteen: a hoop 8 mm thick seen through fog is
     // the single easiest place in a pack to spend 40,000 triangles nobody can
     // resolve (docs/systems/RENDERING.md).
-    geo = new THREE.TorusGeometry(mm(r), mm(tube), 5, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), sides(tube, 5), seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -159,6 +163,7 @@ export function quad(w: number, h: number): THREE.PlaneGeometry {
 
 const discCache = new Map<string, THREE.CircleGeometry>();
 export function disc(r: number, seg = 16): THREE.CircleGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = discCache.get(key);
   if (!geo) {
@@ -199,6 +204,7 @@ export function strut(
   radius: number,
   seg = 6,
   options: BatchOptions = {},
+  open = false,
 ): void {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
@@ -209,7 +215,7 @@ export function strut(
   const pitch = Math.acos(Math.min(1, Math.max(-1, dy / length)));
   room.geo(
     material,
-    cyl(radius, radius, length, seg),
+    cyl(radius, radius, length, seg, open),
     tiltMatrix([(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2], [pitch, yaw, 0]),
     { tile: 0.6, ...options },
   );
@@ -244,7 +250,7 @@ export function limb(
   rEnd: number,
   bend: number,
   seed: number,
-  segments = 6,
+  segments = 4,
   options: BatchOptions = {},
 ): Vec3 {
   const wobble = (i: number, k: number): number => Math.sin(seed * 1.7 + i * 1.31 + k * 2.4) * bend;
@@ -259,7 +265,9 @@ export function limb(
     ];
     const r0 = rStart + (rEnd - rStart) * ((i - 1) / segments);
     const r1 = rStart + (rEnd - rStart) * t;
-    strut(room, material, prev, next, (r0 + r1) / 2, 5, options);
+    // Open-ended: every cap but the two at the ends of the run is inside the
+    // next link, and a branch is the commonest shape in the pack.
+    strut(room, material, prev, next, (r0 + r1) / 2, 5, options, true);
     prev = next;
   }
   return prev;
@@ -501,7 +509,7 @@ export function gillLamp(room: Room, side: Side, along: number, y: number, lit: 
   const outX = -Math.sin(rotationY + Math.PI);
   const outZ = -Math.cos(rotationY + Math.PI);
 
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 4; i++) {
     const dy = y + room.range(-0.3, 0.3);
     const dAlong = room.range(-0.34, 0.34);
     const r = room.range(0.12, 0.26);
@@ -511,8 +519,8 @@ export function gillLamp(room: Room, side: Side, along: number, y: number, lit: 
     room.geo('bracket', ball(r, 8), tiltMatrix([px, dy, pz], [0.24, rotationY, 0], [1.15, 0.36, 0.85]), { tile: 0.3, ...FLAT });
     // The gills under it. This is the light.
     room.geo(lit ? 'gill' : 'mycelium', disc(r * 0.86, 12), tiltMatrix([px, dy - 0.055, pz], [Math.PI / 2 - 0.2, rotationY, 0]), FLAT);
-    for (let k = 0; k < 5; k++) {
-      const a = (k / 5 - 0.5) * 1.8;
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3 - 0.5) * 1.8;
       room.box(lit ? 'gill' : 'mycelium', [0.012, 0.03, r * 0.8], [px + Math.cos(rotationY + a) * 0.03, dy - 0.075, pz - Math.sin(rotationY + a) * 0.03], rotationY + a, { tile: 0.1, ...FLAT });
     }
   }
@@ -841,7 +849,7 @@ export function vineFall(
     const px = Math.cos(a) * d;
     const pz = Math.sin(a) * d;
     const len = room.range(0.7, ceiling - 0.6);
-    const segs = 5;
+    const segs = 3;
     let prev: Vec3 = [px, ceiling - 0.1, pz];
     const seed = i * 3.7;
     for (let k = 1; k <= segs; k++) {
@@ -857,11 +865,11 @@ export function vineFall(
       const l = Math.hypot(dx, dy, dz);
       batch.add(
         mat,
-        cyl(0.016, 0.024, l, 4),
+        cyl(0.016, 0.024, l, 4, true),
         tiltMatrix([(prev[0] + next[0]) / 2, (prev[1] + next[1]) / 2, (prev[2] + next[2]) / 2], [Math.acos(dy / l), Math.atan2(dx, dz), 0]),
         { tile: 0.3, castShadow: false, receiveShadow: false },
       );
-      if (k % 2 === 0) {
+      if (k === segs) {
         if (leaves) {
           batch.add(
             leafMat,
@@ -1147,10 +1155,10 @@ export function bloomFlower(room: Room, x: number, y: number, z: number, r: numb
     );
   }
   room.geo('bloomFlesh', ball(r * 0.42, 8), tiltMatrix([x, y + r * 0.16, z], rotation as [number, number, number], [1, 0.7, 1]), { tile: 0.2, ...FLAT });
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    strut(room, 'lumenBloom', [x + Math.cos(a) * r * 0.1, y + r * 0.2, z + Math.sin(a) * r * 0.1], [x + Math.cos(a) * r * 0.3, y + r * 0.72, z + Math.sin(a) * r * 0.3], r * 0.035, 4, FLAT);
-    room.geo('lumenBloom', ball(r * 0.07, 5), poseMatrix([x + Math.cos(a) * r * 0.3, y + r * 0.74, z + Math.sin(a) * r * 0.3]), FLAT);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    strut(room, 'lumenBloom', [x + Math.cos(a) * r * 0.1, y + r * 0.2, z + Math.sin(a) * r * 0.1], [x + Math.cos(a) * r * 0.3, y + r * 0.72, z + Math.sin(a) * r * 0.3], r * 0.045, 4, FLAT, true);
+    room.geo('lumenBloom', ball(r * 0.09, 5), poseMatrix([x + Math.cos(a) * r * 0.3, y + r * 0.74, z + Math.sin(a) * r * 0.3]), FLAT);
   }
 }
 

@@ -83,13 +83,13 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (const [vx, vz, r, n] of [
     [-0.4, -1.9, 1.0, 7],
     [1.5, 0.6, 1.1, 8],
-    [-1.9, 1.3, 1.0, 7],
-    [0.5, 2.6, 0.9, 6],
-    [2.6, -2.4, 0.8, 5],
-    [-2.7, -0.4, 0.8, 5],
-    [2.8, 1.9, 0.8, 5],
-    [-0.9, -3.2, 0.8, 5],
-    [3.0, 3.2, 0.7, 4],
+    [-1.9, 1.3, 1.0, 5],
+    [0.5, 2.6, 0.9, 4],
+    [2.6, -2.4, 0.8, 4],
+    [-2.7, -0.4, 0.8, 3],
+    [2.8, 1.9, 0.8, 3],
+    [-0.9, -3.2, 0.8, 3],
+    [3.0, 3.2, 0.7, 3],
   ] as const) {
     vineFall(room, vx, vz, r, n, 'tendril', false);
   }
@@ -97,7 +97,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // Thicker ones that hang lower and end in a blunt tip. These are the ones a
   // player actually reads, so they are in the room's own batch and they are
   // fatter than anything a plant would grow.
-  for (let i = 0; i < 11; i++) {
+  for (let i = 0; i < 8; i++) {
     const px = room.range(-3.2, 3.2);
     const pz = room.range(-3.2, 3.2);
     const len = room.range(1.4, 2.9);

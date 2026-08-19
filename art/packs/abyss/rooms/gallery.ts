@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { bioMotes, causticPatch, debris, dripLine, glowShaft, quad, railing, stripLight, swell } from '../kit/props';
+import { bioMotes, causticPatch, cyl, debris, disc, dripLine, glowShaft, quad, railing, stripLight, swell } from '../kit/props';
 
 /**
  * The Viewing Gallery - what the station was for, before it was for anything
@@ -56,16 +56,14 @@ function viewBench(room: Room, z: number, spin: number): void {
   }
   // A back rail so it reads as a bench rather than as a plinth.
   for (const x of [-1.1, 1.1]) {
-    room.geo('steel', new THREE.CylinderGeometry(0.022, 0.022, 0.44, 6), poseMatrix([x, 0.72, z - spin * 0.26]), {
+    room.geo('steel', cyl(0.022, 0.022, 0.44, 6), poseMatrix([x, 0.72, z - spin * 0.26]), {
       tile: 0.2,
       castShadow: false,
-      consume: true,
     });
   }
-  room.geo('steel', new THREE.CylinderGeometry(0.024, 0.024, 2.3, 6), tiltMatrix([0, 0.92, z - spin * 0.26], [0, 0, Math.PI / 2]), {
+  room.geo('steel', cyl(0.024, 0.024, 2.3, 6), tiltMatrix([0, 0.92, z - spin * 0.26], [0, 0, Math.PI / 2]), {
     tile: 0.3,
     castShadow: false,
-    consume: true,
   });
   room.collider({ kind: 'box', center: [0, z], halfExtents: [1.5, 0.3] });
 }
@@ -113,11 +111,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     [-1.6, -1.4, 1.5],
     [1.4, 1.2, 1.3],
   ] as const) {
-    room.geo('surface.caustic', new THREE.CircleGeometry(r, 18), tiltMatrix([x, ceilingHeight - 0.42, z], [Math.PI / 2, 0, 0]), {
+    room.geo('surface.caustic', disc(r, 18), tiltMatrix([x, ceilingHeight - 0.42, z], [Math.PI / 2, 0, 0]), {
       castShadow: false,
       receiveShadow: false,
       tile: 3.4,
-      consume: true,
     });
   }
 

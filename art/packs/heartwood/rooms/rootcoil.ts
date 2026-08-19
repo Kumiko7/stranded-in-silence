@@ -86,7 +86,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
    */
   for (let layer = 0; layer < 3; layer++) {
     const x = -3.2 + layer * 0.46;
-    const count = 8 - layer;
+    const count = 6 - layer;
     for (let i = 0; i < count; i++) {
       const t0 = room.range(-3.6, 3.6);
       const t1 = room.range(-3.6, 3.6);
@@ -101,12 +101,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
         room.range(0.04, 0.1),
         room.range(0.2, 0.55),
         layer * 7 + i,
-        6,
+        5,
         { tile: 0.5, castShadow: layer === 2 },
       );
     }
     // Cross-braces, so the weave is woven rather than combed.
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const y = room.range(0.4, ceilingHeight - 0.5);
       limb(room, 'root', [x, y, -3.6], [x + room.range(-0.3, 0.3), y + room.range(-0.5, 0.5), 3.6], 0.055, 0.04, 0.4, layer * 13 + i, 6, { tile: 0.4, castShadow: false });
     }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { cobwebs, debris, sconce, wallMirror } from '../kit/props';
+import { cobwebs, cyl, debris, sconce, wallMirror } from '../kit/props';
 
 /**
  * The Bathroom - the tub is full and the water is not clean.
@@ -43,9 +43,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   const tz = -2.4;
   const rot = 0.42;
   room.geo('porcelain', new THREE.BoxGeometry(1.75, 0.6, 0.82), poseMatrix([tx, 0.44, tz], rot), { tile: 1.2, consume: true });
-  room.geo('porcelain', new THREE.CylinderGeometry(0.42, 0.42, 1.75, 14, 1, false, 0, Math.PI), tiltMatrix([tx, 0.6, tz], [0, rot, Math.PI / 2]), {
+  room.geo('porcelain', cyl(0.42, 0.42, 1.75, 14), tiltMatrix([tx, 0.6, tz], [0, rot, Math.PI / 2]), {
     tile: 1.2,
-    consume: true,
   });
   // Water: dark, flat, and absolutely still.
   room.geo('mirror', new THREE.PlaneGeometry(1.6, 0.7), tiltMatrix([tx, 0.62, tz], [-Math.PI / 2, rot, 0]), {
@@ -60,18 +59,17 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   ] as const) {
     const px = tx + dx * Math.cos(rot) + dz * Math.sin(rot);
     const pz = tz - dx * Math.sin(rot) + dz * Math.cos(rot);
-    room.geo('brass', new THREE.CylinderGeometry(0.05, 0.08, 0.16, 6), poseMatrix([px, 0.08, pz]), { consume: true });
+    room.geo('brass', cyl(0.05, 0.08, 0.16, 6), poseMatrix([px, 0.08, pz]), {});
   }
-  room.geo('brass', new THREE.CylinderGeometry(0.025, 0.025, 0.3, 8), poseMatrix([tx - 0.78, 0.85, tz + 0.34]), {
-    consume: true,
+  room.geo('brass', cyl(0.025, 0.025, 0.3, 8), poseMatrix([tx - 0.78, 0.85, tz + 0.34]), {
   });
   room.collider({ kind: 'box', center: [tx, tz], halfExtents: [0.85, 0.42], rotationY: rot });
 
   // Pedestal basin under the mirror, cracked across.
-  room.geo('porcelain', new THREE.CylinderGeometry(0.13, 0.2, 0.78, 10), poseMatrix([2.5, 0.39, -3.3]), { consume: true });
+  room.geo('porcelain', cyl(0.13, 0.2, 0.78, 10), poseMatrix([2.5, 0.39, -3.3]), {});
   room.geo('porcelain', new THREE.BoxGeometry(0.72, 0.18, 0.5), poseMatrix([2.5, 0.87, -3.3]), { consume: true });
   room.geo('ash', new THREE.BoxGeometry(0.52, 0.02, 0.32), poseMatrix([2.5, 0.93, -3.3]), { consume: true });
-  room.geo('brass', new THREE.CylinderGeometry(0.02, 0.02, 0.22, 6), poseMatrix([2.5, 1.05, -3.5]), { consume: true });
+  room.geo('brass', cyl(0.02, 0.02, 0.22, 6), poseMatrix([2.5, 1.05, -3.5]), {});
   room.blockCircle(2.5, -3.3, 0.34);
 
   wallMirror(room, 'north', -2.5, 1.35, 0.72, 0.9);
@@ -95,8 +93,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     [-0.16, 0.16],
     [0.16, 0.16],
   ] as const) {
-    room.geo('woodPale', new THREE.CylinderGeometry(0.018, 0.022, 0.46, 6), poseMatrix([cx + dx, 0.23, cz + dz]), {
-      consume: true,
+    room.geo('woodPale', cyl(0.018, 0.022, 0.46, 6), poseMatrix([cx + dx, 0.23, cz + dz]), {
     });
   }
   room.geo('woodPale', new THREE.TorusGeometry(0.2, 0.018, 4, 12), tiltMatrix([cx, 0.72, cz + 0.18], [1.35, 0.5, 0]), {
@@ -106,7 +103,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.blockCircle(cx, cz, 0.28);
 
   // A slop pail against the skirting, where a pail actually gets left.
-  room.geo('iron', new THREE.CylinderGeometry(0.19, 0.15, 0.3, 12), poseMatrix([-1.9, 0.15, 3.2]), { consume: true });
+  room.geo('iron', cyl(0.19, 0.15, 0.3, 12), poseMatrix([-1.9, 0.15, 3.2]), {});
   room.geo('iron', new THREE.TorusGeometry(0.19, 0.014, 4, 12), tiltMatrix([-1.9, 0.3, 3.2], [Math.PI / 2, 0, 0]), {
     consume: true,
   });
@@ -119,9 +116,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 5; i++) {
     room.geo(
       room.pick(['glass', 'porcelain', 'bookGreen'] as const),
-      new THREE.CylinderGeometry(0.03, 0.035, room.range(0.09, 0.16), 6),
+      cyl(0.03, 0.035, room.range(0.09, 0.16), 6),
       poseMatrix([3.24, 1.45 + Math.floor(i / 3) * 0.36, -2.84 + (i % 3) * 0.24]),
-      { consume: true },
+      {},
     );
   }
 
@@ -129,11 +126,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.solid('porcelain', [0.52, 0.7, 0.72], [3.3, 0, 1.6], -Math.PI / 2);
   room.box('woodPale', [0.44, 0.06, 0.4], [3.3, 0.7, 1.6], -Math.PI / 2);
   room.box('ironBlack', [0.3, 0.42, 0.6], [3.5, 1.75, 1.6], -Math.PI / 2);
-  room.geo('copper', new THREE.CylinderGeometry(0.022, 0.022, 0.9, 6), poseMatrix([3.5, 1.25, 1.35]), { consume: true });
+  room.geo('copper', cyl(0.022, 0.022, 0.9, 6), poseMatrix([3.5, 1.25, 1.35]), {});
 
   // A towel rail, still hung, and a lot of fallen tile.
-  room.geo('brass', new THREE.CylinderGeometry(0.018, 0.018, 1.0, 6), poseMatrix([0.6, 1.5, 3.6], Math.PI / 2), {
-    consume: true,
+  room.geo('brass', cyl(0.018, 0.018, 1.0, 6), poseMatrix([0.6, 1.5, 3.6], Math.PI / 2), {
   });
   room.geo('linen', new THREE.PlaneGeometry(0.44, 0.8), tiltMatrix([0.35, 1.12, 3.55], [0, 0, 0.05]), {
     castShadow: false,

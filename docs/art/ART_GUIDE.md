@@ -147,7 +147,17 @@ survive being seen three times:
 - **`consume: true` is only ever for geometry made at the call site.** Passing it
   a cached helper (`quad()`, `disc()`, `boxGeometry()`) frees a buffer the next
   room is still using, and the result is an object that silently stops drawing
-  several rooms later.
+  several rooms later. `subUV()` is the exception that proves it: it CLONES, so
+  what it hands back is yours and does take `consume`.
+- **Round things go through the kit helpers, not through `new THREE.*Geometry`.**
+  `ball()`, `cyl()`, `ring()`, `spike()` and `disc()` cache by size *and* resolve
+  their segment count through `sides()` in `art/lib/build.ts`, which caps it by
+  how big the thing actually is. A sphere built by hand gets neither, and about a
+  third of the round geometry in the game used to be built that way - it was
+  worth as much to route it as the ramp was to write.
+- **An open-ended cylinder is half a closed one.** Wherever a chain of links
+  hides its own caps - a branch, a vine, a rib, a tube - pass `open`. Only the
+  two at the ends of a run are ever visible.
 - Never generate geometry in a render loop.
 
 ## 6. Performance budgets
@@ -157,7 +167,7 @@ Per room — full table in [`ROOM_FORMAT.md §7`](ROOM_FORMAT.md#7-performance-b
 | | Budget |
 | --- | --- |
 | Draw calls | ≤ 40 |
-| Triangles | ≤ 40 000 |
+| Triangles | ≤ 10 000 **per cell** |
 | Real lights | ≤ `ctx.lightBudget` — 2 for a 1x1, +1 per extra cell, max 4 (≤ 1 casting shadows) |
 | Materials created | 0 |
 

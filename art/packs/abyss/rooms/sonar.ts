@@ -2,7 +2,21 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { beacon, cageLamp, controlDesk, debris, dripLine, gauge, monitorStack, pipeRun, quad, shelf, stripLight, wallSign } from '../kit/props';
+import {
+  beacon,
+  cageLamp,
+  controlDesk,
+  cyl,
+  debris,
+  dripLine,
+  gauge,
+  monitorStack,
+  pipeRun,
+  quad,
+  shelf,
+  stripLight,
+  wallSign,
+} from '../kit/props';
 
 /**
  * Sonar Control - the room that knows.
@@ -65,8 +79,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // The chair, on a pedestal, turned away from the desk.
   const chair = -0.2;
-  room.geo('steelDark', new THREE.CylinderGeometry(0.32, 0.4, 0.06, 12), poseMatrix([chair, 0.03, -1.1]), { tile: 0.4, consume: true });
-  room.geo('steel', new THREE.CylinderGeometry(0.06, 0.07, 0.42, 8), poseMatrix([chair, 0.24, -1.1]), { tile: 0.3, consume: true });
+  room.geo('steelDark', cyl(0.32, 0.4, 0.06, 12), poseMatrix([chair, 0.03, -1.1]), { tile: 0.4 });
+  room.geo('steel', cyl(0.06, 0.07, 0.42, 8), poseMatrix([chair, 0.24, -1.1]), { tile: 0.3 });
   room.box('foam', [0.52, 0.1, 0.5], [chair, 0.44, -1.1], 0.7, { tile: 0.4 });
   room.box('foam', [0.5, 0.6, 0.12], [chair - 0.2, 0.5, -1.32], 0.7, { tile: 0.4 });
   room.blockCircle(chair, -1.1, 0.4);
@@ -79,8 +93,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 4; i++) {
     const z = 1.28 + i * 0.36;
     if (Math.abs(z - 1.9) < 0.3) continue; // the item anchor's spot
-    room.geo('plastic', new THREE.CylinderGeometry(0.13, 0.13, 0.05, 14), poseMatrix([3.35, 1.58, z]), { tile: 0.3, consume: true });
-    room.geo('steelDark', new THREE.CylinderGeometry(0.04, 0.04, 0.06, 8), poseMatrix([3.35, 1.6, z]), { tile: 0.2, consume: true });
+    room.geo('plastic', cyl(0.13, 0.13, 0.05, 14), poseMatrix([3.35, 1.58, z]), { tile: 0.3 });
+    room.geo('steelDark', cyl(0.04, 0.04, 0.06, 8), poseMatrix([3.35, 1.6, z]), { tile: 0.2 });
   }
 
   /* --- the fabric of it ---------------------------------------------------------- */

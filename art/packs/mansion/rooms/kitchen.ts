@@ -2,7 +2,7 @@ import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/co
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import * as THREE from 'three';
 import { ALL_WALLS, Room } from './common';
-import { cobwebs, debris, flicker, pendantLamp, table } from '../kit/props';
+import { ball, cobwebs, cyl, debris, flicker, pendantLamp, table } from '../kit/props';
 
 /**
  * The Kitchen - white tile, black iron, and the range still warm.
@@ -47,13 +47,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.solid('ironBlack', [2.1, 1.0, 0.78], [-2.3, 0, -3.3]);
   room.box('ironBlack', [2.2, 0.08, 0.86], [-2.3, 1.0, -3.3]);
   for (const dx of [-0.55, 0.1]) {
-    room.geo('iron', new THREE.CylinderGeometry(0.19, 0.19, 0.03, 12), poseMatrix([-2.3 + dx, 1.06, -3.35]), {
-      consume: true,
+    room.geo('iron', cyl(0.19, 0.19, 0.03, 12), poseMatrix([-2.3 + dx, 1.06, -3.35]), {
     });
   }
   room.box('emberGlow', [0.6, 0.28, 0.05], [-2.3, 0.28, -2.9], 0, { castShadow: false });
   room.box('ironBlack', [0.72, 0.36, 0.06], [-2.3, 0.24, -2.88]);
-  room.geo('brass', new THREE.SphereGeometry(0.05, 8, 6), poseMatrix([-1.98, 0.42, -2.85]), { consume: true });
+  room.geo('brass', ball(0.05, 8), poseMatrix([-1.98, 0.42, -2.85]), {});
   // Flue up to the ceiling.
   room.box('ironBlack', [1.5, 1.2, 0.5], [-2.3, 1.08, -3.44]);
   room.box('rust', [0.34, 1.2, 0.34], [-2.3, 2.28, -3.44]);
@@ -72,14 +71,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // Pot rack over the block. The rail lies along X, so it needs a roll about Z -
   // `poseMatrix` only turns things about Y, which left it standing on end and
   // spearing the ceiling.
-  room.geo('iron', new THREE.CylinderGeometry(0.02, 0.02, 2.6, 6), tiltMatrix([-0.4, 2.45, 0.1], [0, 0, Math.PI / 2]), {
-    consume: true,
+  room.geo('iron', cyl(0.02, 0.02, 2.6, 6), tiltMatrix([-0.4, 2.45, 0.1], [0, 0, Math.PI / 2]), {
   });
   for (let i = 0; i < 6; i++) {
     const x = -1.6 + i * 0.48;
     const r = room.range(0.11, 0.2);
-    room.geo('copper', new THREE.CylinderGeometry(r, r * 0.82, r * 1.5, 12), poseMatrix([x, 2.22, 0.1]), {
-      consume: true,
+    room.geo('copper', cyl(r, r * 0.82, r * 1.5, 12), poseMatrix([x, 2.22, 0.1]), {
     });
     room.geo('iron', new THREE.TorusGeometry(0.05, 0.008, 4, 8), poseMatrix([x, 2.42, 0.1]), { consume: true });
   }
@@ -87,8 +84,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // Scullery sink and draining board on the west wall.
   room.solid('porcelain', [0.7, 0.9, 1.5], [-3.35, 0, -1.9]);
   room.box('ash', [0.5, 0.06, 1.2], [-3.35, 0.9, -1.9]);
-  room.geo('brass', new THREE.CylinderGeometry(0.022, 0.022, 0.4, 6), poseMatrix([-3.6, 1.15, -1.9]), { consume: true });
-  room.geo('brass', new THREE.CylinderGeometry(0.02, 0.02, 0.22, 6), poseMatrix([-3.5, 1.32, -1.9], 0), { consume: true });
+  room.geo('brass', cyl(0.022, 0.022, 0.4, 6), poseMatrix([-3.6, 1.15, -1.9]), {});
+  room.geo('brass', cyl(0.02, 0.02, 0.22, 6), poseMatrix([-3.5, 1.32, -1.9], 0), {});
 
   // The dresser: plates on edge, most of them cracked.
   room.solid('woodPale', [2.4, 2.1, 0.42], [1.9, 0, -3.5]);
@@ -99,9 +96,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       if (room.chance(0.25)) continue;
       room.geo(
         'porcelain',
-        new THREE.CylinderGeometry(room.range(0.1, 0.15), room.range(0.1, 0.15), 0.02, 12),
+        cyl(room.range(0.1, 0.15), room.range(0.1, 0.15), 0.02, 12),
         poseMatrix([0.85 + i * 0.32, y + 0.14, -3.5], Math.PI / 2),
-        { consume: true },
+        {},
       );
     }
   }

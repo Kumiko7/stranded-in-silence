@@ -21,7 +21,7 @@
  * these and still cost single-digit draw calls.
  */
 import * as THREE from 'three';
-import { mm, ownGeometryCache } from '../../../lib/build';
+import { bands, mm, ownGeometryCache, sides } from '../../../lib/build';
 import type { Cell, Side } from '../../../lib/contract';
 import type { BatchOptions } from '../../../lib/merge';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
@@ -93,6 +93,7 @@ export function wallPose(
  */
 const cylCache = new Map<string, THREE.CylinderGeometry>();
 export function cyl(rTop: number, rBot: number, h: number, seg = 10, open = false): THREE.CylinderGeometry {
+  seg = sides(Math.max(Math.abs(rTop), Math.abs(rBot)), seg);
   const key = `${mm(rTop)},${mm(rBot)},${mm(h)},${seg},${open}`;
   let geo = cylCache.get(key);
   if (!geo) {
@@ -104,10 +105,11 @@ export function cyl(rTop: number, rBot: number, h: number, seg = 10, open = fals
 
 const sphereCache = new Map<string, THREE.SphereGeometry>();
 export function ball(r: number, seg = 10): THREE.SphereGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = sphereCache.get(key);
   if (!geo) {
-    geo = new THREE.SphereGeometry(mm(r), seg, Math.max(4, Math.round(seg / 2)));
+    geo = new THREE.SphereGeometry(mm(r), seg, bands(seg));
     sphereCache.set(key, geo);
   }
   return geo;
@@ -138,6 +140,7 @@ export function speck(): THREE.OctahedronGeometry {
 
 const coneCache = new Map<string, THREE.ConeGeometry>();
 export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(h)},${seg}`;
   let geo = coneCache.get(key);
   if (!geo) {
@@ -149,10 +152,11 @@ export function spike(r: number, h: number, seg = 7): THREE.ConeGeometry {
 
 const torusCache = new Map<string, THREE.TorusGeometry>();
 export function ring(r: number, tube: number, seg = 16): THREE.TorusGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${mm(tube)},${seg}`;
   let geo = torusCache.get(key);
   if (!geo) {
-    geo = new THREE.TorusGeometry(mm(r), mm(tube), 6, seg);
+    geo = new THREE.TorusGeometry(mm(r), mm(tube), sides(tube, 6), seg);
     torusCache.set(key, geo);
   }
   return geo;
@@ -171,6 +175,7 @@ export function quad(w: number, h: number): THREE.PlaneGeometry {
 
 const discCache = new Map<string, THREE.CircleGeometry>();
 export function disc(r: number, seg = 20): THREE.CircleGeometry {
+  seg = sides(r, seg);
   const key = `${mm(r)},${seg}`;
   let geo = discCache.get(key);
   if (!geo) {
@@ -209,6 +214,7 @@ export function strut(
   radius: number,
   seg = 7,
   options: BatchOptions = {},
+  open = false,
 ): void {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
@@ -219,7 +225,7 @@ export function strut(
   const pitch = Math.acos(Math.min(1, Math.max(-1, dy / length)));
   room.geo(
     material,
-    cyl(radius, radius, length, seg),
+    cyl(radius, radius, length, seg, open),
     tiltMatrix([(from[0] + to[0]) / 2, (from[1] + to[1]) / 2, (from[2] + to[2]) / 2], [pitch, yaw, 0]),
     { tile: 0.6, ...options },
   );
@@ -766,7 +772,6 @@ export function specimenJar(room: Room, x: number, y: number, z: number, radius 
    * glass. This is the reduction docs/systems/RENDERING.md keeps finding:
    * segment counts on small round things there are a great many of.
    */
-  room.geo('steelDark', cyl(radius * 1.05, radius * 1.05, 0.03, 8), poseMatrix([x, y + 0.015, z]), NO_SHADOW);
   /**
    * The fluid is BACK-FACED, so it is the far wall of the jar rather than a
    * cylinder wrapped round everything in it. Front-faced, the specimen inside
@@ -776,6 +781,15 @@ export function specimenJar(room: Room, x: number, y: number, z: number, radius 
   // What is in it: a pale coiled shape, never quite resolved.
   room.geo('canvasPale', ball(radius * 0.42, 6), tiltMatrix([x, y + height * 0.45, z], [0, room.range(0, 3), 0], [1, 1.6, 0.7]), NO_SHADOW);
   room.geo('glassPane', cyl(radius, radius, height, 8, true), poseMatrix([x, y + height / 2, z]), FLAT);
+  /**
+   * One collar, at the top, and no foot ring under the glass.
+   *
+   * The foot was a disc the same colour as the shelf it stood on, under a jar
+   * that already has an opaque lid to end on - it was invisible in every shot
+   * and it was a fifth of the jar. A hundred and forty of these stand in a map
+   * and the archive alone holds ninety-six, which makes this the one prop in
+   * the pack where a piece nobody can see is worth two thousand triangles.
+   */
   room.geo('steelPale', cyl(radius * 1.08, radius * 1.02, 0.05, 8), poseMatrix([x, y + height, z]), { tile: 0.2, castShadow: false });
 }
 
@@ -1017,7 +1031,7 @@ export function coralHead(room: Room, x: number, y: number, z: number, scale = 0
   const trunk = scale * room.range(0.28, 0.42);
   room.geo('coralDead', cyl(scale * 0.09, scale * 0.16, trunk, 7), poseMatrix([x, y + trunk / 2, z]), { tile: 0.5 });
 
-  const arms = 5;
+  const arms = 4;
   for (let i = 0; i < arms; i++) {
     const a = (i / arms) * Math.PI * 2 + room.range(-0.3, 0.3);
     const len = scale * room.range(0.4, 0.72);
@@ -1025,24 +1039,24 @@ export function coralHead(room: Room, x: number, y: number, z: number, scale = 0
     const bx = x + Math.cos(a) * len * Math.sin(lean);
     const bz = z + Math.sin(a) * len * Math.sin(lean);
     const by = y + trunk + len * Math.cos(lean) * 0.9;
-    strut(room, 'coralDead', [x, y + trunk, z], [bx, by, bz], scale * 0.055, 6, { tile: 0.4 });
+    strut(room, 'coralDead', [x, y + trunk, z], [bx, by, bz], scale * 0.055, 6, { tile: 0.4 }, true);
 
-    for (let b = 0; b < 3; b++) {
+    for (let b = 0; b < 2; b++) {
       const a2 = a + room.range(-1.1, 1.1);
       const len2 = len * room.range(0.35, 0.6);
       const lean2 = lean * room.range(0.4, 0.8);
       const cx = bx + Math.cos(a2) * len2 * Math.sin(lean2);
       const cz = bz + Math.sin(a2) * len2 * Math.sin(lean2);
       const cy = by + len2 * Math.cos(lean2);
-      strut(room, 'coralDead', [bx, by, bz], [cx, cy, cz], scale * 0.03, 5, { tile: 0.3 });
+      strut(room, 'coralDead', [bx, by, bz], [cx, cy, cz], scale * 0.038, 5, { tile: 0.3 }, true);
       tips.push([cx, cy, cz]);
     }
   }
   // The living tips. Emissive, so a reef lights its own corner for free.
   for (const tip of tips) {
-    room.geo(warm ? 'coralPink' : 'coralBlue', ball(scale * room.range(0.035, 0.07), 6), poseMatrix(tip), NO_SHADOW);
+    room.geo(warm ? 'coralPink' : 'coralBlue', ball(scale * room.range(0.045, 0.085), 6), poseMatrix(tip), NO_SHADOW);
   }
-  room.geo('surface.crust', cyl(scale * 0.4, scale * 0.5, 0.07, 10), poseMatrix([x, y + 0.02, z]), { tile: 0.5, castShadow: false });
+  room.geo('surface.crust', cyl(scale * 0.4, scale * 0.5, 0.07, 8), poseMatrix([x, y + 0.02, z]), { tile: 0.5, castShadow: false });
 }
 
 /**
@@ -1088,8 +1102,8 @@ export function anemones(room: Room, x: number, y: number, z: number, count = 4,
     const size = room.range(0.09, 0.2);
     room.geo('anemone', cyl(size * 0.8, size * 0.55, size * 1.5, 8), poseMatrix([px, y + size * 0.75, pz]), { tile: 0.3, castShadow: false });
     room.geo('anemone', disc(size * 0.95, 10), tiltMatrix([px, y + size * 1.52, pz], [-Math.PI / 2, 0, 0]), FLAT);
-    for (let t = 0; t < 9; t++) {
-      const ta = (t / 9) * Math.PI * 2;
+    for (let t = 0; t < 6; t++) {
+      const ta = (t / 6) * Math.PI * 2;
       room.geo(
         'anemone',
         cyl(0.008, 0.015, size * 0.9, 4),
@@ -1109,7 +1123,9 @@ export function tubeWorms(room: Room, x: number, z: number, count = 9, spread = 
     const pz = z + Math.sin(a) * r;
     const h = scale * room.range(0.35, 1.1);
     const lean = room.range(-0.22, 0.22);
-    room.geo('wormTube', cyl(0.03 * scale, 0.05 * scale, h, 6), tiltMatrix([px, h / 2, pz], [0, a, lean]), { tile: 0.4, castShadow: false });
+    // Open-ended: the bottom cap is in the floor and the top one is inside the
+    // plume, so a closed tube pays for two discs nothing ever sees.
+    room.geo('wormTube', cyl(0.03 * scale, 0.05 * scale, h, 6, true), tiltMatrix([px, h / 2, pz], [0, a, lean]), { tile: 0.4, castShadow: false });
     /**
      * Growth bands down the tube, as a six-sided COLLAR rather than a torus.
      *
@@ -1119,12 +1135,12 @@ export function tubeWorms(room: Room, x: number, z: number, count = 9, spread = 
      * it in these bands. A sleeve is 24 triangles, matches the facets it sits
      * on, and follows the tube's lean rather than approximating it.
      */
-    for (let b = 1; b < 4; b++) {
-      const f = b / 4;
+    for (let b = 1; b < 3; b++) {
+      const f = b / 3;
       // The tube tapers 0.05 -> 0.03 up its length, so a band of one fixed
       // radius is buried at the bottom and floating at the top. Track it.
       const r = (0.05 - 0.02 * f + 0.006) * scale;
-      room.geo('shellWhite', cyl(r, r, 0.014 * scale, 6), tiltMatrix([px + Math.sin(lean) * h * f, h * f, pz], [0, a, lean]), FLAT);
+      room.geo('shellWhite', cyl(r, r, 0.022 * scale, 6, true), tiltMatrix([px + Math.sin(lean) * h * f, h * f, pz], [0, a, lean]), FLAT);
     }
     room.geo('wormPlume', ball(0.055 * scale, 7), tiltMatrix([px + Math.sin(lean) * h, h + 0.05 * scale, pz], [0, a, lean], [1, 1.7, 1]), NO_SHADOW);
   }
@@ -1169,12 +1185,14 @@ export function jelly(room: Room, x: number, y: number, z: number, radius = 0.2)
       FLAT,
     );
   }
-  for (let i = 0; i < 7; i++) {
-    const a = (i / 7) * Math.PI * 2;
+  // Four threads, not seven, and each is an open three-sided tube: a 4 mm
+  // filament seen through fog has no ends and there are eight hundred of these.
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
     room.geo(
       'jellyTrail',
-      cyl(0.004, 0.004, radius * room.range(2.5, 5), 3),
-      tiltMatrix([x + Math.cos(a) * radius * 0.85, y - radius * 1.9, z + Math.sin(a) * radius * 0.85], [room.range(-0.1, 0.1), a, room.range(-0.12, 0.12)]),
+      cyl(0.005, 0.005, radius * room.range(2.5, 5), 3, true),
+      tiltMatrix([x + Math.cos(a) * radius * 0.88, y - radius * 1.9, z + Math.sin(a) * radius * 0.88], [room.range(-0.1, 0.1), a, room.range(-0.12, 0.12)]),
       FLAT,
     );
   }
@@ -1188,7 +1206,7 @@ export function jelly(room: Room, x: number, y: number, z: number, radius = 0.2)
  */
 export function smokerChimney(room: Room, x: number, z: number, height = 2.0, lit = false, intensity = 10): void {
   const { ceilingHeight } = room.ctx.dims;
-  const segments = 6;
+  const segments = 5;
   let r = 0.42;
   for (let i = 0; i < segments; i++) {
     const h = height / segments;
@@ -1204,11 +1222,13 @@ export function smokerChimney(room: Room, x: number, z: number, height = 2.0, li
   }
   // The mouth, and the black smoke above it.
   room.geo('ember', cyl(r * 0.8, r * 0.8, 0.08, 9), poseMatrix([x, height, z]), FLAT);
-  for (let i = 0; i < 5; i++) {
-    const t = i / 5;
+  // Three balls of smoke, not five, each a size up: the plume is the softest
+  // thing in the room and it is read as a column, not as a chain.
+  for (let i = 0; i < 3; i++) {
+    const t = i / 3;
     room.geo(
       'smokePlume',
-      ball(0.24 + t * 0.5, 8),
+      ball(0.3 + t * 0.62, 8),
       tiltMatrix([x + room.range(-0.2, 0.2) + t * 0.3, height + 0.25 + t * (ceilingHeight - height - 0.3), z + room.range(-0.2, 0.2)], [0, t * 3, 0], [1, 1.3, 1]),
       FLAT,
     );
@@ -1327,7 +1347,7 @@ export function whaleSkeleton(room: Room, x: number, z: number, length = 5.0, ro
     const p = at(lx, 0, 0);
     // Laid along the spine: a quarter turn about Z puts the cylinder on its
     // side, and the yaw then swings it round to the skeleton's own heading.
-    room.geo('boneWhale', cyl(0.15 * taper, 0.16 * taper, 0.3, 10), tiltMatrix([p[0], 0.22, p[2]], [0, rotationY, Math.PI / 2]), { tile: 0.5 });
+    room.geo('boneWhale', cyl(0.15 * taper, 0.16 * taper, 0.3, 10, true), tiltMatrix([p[0], 0.22, p[2]], [0, rotationY, Math.PI / 2]), { tile: 0.5 });
     room.geo('boneWhale', ball(0.17 * taper, 8), poseMatrix([p[0], 0.22, p[2]]), { tile: 0.4 });
     if (i % 2 === 0) {
       room.geo('boneWhale', cyl(0.03, 0.06, 0.34 * taper, 6), poseMatrix([p[0], 0.4, p[2]]), { tile: 0.3 });
@@ -1335,7 +1355,7 @@ export function whaleSkeleton(room: Room, x: number, z: number, length = 5.0, ro
   }
 
   // Ribs, springing off the spine and curving down to the silt both sides.
-  const ribs = Math.max(4, Math.round(length / 0.75));
+  const ribs = Math.max(4, Math.round(length / 0.95));
   for (let i = 0; i < ribs; i++) {
     const t = (i + 0.5) / ribs;
     const lx = -length / 2 + length * t;
@@ -1343,7 +1363,7 @@ export function whaleSkeleton(room: Room, x: number, z: number, length = 5.0, ro
     const rise = 1.25 * Math.sin(Math.PI * Math.min(1, t * 1.3));
     if (span < 0.25) continue;
     for (const s of [-1, 1]) {
-      const segs = 8;
+      const segs = 5;
       let prev = at(lx, 0.28, 0);
       for (let k = 1; k <= segs; k++) {
         const a = (Math.PI / 2) * (k / segs);
@@ -1351,7 +1371,7 @@ export function whaleSkeleton(room: Room, x: number, z: number, length = 5.0, ro
         // Ribs need real thickness. At 5 cm they read as black wire from every
         // doorway - a whale rib is as thick as an arm and that is what makes the
         // cage read as bone rather than as a scribble.
-        strut(room, 'boneWhale', prev, next, 0.095 * (1.1 - (k / segs) * 0.45), 6, { tile: 0.4 });
+        strut(room, 'boneWhale', prev, next, 0.095 * (1.1 - (k / segs) * 0.45), 6, { tile: 0.4 }, true);
         prev = next;
       }
       // The far end of the rib, resting in the silt.

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { armchair, bookcase, bookRow, candelabra, chair, cobwebs, fireplace, oilLamp, rug, table } from '../kit/props';
+import { armchair, bookRow, bookcase, candelabra, chair, cobwebs, cyl, fireplace, oilLamp, rug, table } from '../kit/props';
 
 /**
  * The Library - every wall is books, and the ladder is on the wrong side.
@@ -60,7 +60,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // A reading stand with an atlas open on it, and the piles nobody reshelved.
   // South-east corner: clear of the door lanes AND of the 1.6 m a chest wants in
   // front of it, which is the constraint that actually decides where this goes.
-  room.geo('woodDark', new THREE.CylinderGeometry(0.05, 0.22, 0.9, 8), poseMatrix([2.45, 0.45, 2.2]), { consume: true });
+  room.geo('woodDark', cyl(0.05, 0.22, 0.9, 8), poseMatrix([2.45, 0.45, 2.2]), {});
   room.geo('woodDark', new THREE.BoxGeometry(0.5, 0.04, 0.4), tiltMatrix([2.45, 0.94, 2.2], [-0.35, 2.5, 0]), { consume: true });
   room.geo('paper', new THREE.BoxGeometry(0.44, 0.03, 0.34), tiltMatrix([2.45, 0.98, 2.18], [-0.35, 2.5, 0]), { consume: true });
   room.blockCircle(2.45, 2.2, 0.26);
@@ -85,8 +85,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   armchair(room, 2.4, -1.4, -Math.PI / 2 - 0.2);
 
   // The rolling ladder, leaning where somebody left it a very long time ago.
-  room.geo('brass', new THREE.CylinderGeometry(0.03, 0.03, 6.6, 6), tiltMatrix([0, 2.3, -3.3], [0, 0, Math.PI / 2]), {
-    consume: true,
+  room.geo('brass', cyl(0.03, 0.03, 6.6, 6), tiltMatrix([0, 2.3, -3.3], [0, 0, Math.PI / 2]), {
   });
   for (const s of [-0.22, 0.22]) {
     room.geo('woodDark', new THREE.BoxGeometry(0.07, 2.4, 0.07), tiltMatrix([-1.9 + s, 1.2, -3.0], [0.2, 0, 0.07]), {

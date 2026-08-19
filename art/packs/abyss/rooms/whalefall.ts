@@ -2,7 +2,23 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { anemones, bioMotes, boulder, causticPatch, debris, encrust, glowShaft, siltDrift, swell, tubeWorms, urchin, whaleSkeleton } from '../kit/props';
+import {
+  anemones,
+  ball,
+  bioMotes,
+  boulder,
+  causticPatch,
+  cyl,
+  debris,
+  disc,
+  encrust,
+  glowShaft,
+  siltDrift,
+  swell,
+  tubeWorms,
+  urchin,
+  whaleSkeleton,
+} from '../kit/props';
 
 /**
  * The Whale Fall - eleven metres of dead animal, and everything that came to
@@ -70,9 +86,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // The skull, forward of the ribs and half turned: the one piece that tells you
   // what animal this was.
-  room.geo('boneWhale', new THREE.SphereGeometry(0.85, 12, 9), tiltMatrix([SPINE_X - 0.2, 0.5, -3.0], [0.1, 0.5, 0], [1.6, 0.62, 0.85]), {
+  room.geo('boneWhale', ball(0.85, 12), tiltMatrix([SPINE_X - 0.2, 0.5, -3.0], [0.1, 0.5, 0], [1.6, 0.62, 0.85]), {
     tile: 1.0,
-    consume: true,
   });
   for (const s of [-1, 1]) {
     room.geo('boneWhale', new THREE.BoxGeometry(1.9, 0.22, 0.16), tiltMatrix([SPINE_X - 0.35, 0.3, -3.0 + s * 0.34], [0.04, 0.5, s * 0.06]), {
@@ -80,18 +95,17 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       consume: true,
     });
   }
-  room.geo('rockDark', new THREE.SphereGeometry(0.18, 8, 6), poseMatrix([SPINE_X - 0.72, 0.66, -3.28]), { tile: 0.4, consume: true });
+  room.geo('rockDark', ball(0.18, 8), poseMatrix([SPINE_X - 0.72, 0.66, -3.28]), { tile: 0.4 });
   room.blockCircle(SPINE_X - 0.2, -3.0, 0.7);
 
   // The mat: white shag over the bone and out across the silt for two metres.
   for (let i = 0; i < 6; i++) {
     const x = SPINE_X + room.range(-1.4, 1.4);
     const z = room.range(-2.4, 2.8);
-    room.geo('bacterialMat', new THREE.CircleGeometry(room.range(0.2, 0.5), 12), tiltMatrix([x, 0.016, z], [-Math.PI / 2, room.range(0, 3), 0]), {
+    room.geo('bacterialMat', disc(room.range(0.2, 0.5), 12), tiltMatrix([x, 0.016, z], [-Math.PI / 2, room.range(0, 3), 0]), {
       castShadow: false,
       receiveShadow: false,
       tile: 1.2,
-      consume: true,
     });
   }
   // Tufts of it standing up off the bone, which is what makes it read as growth
@@ -99,9 +113,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let i = 0; i < 16; i++) {
     const x = SPINE_X + room.range(-1.2, 1.2);
     const z = room.range(-2.2, 2.4);
-    room.geo('bacterialMat', new THREE.CylinderGeometry(0.02, 0.05, room.range(0.1, 0.26), 5), poseMatrix([x, room.range(0.05, 0.55), z]), {
+    room.geo('bacterialMat', cyl(0.02, 0.05, room.range(0.1, 0.26), 5), poseMatrix([x, room.range(0.05, 0.55), z]), {
       castShadow: false,
-      consume: true,
     });
   }
 
@@ -115,14 +128,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const x = SPINE_X + room.range(-1.1, 1.1);
     const z = room.range(-2.0, 2.2);
     const a = room.range(0, Math.PI);
-    room.geo('canvasPale', new THREE.CylinderGeometry(0.035, 0.045, room.range(0.5, 0.95), 5), tiltMatrix([x, room.range(0.08, 0.5), z], [Math.PI / 2 + room.range(-0.3, 0.3), a, 0]), {
+    room.geo('canvasPale', cyl(0.035, 0.045, room.range(0.5, 0.95), 5), tiltMatrix([x, room.range(0.08, 0.5), z], [Math.PI / 2 + room.range(-0.3, 0.3), a, 0]), {
       tile: 0.3,
       castShadow: false,
-      consume: true,
     });
-    room.geo('canvasPale', new THREE.SphereGeometry(0.045, 6, 5), poseMatrix([x + Math.sin(a) * 0.35, room.range(0.1, 0.5), z + Math.cos(a) * 0.35]), {
+    room.geo('canvasPale', ball(0.045, 6), poseMatrix([x + Math.sin(a) * 0.35, room.range(0.1, 0.5), z + Math.cos(a) * 0.35]), {
       castShadow: false,
-      consume: true,
     });
   }
   urchin(room, -0.9, 0.02, -1.4, 0.16);
@@ -155,10 +166,9 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   glowShaft(room, [-3.4, 2.5, 0], [-0.6, 0.6, 0.4], 2.8);
   bioMotes(room, -1.4, 1.5, 0.2, 2.2, 24);
   bioMotes(room, 1.8, 1.2, 2.0, 1.2, 10);
-  room.geo('waterHaze', new THREE.CircleGeometry(2.6, 14), tiltMatrix([-1.0, ceilingHeight - 0.55, 0.2], [Math.PI / 2, 0, 0]), {
+  room.geo('waterHaze', disc(2.6, 14), tiltMatrix([-1.0, ceilingHeight - 0.55, 0.2], [Math.PI / 2, 0, 0]), {
     castShadow: false,
     receiveShadow: false,
-    consume: true,
   });
 
   const pane = room.lights[0];

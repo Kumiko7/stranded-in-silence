@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { beacon, cageLamp, cyl, debris, drum, dripLine, gauge, ladder, pipeRun, puddle, quad, valve, wallSign } from '../kit/props';
+import { beacon, cageLamp, cyl, debris, dripLine, drum, gauge, ladder, pipeRun, puddle, quad, valve, wallSign } from '../kit/props';
 
 /**
  * The Pump Room - the machine that keeps the sea on the outside.
@@ -67,24 +67,21 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     // as a crate, and the volute is what stops that happening.
     room.solid('steelDark', [2.0, 0.26, 1.5], [x, 0, z], spin, { tile: 0.7 });
     room.box('painted', [1.7, 0.95, 1.15], [x, 0.26, z], spin, { tile: 1.0 });
-    room.geo('steel', new THREE.CylinderGeometry(0.56, 0.56, 0.9, 16), tiltMatrix([x - Math.cos(spin) * 0.35, 0.9, z + Math.sin(spin) * 0.35], [0, spin, Math.PI / 2]), {
+    room.geo('steel', cyl(0.56, 0.56, 0.9, 16), tiltMatrix([x - Math.cos(spin) * 0.35, 0.9, z + Math.sin(spin) * 0.35], [0, spin, Math.PI / 2]), {
       tile: 0.7,
-      consume: true,
     });
     room.geo('steelDark', new THREE.TorusGeometry(0.58, 0.06, 6, 18), tiltMatrix([x - Math.cos(spin) * 0.8, 0.9, z + Math.sin(spin) * 0.8], [0, spin, Math.PI / 2]), {
       tile: 0.3,
       consume: true,
     });
     // Drive motor and its cooling fins.
-    room.geo('painted', new THREE.CylinderGeometry(0.34, 0.34, 0.86, 14), tiltMatrix([x + Math.cos(spin) * 0.72, 0.86, z - Math.sin(spin) * 0.72], [0, spin, Math.PI / 2]), {
+    room.geo('painted', cyl(0.34, 0.34, 0.86, 14), tiltMatrix([x + Math.cos(spin) * 0.72, 0.86, z - Math.sin(spin) * 0.72], [0, spin, Math.PI / 2]), {
       tile: 0.6,
-      consume: true,
     });
     for (let i = 0; i < 7; i++) {
-      room.geo('steelDark', new THREE.CylinderGeometry(0.38, 0.38, 0.03, 14), tiltMatrix([x + Math.cos(spin) * (0.4 + i * 0.1), 0.86, z - Math.sin(spin) * (0.4 + i * 0.1)], [0, spin, Math.PI / 2]), {
+      room.geo('steelDark', cyl(0.38, 0.38, 0.03, 14), tiltMatrix([x + Math.cos(spin) * (0.4 + i * 0.1), 0.86, z - Math.sin(spin) * (0.4 + i * 0.1)], [0, spin, Math.PI / 2]), {
         tile: 0.2,
         castShadow: false,
-        consume: true,
       });
     }
     // The suction and discharge branches, going up into the ceiling manifold.

@@ -319,8 +319,28 @@ the one to check first.
 | Triangles standing in the map | 155k | ~230k | ~390k | ~400k | 249k | **433k** |
 | Triangles drawn, average pose | 25k | 49k | 61k | 67k | 51k | **71–89k** |
 | Draw calls, average pose | 299 | 290 | 327 | 348 | 331 | **315–364** |
-| Worst room | library, 9.1k | ribcage, 18k | breach, 20.9k (3 cells) | **ossuary, 20.7k** | tube, 12.8k (3 cells) | barkcanyon, 20.4k (2 cells) |
 | Shadow-casting lights (of a budget of 2 lit at once) | 3–6 | 5–7 | 11–17 | 7–11 | 22–25 | 31–33 |
+
+**Every triangle figure in that table predates the 10 000-per-cell pass and is
+now about a third too high.** Re-measure with `tools/perf.html` before quoting
+it; the shape of the map — draw calls, the ranking of the packs, where the cost
+sits — did not move, and the light counts did not move at all.
+
+What the pass did move, measured exactly by `npm run validate:art` over every
+door combination and three seeds. "Library" is the sum of every blueprint the
+pack ships, which is not a map (a map repeats rooms) but is the number a room
+pass actually changes:
+
+| | mansion | viscera | abyss | crypt | forge | heartwood |
+| --- | --- | --- | --- | --- | --- | --- |
+| Blueprint library, before | 127k | 231k | 274k | 296k | 168k | 300k |
+| Blueprint library, after | **101k** | **202k** | **198k** | **212k** | **157k** | **220k** |
+| Worst room, before (per cell) | cellar, 10.8k | tendrils, 17.0k | vents, 19.1k | ossuary, 20.7k | roots, 10.1k | tendrils, 18.9k |
+| Worst room, after (per cell) | library, 9.96k | bloom, 9.85k | jelly, 9.94k | ossuary, 9.91k | roots, 8.69k | fungaldeep, 9.89k |
+
+1.60 M triangles standing across the six libraries, down to 1.09 M. **Every
+blueprint in the game is now inside 10 000 triangles per cell**, which is the
+first time the triangle budget has had no argued exceptions in it at all.
 
 `heartwood` is the heaviest map standing and it is worth knowing where that went,
 because the answer is the same one `forge` found and it is not the set pieces:
@@ -348,22 +368,21 @@ Two knobs worth their cost, measured against `base` on Kerberos Deep:
 `renderDistanceRooms` 3 → 2 is **−20 % draw calls**, and `maxActiveLights` 6 → 4
 is about **−10 % of frame time**. Both are in the low tier.
 
-Every abyss room is inside the per-room budget in
-[`../art/ROOM_FORMAT.md`](../art/ROOM_FORMAT.md) §7 — that budget is 40k
-triangles and was written with room to spare. Abyss spends it; the manor does
-not. Only 8% of abyss's triangles are see-through, so this is geometry cost
-rather than an overdraw problem.
+Every abyss room is inside the per-cell budget in
+[`../art/ROOM_FORMAT.md`](../art/ROOM_FORMAT.md) §7 — as, now, is every room in
+every pack. Only 8% of abyss's triangles are see-through, so this is geometry
+cost rather than an overdraw problem.
 
 The crypt stands as heavy as abyss and draws two thirds of it, because it is a
 map of small walled rooms rather than of halls with sight lines through them:
 only 4.6% of its triangles are see-through, and the culler gets more out of a
-crypt than out of an oceanarium. Its per-room numbers are all inside the 25k
-budget except the one deliberate set piece (`crypt.sepulchre`, a 2x2 at 36.1k,
-which is 9k per cell — less per cell than most of its own 1x1s). Two more
-warnings are accepted rather than fixed: `crypt.robbers` at 42 draw calls, which
-is the hinge room and legitimately carries both halves' material sets, and
-`crypt.hypostyle` at 29 colliders, which is three cells' worth of shell wall
-against a guideline written for one.
+crypt than out of an oceanarium. Two warnings are accepted rather than fixed:
+`crypt.robbers` at 41 draw calls, which is the hinge room and legitimately
+carries both halves' material sets, and `crypt.hypostyle` at 34 colliders, which
+is three cells' worth of shell wall against a guideline written for one. Its
+2x2 set piece, `crypt.sepulchre`, used to be the pack's one argued triangle
+exception at 36.1k under a flat 25k; the budget counts per cell now and it was
+never over that.
 
 The pack came down from 489k triangles to 413k in two `?props=1` passes without a
 visible change, and every reduction was the same shape — **segment counts on
@@ -389,7 +408,7 @@ Two findings from that pack generalise, and both are in
 **Vulcan's Anvil is the first pack built with all of that already written down**,
 and it shows in the shape of the numbers rather than in any one of them: 249k
 standing against abyss's 429k, no 1x1 over 10.2k, and the whole map inside the
-25k per-room budget without a single argued exception. What it cost instead is
+25k per-room budget of the day without a single argued exception. What it cost instead is
 **shadow casters** - 22 to 25 of them declared, more than any other pack - because
 almost every room has one baked lamp and the pack's silhouettes (a crucible, a
 cutter head, a rack bank, an ash cast) are what earn casting. Only two are lit at
@@ -414,6 +433,58 @@ six-sided collar is 24, and the pack lost 40k triangles (8.5%) on a detail
 nobody can resolve at the fog density it is seen through. The remaining large
 line items, if more is ever wanted: `mouth` 42.5k, `strip` 37.4k, `specimenJar`
 28.9k, `bioMotes` 22.9k (764 glowing specks at ~30 triangles each).
+
+### Halving the packs, and why it took three passes over everything
+
+The budget went from 21 000 a room to 10 000 a cell because the frame could not
+carry six packs at 1.6 M triangles standing. That is the first time this number
+has driven the art rather than followed it, and the interesting part is what the
+profile looked like when the work started: **there was nothing big left.**
+
+`tools/leakcheck.html?props=1` and its node twin had already found and taken the
+one-line items every previous pass lived on — the tube worms' growth bands, the
+votive flames, the dust motes. What was left, in every pack, was a flat tail:
+after the first pass no art function anywhere was over 4 % of its own map, and
+the top thirty summed to about half of it. A map is forty thousand boxes at
+twelve triangles each and fifteen thousand small round things at twenty to
+eighty, and **a box is already the cheapest thing that reads.** There is no
+fifteen-per-cent detail to find twice.
+
+So it came from three things applied to everything at once, in this order of
+yield:
+
+| | What | Worth |
+| --- | --- | --- |
+| 1 | **A size ramp under every round primitive.** `sides(radius, asked)` in `art/lib/build.ts`; every pack's `ball`/`cyl`/`ring`/`spike`/`disc` resolves through it, and so does every `new THREE.SphereGeometry` the shells and rooms used to build by hand | ~15 % |
+| 2 | **Open-ended tubes wherever a chain hides its own caps** — a branch, a vine, a rib, a worm tube. Every cap but the two at the ends of the run is inside the next link | ~5 % |
+| 3 | **About a third off the pitch of every course that runs round a wall**, pieces grown to match so the course still reads as beaded rather than gapped | ~8 % |
+
+and only then, room by room, whichever prop `?props=1` charged a quarter of a
+room to.
+
+Three things are worth carrying forward from it:
+
+- **The ramp had to stop being a call-site decision to land.** "Segment counts on
+  small round things there are hundreds of" is the oldest note in these
+  documents, and it had been applied by hand four times, to whichever function
+  the profiler happened to name. Putting it under the helpers instead caught
+  every call in the game in one change, including the ones nobody had profiled —
+  and because it is a `Math.min` against what the caller asked for, it can only
+  take detail off something too small to show it. A wheel that asked for six
+  sides still gets six.
+- **Routing the shells' and rooms' hand-built geometry through the cached kit
+  helpers was worth as much as the ramp itself**, because roughly a third of the
+  round geometry in the game was constructed with `new THREE.SphereGeometry(...)`
+  at the call site and never saw a helper at all. That change has a trap in it:
+  `consume: true` frees the geometry it was given, which is right for a buffer
+  built at the call site and a double free for one that came out of a cache (see
+  §3a). Every converted call had to drop `consume` — and `subUV()` had to keep
+  it, because it CLONES.
+- **A course in a `kit/shell.ts` is multiplied by the whole map before a prop is
+  placed in a room.** This file has said that twice already, about the crypt's
+  trim and the forge's. It is now the reason the third pass exists: widening the
+  pitch of the register, the beads, the fins, the stiffeners and the pegs across
+  five packs cost nothing anyone can see and was most of a tenth of the game.
 
 ### A wall is a wall
 

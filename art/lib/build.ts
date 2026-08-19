@@ -34,6 +34,54 @@ import type { Collider } from './contract';
  */
 export const mm = (value: number): number => Math.round(value * 1000) / 1000;
 
+/**
+ * How many sides a round thing of this radius has earned, never more than the
+ * art asked for.
+ *
+ * Every pack builds its cylinders, spheres, tori and cones through a handful of
+ * one-line helpers, and each of those helpers takes a segment count with a
+ * default. Left to themselves those defaults are written once, for the biggest
+ * thing the helper was first used on, and then paid on the hundreds of
+ * two-centimetre things that came later - which is how a map ends up spending a
+ * fifth of itself on flames, motes and growth bands nobody can resolve at the
+ * fog density they are seen through. Every triangle pass over every pack has
+ * found the same thing in the same place (docs/art/ROOM_REVIEW.md), so it is
+ * cheaper to make the helpers ask.
+ *
+ * The ramp is `Math.min`, never `Math.max`: a caller that asked for six sides on
+ * a wheel still gets six. It can only take detail away from something too small
+ * to show it, which is why it is safe to put under art nobody is re-reviewing.
+ *
+ * The numbers are the pack's own taste rather than a sagitta bound - a
+ * geometrically smooth 20 cm ball wants sixteen sides and no room in this game
+ * has ever given one that. They are calibrated on what already shipped and read
+ * well: a five-segment votive flame, a three-segment dust mote, a six-sided
+ * collar on a tube worm.
+ */
+const SIDE_RAMP: readonly (readonly [number, number])[] = [
+  [0.03, 4],
+  [0.07, 5],
+  [0.15, 6],
+  [0.3, 7],
+  [0.6, 8],
+  [1.2, 10],
+  [2.5, 12],
+];
+
+export function sides(radius: number, asked: number): number {
+  const earned = SIDE_RAMP.find(([limit]) => Math.abs(radius) <= limit)?.[1] ?? 16;
+  return Math.max(3, Math.min(asked, earned));
+}
+
+/**
+ * The horizontal courses a sphere with this many sides earns. Half, because a
+ * ball is as tall as it is wide and a seam that runs round it costs as much as
+ * one that runs over it.
+ */
+export function bands(sideCount: number): number {
+  return Math.max(3, Math.round(sideCount / 2));
+}
+
 const boxCache = new Map<string, THREE.BoxGeometry>();
 
 export function boxGeometry(w: number, h: number, d: number): THREE.BoxGeometry {

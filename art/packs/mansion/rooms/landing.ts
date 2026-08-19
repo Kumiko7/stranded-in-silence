@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { balustrade, cobwebs, debris, lightShaft, longcaseClock, painting, rug, sconce, stairFlight } from '../kit/props';
+import { balustrade, cobwebs, cyl, debris, lightShaft, longcaseClock, painting, rug, sconce, stairFlight } from '../kit/props';
 
 /**
  * The Stair Hall (1x3) - twenty-four metres of corridor with a staircase in it.
@@ -79,7 +79,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // A console table under the boarded window, and portraits the length of it.
   room.solid('wood', [1.6, 0.86, 0.46], [-3.2, 0, 5.6], -Math.PI / 2, { tile: 1.3 });
   room.box('woodDark', [1.7, 0.05, 0.52], [-3.2, 0.86, 5.6], -Math.PI / 2);
-  room.geo('brass', new THREE.CylinderGeometry(0.05, 0.09, 0.3, 8), poseMatrix([-3.2, 0.98, 5.1]), { consume: true });
+  room.geo('brass', cyl(0.05, 0.09, 0.3, 8), poseMatrix([-3.2, 0.98, 5.1]), {});
 
   painting(room, 'west', -2.2, 1.5, 0.8, 1.05, 0, [0, 0]);
   painting(room, 'west', 2.4, 1.62, 0.66, 0.86, 1, [0, 1]);
@@ -92,8 +92,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // A runner rod on every step, half of them missing.
   for (let i = 0; i < 9; i++) {
     if (room.chance(0.4)) continue;
-    room.geo('brass', new THREE.CylinderGeometry(0.014, 0.014, 2.3, 6), poseMatrix([2.4, 0.2 + i * 0.19, -3.5 + i * 0.27], Math.PI / 2), {
-      consume: true,
+    room.geo('brass', cyl(0.014, 0.014, 2.3, 6), poseMatrix([2.4, 0.2 + i * 0.19, -3.5 + i * 0.27], Math.PI / 2), {
     });
   }
 

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { ball, bilePool, boneDebris, drools, fleshFolds, glowShaft, polyps, ribArch } from '../kit/props';
+import { ball, bilePool, boneDebris, cyl, drools, fleshFolds, glowShaft, polyps, ribArch } from '../kit/props';
 
 /**
  * The Stomach - a chamber half full of something that is still working on the
@@ -108,9 +108,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     castShadow: false,
     tile: 0.9,
   });
-  room.geo('meatDark', new THREE.CylinderGeometry(0.07, 0.05, 0.9, 6), tiltMatrix([-2.3, ceilingHeight - 0.45, 2.2], [0, 0, 0]), {
+  room.geo('meatDark', cyl(0.07, 0.05, 0.9, 6), tiltMatrix([-2.3, ceilingHeight - 0.45, 2.2], [0, 0, 0]), {
     tile: 0.4,
-    consume: true,
   });
 
   return room.finish();

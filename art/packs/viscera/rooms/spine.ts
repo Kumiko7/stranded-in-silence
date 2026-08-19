@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { ball, boneDebris, chitinShelf, drools, lumenPod, nerveRun, ribArch, strut, vertebrae } from '../kit/props';
+import { ball, boneDebris, chitinShelf, cyl, drools, lumenPod, nerveRun, ribArch, strut, vertebrae } from '../kit/props';
 
 /**
  * The Column - one vertebra of the thing, seen from inside.
@@ -51,9 +51,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // The cord, running up the inside of it. Visible through the gaps between
   // vertebrae, which is why the column is stacked rather than extruded.
-  room.geo('nerve', new THREE.CylinderGeometry(0.11, 0.11, ceilingHeight, 8), poseMatrix([cx, ceilingHeight / 2, cz]), {
+  room.geo('nerve', cyl(0.11, 0.11, ceilingHeight, 8), poseMatrix([cx, ceilingHeight / 2, cz]), {
     castShadow: false,
-    consume: true,
   });
   nerveRun(room, [
     [cx, 2.6, cz],

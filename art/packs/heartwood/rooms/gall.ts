@@ -88,14 +88,14 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     room.geo('rotProp', ball(r, 10), tiltMatrix([x + r * 0.5, y, z], [0, 0, 0], [0.7, 1, 1]), { tile: 0.3, castShadow: false });
     // The collar: a ring of proud, paler tissue.
     room.geo('pulpProp', ring(r * 0.92, r * 0.16, 12), tiltMatrix([x - 0.02, y, z], [0, Math.PI / 2, 0]), { tile: 0.2, castShadow: false });
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2;
-      room.geo('pulpProp', ball(r * 0.2, 5), tiltMatrix([x - 0.04, y + Math.sin(a) * r * 0.92, z + Math.cos(a) * r * 0.92], [0, a, 0], [0.7, 1.2, 1]), { tile: 0.15, castShadow: false });
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      room.geo('pulpProp', ball(r * 0.26, 5), tiltMatrix([x - 0.04, y + Math.sin(a) * r * 0.92, z + Math.cos(a) * r * 0.92], [0, a, 0], [0.7, 1.2, 1]), { tile: 0.15, castShadow: false });
     }
     if (state === 'capped') {
       // A lid of dried froth, still on. Slightly domed and a shade paler.
       room.geo('mycelium', ball(r * 0.95, 10), tiltMatrix([x - 0.12, y, z], [0, 0, 0], [0.32, 1, 1]), { tile: 0.25, castShadow: false });
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 5; i++) {
         const a = room.range(0, Math.PI * 2);
         const d = Math.sqrt(room.rng()) * r * 0.8;
         room.geo('mycelium', ball(r * room.range(0.1, 0.2), 5), poseMatrix([x - 0.2, y + Math.sin(a) * d, z + Math.cos(a) * d]), { tile: 0.1, castShadow: false });
@@ -106,7 +106,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
        * toward the head - a smooth capsule is a pill, and what makes a larva a
        * larva is the ring structure and the fact that one end is different.
        */
-      const segments = 9;
+      const segments = 6;
       for (let i = 0; i < segments; i++) {
         const t = i / (segments - 1);
         const sr = r * (0.62 - Math.abs(t - 0.42) * 0.42);
@@ -128,17 +128,14 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   };
 
   const cells: readonly [number, number, number, 'open' | 'capped' | 'full'][] = [
-    [0.95, -2.5, 0.4, 'open'],
-    [0.95, -1.05, 0.46, 'full'],
-    [1.05, 0.5, 0.38, 'open'],
-    [0.9, 1.9, 0.42, 'open'],
-    [0.95, 3.15, 0.34, 'open'],
-    [1.85, -2.0, 0.36, 'open'],
-    [1.95, -0.6, 0.42, 'capped'],
-    [1.8, 0.95, 0.34, 'open'],
-    [1.9, 2.4, 0.38, 'open'],
-    [2.7, -1.3, 0.3, 'open'],
-    [2.65, 1.4, 0.32, 'open'],
+    [0.95, -2.4, 0.46, 'open'],
+    [0.95, -0.9, 0.5, 'full'],
+    [1.0, 0.75, 0.42, 'open'],
+    [0.95, 2.5, 0.44, 'open'],
+    [1.95, -1.7, 0.4, 'open'],
+    [1.95, -0.1, 0.46, 'capped'],
+    [1.85, 1.6, 0.4, 'open'],
+    [2.7, -1.0, 0.34, 'open'],
   ];
   for (const [y, z, r, state] of cells) cell(y, z, r, state);
   // One collider across the whole comb, at the depth a player could reach it.

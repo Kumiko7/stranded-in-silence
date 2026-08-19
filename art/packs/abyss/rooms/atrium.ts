@@ -2,7 +2,25 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsOn } from './common';
-import { bioMotes, causticPatch, crate, debris, disc, drum, glowShaft, jelly, kelpStand, quad, railing, ring, stripLight, swell, urchin } from '../kit/props';
+import {
+  ball,
+  bioMotes,
+  causticPatch,
+  crate,
+  cyl,
+  debris,
+  disc,
+  drum,
+  glowShaft,
+  jelly,
+  kelpStand,
+  quad,
+  railing,
+  ring,
+  stripLight,
+  swell,
+  urchin,
+} from '../kit/props';
 
 /**
  * The Oceanarium - the biggest volume in the station, and the reason anybody
@@ -109,18 +127,16 @@ function build(ctx: RoomBuildContext): BuiltRoom {
    * from the nearest lane and a set piece can stand there without ever coming
    * near one.
    */
-  room.geo('steelDark', new THREE.CylinderGeometry(DRUM_R * 1.14, DRUM_R * 1.22, 0.34, 26), poseMatrix([DRUM_X, 0.17, DRUM_Z]), {
+  room.geo('steelDark', cyl(DRUM_R * 1.14, DRUM_R * 1.22, 0.34, 26), poseMatrix([DRUM_X, 0.17, DRUM_Z]), {
     tile: 0.8,
-    consume: true,
   });
   room.geo('steel', ring(DRUM_R * 1.08, 0.07, 28), tiltMatrix([DRUM_X, 0.36, DRUM_Z], [Math.PI / 2, 0, 0]), {
     tile: 0.4,
     castShadow: false,
   });
   // The water, unlit and mapped, so it holds its colour with the lamps off.
-  room.geo('tankFluid', new THREE.CylinderGeometry(DRUM_R * 0.95, DRUM_R * 0.95, ceilingHeight - 0.5, 26), poseMatrix([DRUM_X, 0.34 + (ceilingHeight - 0.5) / 2, DRUM_Z]), {
+  room.geo('tankFluid', cyl(DRUM_R * 0.95, DRUM_R * 0.95, ceilingHeight - 0.5, 26), poseMatrix([DRUM_X, 0.34 + (ceilingHeight - 0.5) / 2, DRUM_Z]), {
     castShadow: false,
-    consume: true,
   });
 
   /**
@@ -137,14 +153,12 @@ function build(ctx: RoomBuildContext): BuiltRoom {
       const r = radius + room.range(-0.28, 0.28);
       const px = DRUM_X + Math.cos(a) * r;
       const pz = DRUM_Z + Math.sin(a) * r;
-      room.geo('rockDark', new THREE.SphereGeometry(0.075, 6, 5), tiltMatrix([px, y + room.range(-0.25, 0.25), pz], [0, -a, room.range(-0.2, 0.2)], [2.6, 0.8, 0.9]), {
+      room.geo('rockDark', ball(0.075, 6), tiltMatrix([px, y + room.range(-0.25, 0.25), pz], [0, -a, room.range(-0.2, 0.2)], [2.6, 0.8, 0.9]), {
         castShadow: false,
-        consume: true,
       });
       if (i % 3 === 0) {
-        room.geo('lumenCyan', new THREE.SphereGeometry(0.016, 5, 4), poseMatrix([px + Math.sin(a) * 0.16, y + room.range(-0.25, 0.25), pz - Math.cos(a) * 0.16]), {
+        room.geo('lumenCyan', ball(0.016, 5), poseMatrix([px + Math.sin(a) * 0.16, y + room.range(-0.25, 0.25), pz - Math.cos(a) * 0.16]), {
           castShadow: false,
-          consume: true,
         });
       }
     }
@@ -160,24 +174,22 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // The acrylic and its top ring. Open-ended, so you see through both walls and
   // read the shoal on the far side as well as the near one.
-  room.geo('glassPane', new THREE.CylinderGeometry(DRUM_R, DRUM_R, ceilingHeight - 0.34, 30, 1, true), poseMatrix([DRUM_X, 0.34 + (ceilingHeight - 0.34) / 2, DRUM_Z]), {
+  room.geo('glassPane', cyl(DRUM_R, DRUM_R, ceilingHeight - 0.34, 30, true), poseMatrix([DRUM_X, 0.34 + (ceilingHeight - 0.34) / 2, DRUM_Z]), {
     castShadow: false,
     receiveShadow: false,
-    consume: true,
   });
   room.geo('glassEdge', ring(DRUM_R, 0.05, 30), tiltMatrix([DRUM_X, 0.38, DRUM_Z], [Math.PI / 2, 0, 0]), { tile: 0.3, castShadow: false });
-  room.geo('steel', new THREE.CylinderGeometry(DRUM_R * 1.1, DRUM_R * 1.02, 0.28, 28), poseMatrix([DRUM_X, ceilingHeight - 0.14, DRUM_Z]), {
+  room.geo('steel', cyl(DRUM_R * 1.1, DRUM_R * 1.02, 0.28, 28), poseMatrix([DRUM_X, ceilingHeight - 0.14, DRUM_Z]), {
     tile: 0.6,
-    consume: true,
   });
   // Six stanchions up the outside, so the drum reads as engineered.
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.3;
     room.geo(
       'steel',
-      new THREE.CylinderGeometry(0.07, 0.07, ceilingHeight - 0.5, 7),
+      cyl(0.07, 0.07, ceilingHeight - 0.5, 7),
       poseMatrix([DRUM_X + Math.cos(a) * (DRUM_R + 0.09), 0.36 + (ceilingHeight - 0.5) / 2, DRUM_Z + Math.sin(a) * (DRUM_R + 0.09)]),
-      { tile: 0.4, consume: true },
+      { tile: 0.4 },
     );
   }
   room.blockCircle(DRUM_X, DRUM_Z, DRUM_R + 0.2);

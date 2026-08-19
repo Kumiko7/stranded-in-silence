@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { ball, cocoon, drools, eggCluster, lumenPod, polyps, strut } from '../kit/props';
+import { ball, cocoon, cyl, drools, eggCluster, lumenPod, polyps, strut } from '../kit/props';
 
 /**
  * The Cradle - a dead end with one way in, and something's next generation
@@ -68,9 +68,8 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     const x = side === 'east' ? 3.55 : side === 'west' ? -3.55 : along;
     const z = side === 'south' ? 3.55 : side === 'east' || side === 'west' ? along : -3.55;
     const yaw = side === 'east' ? -Math.PI / 2 : side === 'west' ? Math.PI / 2 : 0;
-    room.geo('meatDark', new THREE.CylinderGeometry(0.3, 0.34, 0.24, 8), tiltMatrix([x, y, z], [Math.PI / 2, yaw, 0]), {
+    room.geo('meatDark', cyl(0.3, 0.34, 0.24, 8), tiltMatrix([x, y, z], [Math.PI / 2, yaw, 0]), {
       tile: 0.4,
-      consume: true,
     });
     room.geo('caul', ball(0.32, 9), tiltMatrix([x, y - 0.12, z], [0.6, yaw, 0], [1, 0.5, 1]), {
       castShadow: false,

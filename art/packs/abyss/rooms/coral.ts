@@ -2,7 +2,20 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { anemones, bioMotes, boulder, coralHead, debris, encrust, glowShaft, siltDrift, swell, urchin } from '../kit/props';
+import {
+  anemones,
+  ball,
+  bioMotes,
+  boulder,
+  coralHead,
+  cyl,
+  debris,
+  encrust,
+  glowShaft,
+  siltDrift,
+  swell,
+  urchin,
+} from '../kit/props';
 
 /**
  * The Cold Reef - a thousand years of coral, growing in a corridor.
@@ -65,18 +78,18 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (const [x, z, scale, warm] of THICKETS) {
     // A mound for it to stand on, then two or three heads at different heights,
     // so the thicket has a skyline rather than being a hedge.
-    siltDrift(room, x, z, scale * 1.3);
+    if (scale > 0.75) siltDrift(room, x, z, scale * 1.3);
     coralHead(room, x, 0.05, z, scale, warm);
     coralHead(room, x + room.range(-0.7, 0.7), 0.3, z + room.range(-0.7, 0.7), scale * 0.7, !warm);
-    if (scale > 0.9) coralHead(room, x + room.range(-0.5, 0.5), 0.9, z + room.range(-0.5, 0.5), scale * 0.5, warm);
-    encrust(room, x, 0.02, z, scale * 1.2, 12);
+    if (scale > 1.05) coralHead(room, x + room.range(-0.5, 0.5), 0.9, z + room.range(-0.5, 0.5), scale * 0.5, warm);
+    encrust(room, x, 0.02, z, scale * 1.3, 5);
     room.blockCircle(x, z, scale * 0.62);
   }
 
   /* --- what grew on the walls --------------------------------------------------------- */
   // Fans and whips out of the plate, up high where nothing walks. They read as
   // a ceiling of branches from the doorways, which is what closes the room in.
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 7; i++) {
     const side = i % 4;
     const along = room.range(-3.0, 3.0);
     const y = room.range(1.5, ceilingHeight - 0.5);
@@ -87,24 +100,23 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     if (Math.abs(side <= 1 ? z : x) < 1.4) continue;
     const yaw = side === 0 ? -Math.PI / 2 : side === 1 ? Math.PI / 2 : side === 2 ? 0 : Math.PI;
     const size = room.range(0.3, 0.62);
-    room.geo('coralDead', new THREE.CylinderGeometry(0.03, 0.06, size, 5), tiltMatrix([x, y, z], [Math.PI / 2.4, yaw, 0]), {
+    room.geo('coralDead', cyl(0.03, 0.06, size, 5), tiltMatrix([x, y, z], [Math.PI / 2.4, yaw, 0]), {
       tile: 0.3,
       castShadow: false,
-      consume: true,
     });
-    for (let b = 0; b < 5; b++) {
-      const a = (b / 5) * Math.PI - Math.PI / 2;
+    for (let b = 0; b < 4; b++) {
+      const a = (b / 4) * Math.PI - Math.PI / 2;
       room.geo(
         'coralDead',
-        new THREE.CylinderGeometry(0.014, 0.028, size * 0.8, 4),
+        cyl(0.014, 0.028, size * 0.8, 4),
         tiltMatrix([x - Math.sin(yaw) * size * 0.7, y + Math.sin(a) * size * 0.4, z - Math.cos(yaw) * size * 0.7], [Math.PI / 2.6, yaw, a * 0.8]),
-        { tile: 0.2, castShadow: false, consume: true },
+        { tile: 0.2, castShadow: false },
       );
       room.geo(
         i % 3 === 0 ? 'coralPink' : 'coralBlue',
-        new THREE.SphereGeometry(0.035, 5, 4),
+        ball(0.035, 5),
         poseMatrix([x - Math.sin(yaw) * size * 1.1, y + Math.sin(a) * size * 0.62, z - Math.cos(yaw) * size * 1.1]),
-        { castShadow: false, consume: true },
+        { castShadow: false },
       );
     }
   }
@@ -117,12 +129,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   // anything's approach: every wall here opens, so the edges belong to doors.
   boulder(room, 0.8, 1.8, 0.55, 0.7);
   boulder(room, 1.6, -1.5, 0.42, 0.6);
-  anemones(room, 2.7, 0.62, -2.5, 4, 0.42);
-  anemones(room, -1.5, 0.16, 3.2, 3, 0.34);
+  anemones(room, 2.7, 0.62, -2.5, 3, 0.42);
+  anemones(room, -1.5, 0.16, 3.2, 2, 0.34);
   coralHead(room, -1.2, 0.04, 3.35, 0.55, true);
   urchin(room, 0.8, 0.74, 1.8, 0.17);
   urchin(room, 0.7, 0.02, 2.9, 0.14);
-  urchin(room, -0.6, 0.02, -3.1, 0.12);
   debris(room, 0.6, 1.4, 1.1, 8);
   siltDrift(room, 0.9, -0.9, 0.9);
 

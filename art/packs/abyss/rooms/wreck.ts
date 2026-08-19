@@ -2,7 +2,21 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { anemones, bioMotes, boulder, causticPatch, debris, disc, encrust, glowShaft, siltDrift, swell, urchin } from '../kit/props';
+import {
+  anemones,
+  ball,
+  bioMotes,
+  boulder,
+  causticPatch,
+  cyl,
+  debris,
+  disc,
+  encrust,
+  glowShaft,
+  siltDrift,
+  swell,
+  urchin,
+} from '../kit/props';
 
 /**
  * The Prow - somebody else's boat, in your corridor.
@@ -126,12 +140,11 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     consume: true,
   });
   const lamp = at(0.15, 0);
-  room.geo('steelDark', new THREE.CylinderGeometry(0.09, 0.11, 0.16, 8), poseMatrix([lamp[0], 1.34, lamp[1]]), { tile: 0.3, consume: true });
-  room.geo('lumenRed', new THREE.SphereGeometry(0.085, 8, 6), poseMatrix([lamp[0], 1.46, lamp[1]]), { castShadow: false, consume: true });
-  room.geo('glassPane', new THREE.SphereGeometry(0.11, 9, 7), poseMatrix([lamp[0], 1.46, lamp[1]]), {
+  room.geo('steelDark', cyl(0.09, 0.11, 0.16, 8), poseMatrix([lamp[0], 1.34, lamp[1]]), { tile: 0.3 });
+  room.geo('lumenRed', ball(0.085, 8), poseMatrix([lamp[0], 1.46, lamp[1]]), { castShadow: false });
+  room.geo('glassPane', ball(0.11, 9), poseMatrix([lamp[0], 1.46, lamp[1]]), {
     castShadow: false,
     receiveShadow: false,
-    consume: true,
   });
 
   // The wheelhouse aft, its windows black, and the snapped mast over it.
@@ -149,17 +162,16 @@ function build(ctx: RoomBuildContext): BuiltRoom {
     });
   }
   const mast = at(2.9, 0);
-  room.geo('rust', new THREE.CylinderGeometry(0.055, 0.085, 1.6, 7), tiltMatrix([mast[0], 2.4, mast[1]], [0.24, HEADING, 0.14]), {
+  room.geo('rust', cyl(0.055, 0.085, 1.6, 7), tiltMatrix([mast[0], 2.4, mast[1]], [0.24, HEADING, 0.14]), {
     tile: 0.4,
-    consume: true,
   });
   for (let i = 0; i < 4; i++) {
     const end = at(1.4 + i * 0.4, room.range(-1.0, 1.0));
     room.geo(
       'cable',
-      new THREE.CylinderGeometry(0.014, 0.014, room.range(1.1, 1.9), 4),
+      cyl(0.014, 0.014, room.range(1.1, 1.9), 4),
       tiltMatrix([(mast[0] + end[0]) / 2, room.range(1.6, 2.5), (mast[1] + end[1]) / 2], [room.range(0.6, 1.2), room.range(0, 3), 0]),
-      { castShadow: false, consume: true },
+      { castShadow: false },
     );
   }
 

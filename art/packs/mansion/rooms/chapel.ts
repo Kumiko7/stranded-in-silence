@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { Room, wallsFor } from './common';
-import { candle, candleCluster, cobwebs, debris, flicker, floorWash, lightShaft } from '../kit/props';
+import { candle, candleCluster, cobwebs, cyl, debris, flicker, floorWash, lightShaft } from '../kit/props';
 
 /**
  * The Private Chapel - somebody has been keeping the candles lit.
@@ -60,7 +60,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.box('brass', [0.07, 0.66, 0.07], [0, 1.14, -2.7]);
   room.box('brass', [0.36, 0.07, 0.07], [0, 1.56, -2.7]);
   for (const x of [-0.66, 0.66]) {
-    room.geo('brass', new THREE.CylinderGeometry(0.03, 0.09, 0.3, 8), poseMatrix([x, 1.29, -2.66]), { consume: true });
+    room.geo('brass', cyl(0.03, 0.09, 0.3, 8), poseMatrix([x, 1.29, -2.66]), {});
     candle(room, [x, 1.44, -2.66], 0.3);
   }
   const altar = new THREE.PointLight(0xffc078, 16, 11, 2);
@@ -117,7 +117,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // A prayer book left open on the back pew, and a votive stand by the door.
   room.box('bookTan', [0.26, 0.05, 0.34], [-1.9, 0.46, 1.1], 0.2);
-  room.geo('ironBlack', new THREE.CylinderGeometry(0.22, 0.3, 0.5, 10), poseMatrix([2.7, 0.25, -2.4]), { consume: true });
+  room.geo('ironBlack', cyl(0.22, 0.3, 0.5, 10), poseMatrix([2.7, 0.25, -2.4]), {});
   room.box('ash', [0.44, 0.06, 0.44], [2.7, 0.5, -2.4]);
   candleCluster(room, [2.7, 0.5, -2.4]);
   room.blockCircle(2.7, -2.4, 0.32);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { BuiltRoom, RoomBlueprint, RoomBuildContext } from '../../../lib/contract';
 import { poseMatrix, tiltMatrix } from '../../../lib/merge';
 import { ALL_WALLS, Room } from './common';
-import { cobwebs, debris, flicker, hangingSheet, pendantLamp } from '../kit/props';
+import { cobwebs, cyl, debris, flicker, hangingSheet, pendantLamp } from '../kit/props';
 
 /**
  * The Laundry - forty sheets on the lines and no way to see past them.
@@ -45,12 +45,10 @@ function build(ctx: RoomBuildContext): BuiltRoom {
 
   // The copper: a brick base with a fire under it and a lid half off.
   room.solid('surface.brick', [1.3, 0.72, 1.3], [-2.9, 0, -2.2], 0, { tile: 1.4 });
-  room.geo('copper', new THREE.CylinderGeometry(0.56, 0.5, 0.7, 14), poseMatrix([-2.9, 1.07, -2.2]), {
+  room.geo('copper', cyl(0.56, 0.5, 0.7, 14), poseMatrix([-2.9, 1.07, -2.2]), {
     tile: 1.2,
-    consume: true,
   });
-  room.geo('copper', new THREE.CylinderGeometry(0.58, 0.58, 0.04, 14), tiltMatrix([-2.5, 1.36, -1.75], [0.5, 0, 0.3]), {
-    consume: true,
+  room.geo('copper', cyl(0.58, 0.58, 0.04, 14), tiltMatrix([-2.5, 1.36, -1.75], [0.5, 0, 0.3]), {
   });
   room.geo('emberGlow', new THREE.BoxGeometry(0.44, 0.2, 0.06), poseMatrix([-2.9, 0.2, -1.56]), {
     castShadow: false,
@@ -66,21 +64,19 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   room.solid('ironBlack', [1.2, 0.9, 0.6], [-2.9, 0, 1.4], -Math.PI / 2);
   room.box('woodPale', [1.1, 0.08, 0.56], [-2.9, 0.9, 1.4], -Math.PI / 2);
   for (const dy of [1.0, 1.18]) {
-    room.geo('woodPale', new THREE.CylinderGeometry(0.09, 0.09, 1.0, 10), tiltMatrix([-2.9, dy, 1.4], [0, 0, Math.PI / 2]), {
-      consume: true,
+    room.geo('woodPale', cyl(0.09, 0.09, 1.0, 10), tiltMatrix([-2.9, dy, 1.4], [0, 0, Math.PI / 2]), {
     });
   }
   room.geo('iron', new THREE.TorusGeometry(0.16, 0.02, 4, 12), tiltMatrix([-2.9, 1.09, 0.85], [0, 0, 0]), {
     consume: true,
   });
-  room.geo('rust', new THREE.CylinderGeometry(0.2, 0.16, 0.3, 10), poseMatrix([-2.3, 0.15, 2.1]), { consume: true });
+  room.geo('rust', cyl(0.2, 0.16, 0.3, 10), poseMatrix([-2.3, 0.15, 2.1]), {});
 
   // Wash tubs on trestles.
   for (const x of [1.6, 2.7]) {
     room.solid('woodPale', [0.9, 0.82, 0.9], [x, 0, -3.3], 0, { tile: 1.2 });
-    room.geo('woodDark', new THREE.CylinderGeometry(0.42, 0.36, 0.36, 12), poseMatrix([x, 0.98, -3.3]), {
+    room.geo('woodDark', cyl(0.42, 0.36, 0.36, 12), poseMatrix([x, 0.98, -3.3]), {
       tile: 1,
-      consume: true,
     });
     room.geo('iron', new THREE.TorusGeometry(0.42, 0.02, 4, 14), poseMatrix([x, 1.1, -3.3]), { consume: true });
   }
@@ -90,8 +86,7 @@ function build(ctx: RoomBuildContext): BuiltRoom {
   for (let line = 0; line < 4; line++) {
     const z = -0.8 + line * 1.15;
     const y = 2.3 + (line % 2) * 0.2;
-    room.geo('linen', new THREE.CylinderGeometry(0.012, 0.012, 7.4, 4), tiltMatrix([0, y, z], [0, 0, Math.PI / 2]), {
-      consume: true,
+    room.geo('linen', cyl(0.012, 0.012, 7.4, 4), tiltMatrix([0, y, z], [0, 0, Math.PI / 2]), {
     });
     let x = -3.2;
     while (x < 3.0) {
