@@ -716,6 +716,120 @@ export const posterHeartwood = (): THREE.Texture =>
   });
 
 /**
+ * Blackgate's poster: a cell landing seen straight down its length, which is
+ * the one image this genre has and the one thing the map is arranged around.
+ *
+ * A tunnel of vertical bars closing toward a vanishing point, one bulb hanging
+ * over the middle of the run, and a figure standing at the far end where the
+ * bars stop. Everything is drawn in the flat two-colour print style the rest of
+ * the wall uses: a warm tungsten value against a cold near-black, with the
+ * perspective carried entirely by how fast the bar spacing tightens.
+ */
+export const posterPrison = (): THREE.Texture =>
+  colorTexture('lobby.posterPrison', 256, (x, y, size) => {
+    const u = x / size;
+    const v = y / size;
+    const paper = paperAt(x, y, size);
+    if (u < 0.08 || u > 0.92 || v < 0.2 || v > 0.94) return paper;
+
+    const grain = n2(x, y, size, 9, 9401, 3);
+    // The vanishing point, a little above the middle of the print.
+    const vpU = 0.5;
+    const vpV = 0.62;
+    const du = u - vpU;
+    const dv = v - vpV;
+    // How far out of the vanishing point this pixel is, 0 at the point and 1 at
+    // the frame. Everything in the picture is a function of it.
+    const out = Math.max(Math.abs(du) / 0.44, Math.abs(dv) / 0.42);
+
+    /* --- the landing ---------------------------------------------------------- */
+    /**
+     * The floor and the ceiling, as two wedges opening toward the viewer, with
+     * the ceiling darker so the eye reads up from the floor.
+     *
+     * They stop at the far DOORWAY rather than converging to a point. Run to a
+     * point they leave an hourglass of lit air between them, which is what the
+     * first print did and it read as a bowtie rather than as the end of a
+     * corridor: a corridor seen down its length ends on a rectangle, and the
+     * rectangle is the whole reason the perspective works.
+     */
+    const doorHalf = 0.075;
+    const doorTop = 0.16;
+    const doorFoot = -0.16;
+    const spread = Math.max(0, Math.abs(du) - doorHalf);
+    const onFloor = dv < doorFoot - spread * 0.9;
+    const onRoof = dv > doorTop + spread * 0.98;
+    if (onFloor) {
+      // Boards of light lying across the floor between the bars: the whole
+      // reason the print works at this size.
+      const depth = Math.min(1, (doorFoot - dv) / 0.3);
+      const rung = Math.abs(((Math.pow(depth, 0.55) * 9) % 1) - 0.5) * 2;
+      const lit = Math.pow(Math.max(0, rung - 0.24) / 0.76, 0.8) * Math.pow(depth, 0.45);
+      return shade(mix(mix(rgb(0x14161a), rgb(0x24262a), grain * 0.8), rgb(0xc08a3c), lit * 0.62), 0.94);
+    }
+    if (onRoof) {
+      // Netting stretched under the ceiling, as a coarse diamond that opens out.
+      const depth = Math.min(1, (dv - doorTop) / 0.3);
+      const mesh = Math.abs(((u * 26 + dv * 14) % 1) - 0.5) + Math.abs(((u * 26 - dv * 14) % 1) - 0.5);
+      return shade(mix(rgb(0x0e1013), rgb(0x2a2c30), Math.max(0, mesh - 0.62) * 2.2 * depth), 0.9);
+    }
+
+    /* --- the far end ---------------------------------------------------------- */
+    // A doorway of tungsten at the end of the run with a figure standing in it.
+    // It is a RECTANGLE rather than whatever shape the floor and roof wedges
+    // happen to leave, because the two wedges meeting at a point make a bowtie
+    // and a bowtie is not a door. The figure is drawn the way every figure in
+    // this file is: round head, shoulders wider than the waist, and daylight
+    // between two legs.
+    if (Math.abs(du) < doorHalf && dv < doorTop && dv > doorFoot) {
+      const fx = du / doorHalf;
+      const fv = (dv - doorFoot) / (doorTop - doorFoot);
+      const head = Math.hypot(fx / 0.3, (fv - 0.74) / 0.1) < 1;
+      const body = fv > 0.06 && fv < 0.62 && Math.abs(fx) < 0.24 + (0.62 - fv) * 0.5;
+      const legGap = fv < 0.3 && Math.abs(fx) < 0.07;
+      if ((head || body) && !legGap) return rgb(0x0a0a0c);
+      const up = 1 - fv;
+      return mix(rgb(0xe0ac52), rgb(0x8a5c22), up * 0.7);
+    }
+
+    // The wall the doorway is cut in: the strip either side of it, dark, so the
+    // door reads as a hole rather than as the end of the light.
+    if (Math.abs(du) < doorHalf + 0.075 && dv < doorTop + 0.05 && dv > doorFoot - 0.05) {
+      return shade(mix(rgb(0x120f0c), rgb(0x2a2118), grain * 0.8), 0.9);
+    }
+
+    /* --- the bars -------------------------------------------------------------- */
+    // Two runs of uprights, left and right, whose spacing tightens toward the
+    // point. The gap between them is where the light is, and the spacing has to
+    // stay wide enough that the eye reads bars rather than a black wall: a 1/x
+    // lattice closes up very fast, so the constant is set by how it looks at the
+    // NEAR edge of the print rather than by anything physical.
+    const across = Math.abs(du);
+    const bar = Math.abs((((1 / Math.max(0.09, across)) * 0.17) % 1) - 0.5) * 2;
+    const onBar = bar > 0.3 && across > 0.085;
+
+    // The lamp: one bulb hanging over the middle of the run, and the halo it
+    // throws. It is the only bright thing in the print.
+    const lamp = Math.max(0, 1 - Math.hypot(du / 0.1, (dv - 0.2) / 0.13));
+    if (lamp > 0.55) return rgb(0xf4d79a);
+    const halo = Math.pow(Math.max(0, 1 - Math.hypot(du / 0.3, (dv - 0.2) / 0.34)), 1.6);
+
+    const glow = Math.pow(Math.max(0, 1 - out), 1.7);
+    let air = mix(rgb(0x141821), rgb(0x4a3a1e), glow);
+    air = mix(air, rgb(0xb8802e), halo * 0.55);
+    air = shade(air, 0.9 + grain * 0.2);
+    // A bar is a dark upright with one lit edge, which is what stops a run of
+    // them reading as a flat black wall.
+    if (onBar) {
+      const rim = Math.max(0, bar - 0.86) * 7;
+      return shade(mix(rgb(0x07090b), rgb(0xc08c3a), rim * 0.5), 0.95);
+    }
+    // The flex the bulb hangs on, straight up out of the dark.
+    if (Math.abs(du) < 0.006 && dv > 0.2) return rgb(0x0a0b0d);
+    return air;
+  });
+
+/**
  * The random-map poster: a question mark on a sunburst, in the same flat print
  * style as the rest of the wall so it reads as one more expedition rather than
  * as a UI element that wandered into the room.

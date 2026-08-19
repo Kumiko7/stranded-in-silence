@@ -10,6 +10,7 @@ import { pack as abyss } from './abyss/pack';
 import { pack as crypt } from './crypt/pack';
 import { pack as forge } from './forge/pack';
 import { pack as heartwood } from './heartwood/pack';
+import { pack as prison } from './prison/pack';
 
 export const artPacks: Readonly<Record<string, ArtPack>> = {
   test,
@@ -19,6 +20,7 @@ export const artPacks: Readonly<Record<string, ArtPack>> = {
   crypt,
   forge,
   heartwood,
+  prison,
 };
 
 export function getArtPack(id: string): ArtPack {

@@ -338,6 +338,17 @@ pass actually changes:
 | Worst room, before (per cell) | cellar, 10.8k | tendrils, 17.0k | vents, 19.1k | ossuary, 20.7k | roots, 10.1k | tendrils, 18.9k |
 | Worst room, after (per cell) | library, 9.96k | bloom, 9.85k | jelly, 9.94k | ossuary, 9.91k | roots, 8.69k | fungaldeep, 9.89k |
 
+`prison` was the first pack authored **after** the budget came down, and it is
+worth recording as the control: written to 10 000 a cell from the first line
+rather than cut to it, its library came out at **137k over twenty-five rooms**
+with a worst room of **8.5k per cell** (`specimens`), a worst draw count of 39
+and a worst collider count of 24 — inside every budget without a reduction pass.
+The three things that kept it there were all decided before a room was written:
+every round primitive goes through the `sides()` ramp, the night-light course in
+`kit/shell.ts` is four boxes and a masked quad per station rather than a modelled
+fitting, and the two multi-cell rooms spend their allowance per cell rather than
+in one place. It is the cheapest pack in the game per room.
+
 1.60 M triangles standing across the six libraries, down to 1.09 M. **Every
 blueprint in the game is now inside 10 000 triangles per cell**, which is the
 first time the triangle budget has had no argued exceptions in it at all.

@@ -165,6 +165,13 @@ export function createLobbyMaterials(): MaterialLibrary {
       emissiveIntensity: 0.22,
       roughness: 0.92,
     }),
+    'poster.prison': standard(0xffffff, {
+      map: tex.posterPrison,
+      emissive: 0xffffff,
+      emissiveMap: tex.posterPrison,
+      emissiveIntensity: 0.16,
+      roughness: 0.95,
+    }),
     'poster.test': standard(0xffffff, {
       map: tex.posterTest,
       emissive: 0xffffff,

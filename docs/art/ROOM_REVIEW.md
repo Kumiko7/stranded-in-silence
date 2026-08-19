@@ -566,6 +566,73 @@ one place they were designed.
   spots. Four overlapping lobes at varied radii read as something spilt. Same
   finding as an unmasked additive wash, one material family over.
 
+### And the ones the Blackgate pass caught
+
+Seventh pack, and the interesting thing about it is *which* lessons repeated. The
+five failure classes below are all already written down in this file, some of
+them twice - and the pack still hit every one, because each of them arrives
+through a door nobody was watching. Two of them were invisible in code, in the
+validator, and in a typecheck; one of them silently disabled a third of the art
+in the pack.
+
+- **A pack has THREE facing conventions, and a shell that defines its own is the
+  fourth.** `kit/shell.ts` here has a `FACE_IN` table whose whole job is to turn
+  a plane's front face into the room - and the six places that used it then added
+  the props convention's extra half turn on top, because that is the rule this
+  file states and it is the rule for `kit/props.ts`. Every backdrop, every pane of
+  glass and every wall wash in the pack faced into the plaster: the one-way glass
+  the Observation Gallery is built around was a blank grey rectangle, the only
+  window in the map showed nothing, and every room was measurably darker than it
+  had been designed to be. Nothing catches this. **If a shell defines a facing
+  helper, write down whether it already includes the plane's half turn, and then
+  put one backdrop on a contact sheet before building nineteen more rooms on it.**
+- **A `DataTexture` is not flipped, so `v` runs from the BOTTOM.** Ten pictures in
+  this pack were authored top-down - sky at `v` 0.2, floor at `v` 0.9 - and every
+  one of them came out upside down, along with the boot-scuff on the skirting, the
+  splash line on the tile and the damp runs. The fix is one line per recipe
+  (`const v = 1 - y / size`), and the tell is a texture that looks *plausible*
+  rather than wrong: an inverted brick wall is still a brick wall, which is why
+  this survived a typecheck, a validator and a first read of the sheet.
+- **A wall lamp lights the wall it is bolted to** - for the third time in this
+  file, and this time it was the room a player sees most. The cell's only warm
+  practical was on the wall the door is in, so from the doorway it lit the wall
+  *behind the camera* and the sheet came back black. Moved to the wall opposite,
+  the same lamp at the same intensity lights the room. The general form is worth
+  stating as a rule: **a practical on an offered wall is a practical you will
+  usually be standing under.**
+- **A container of fluid needs an EDGE.** The Programme's tanks are back-faced
+  cylinders, which is right, and at the size the `sides()` ramp gives a half-metre
+  radius they are eight-sided prisms - so each one read as a flat pale card
+  standing against the wall. Three steel hoops round the glass fixed it outright:
+  the hoops catch the room's own light down one side and the drum becomes round.
+  Cheaper than segments, and the ramp is not the thing to fight.
+- **A shade lit from inside is the thing a player stands closest to** - written
+  down twice already, and the pendant here still shipped with a pale disc closing
+  the top of its cone thirteen centimetres from the filament. Every pendant in the
+  pack was a white flower stuck to the ceiling. There is no disc now: a tin coolie
+  is open at the bottom and the lamp hangs below the rim.
+
+And three that are new, all of them about a **decal**:
+
+- **A stain painted with a PROP material is a panel.** `rust` and `mould` are
+  opaque, so a quad of either laid on a wall is a rectangle of rusty metal screwed
+  to the plaster - which is exactly what half the pack looked like from every
+  doorway. Damp is a film over whatever is under it. The pack now has three
+  transparent `decal*` materials that exist for nothing else, and `wallStain()`
+  maps every prop material onto one of them so a room cannot make the mistake.
+- **A window shows the middle of its backdrop and nothing else.** A picture hung
+  behind an aperture has to overhang it by half a metre or it comes apart when a
+  player moves, which means the visible window into a 4 m picture behind a 2.6 m
+  hole is `u` 0.33 to 0.67. The moon was composed at `u` 0.70 and the watchtower
+  at 0.84, and both of them spent the whole review behind masonry. **Compose a
+  backdrop in the middle third and check it through the hole, not on its own.**
+- **A hard pulse on a light makes a contact sheet a coin toss.** Two rooms were
+  investigated for being too dark that were only too dark one frame in ten,
+  because `pulse()` was driving their lamps and the shot caught the trough. A
+  discharge tube hums; it does not throb. Anything animated on a light in a room
+  you are reviewing wants a shallow modulation and a high floor, or the sheet is
+  measuring the animation rather than the room.
+
 ---
 
 ### And the ones the 10 000-a-cell pass caught

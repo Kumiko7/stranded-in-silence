@@ -116,7 +116,14 @@ machined graphite and hazard chevron against pahoehoe and ash - and it inverts
 the usual temperature rule to do it, because the only warm light in that map is
 the mountain leaking into the building and the *facility* is the cold half;
 `heartwood` is what moved into a tree against the tree itself, carved and waxed
-joinery against bark, pulp and rot, warm tapped sap against cold foxfire; the
+joinery against bark, pulp and rot, warm tapped sap against cold foxfire;
+`prison` splits on a **century** rather than on a substance - a Victorian gaol of
+painted cinderblock, brick, quarry tile and bar steel against the hospital annexe
+bolted onto the side of it in glazed tile, terrazzo, chequer lino and enamel,
+warm forty-watt tungsten against failing fluorescent - which is worth knowing
+because it is the cheapest kind of split to write: both halves are institutional
+buildings, so the same shell, the same trim and most of the same props serve
+both, and what separates them is four textures and the colour of a bulb; the
 manor does the same thing more quietly with its grand rooms and its service
 rooms. Give the two halves different palettes, different light colours
 and different floor materials, and put one hinge room in the set that is honestly
@@ -124,8 +131,11 @@ both — it is the one that makes the transition read as deliberate. (`crypt` ha
 third, smaller family for the thing eating both halves: two rooms of fungus and
 root, violet where everything else is flame. `forge` does the same with two rooms
 of the thing the site grew, in a green that belongs to neither temperature — one
-on each side of the boundary, which is what makes the pair land. A third strand
-works as long as it is *small* and it is the one that crosses the boundary.)
+on each side of the boundary, which is what makes the pair land. `prison` runs
+two rooms of germicidal ultraviolet off the end of its hospital wing, and seeds
+them a room early: one lit jar on a shelf in the specimen room, in a violet
+nothing else in that half of the map uses. A third strand works as long as it is
+*small* and it is the one that crosses the boundary.)
 
 **Find the pack's one repeatable trick and put it in the shell.** Every pack has
 a single detail that does most of the work of making twenty rooms feel like one
@@ -149,6 +159,17 @@ channel with a lit line at its mouth and ember crust behind it on the built side
 a raw fissure on the rock side, and an arc-white service light in the handful of
 rooms that are refrigerated. One object, three materials, and it is the whole
 reason a torchless player can always find the doors in that map.
+
+`prison` runs a **night-light course** along the base of every wall - the
+permanent circuit an institution leaves on, as caged tungsten beads in a dark
+recess on the gaol side, a slotted cold strip on the hospital side and a
+germicidal tube on the third - and puts a **gate frame** round every doorway: a
+barred jamb with the bolt-bar parked over it and a transom grille above, a
+rubber-gasketed clinical frame with a wire-glass vision panel, a brick relieving
+arch, or a clamped bulkhead ring. It is the same pair of ideas as heartwood's and
+worth comparing, because the beads are the one that took two passes to get right:
+**light coming out of a hole reads; a lit stripe on a wall does not**, so the
+channel is dark and set back and only a 13 cm bead inside it is lit.
 
 `heartwood` runs the same idea in three materials and adds a second one, which is
 worth knowing because **a pack can afford two**: a **register** along the base of

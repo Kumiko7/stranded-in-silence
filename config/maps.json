@@ -161,6 +161,28 @@
       },
       "ambienceTrack": "ambience/mansion_loop",
       "musicTrack": "music/mansion_tension"
+    },
+    "prison": {
+      "nameKey": "map.prison.name",
+      "descKey": "map.prison.desc",
+      "artPack": "prison",
+      "posterArtId": "poster.prison",
+      "enabled": true,
+      "enemies": ["ghost"],
+      "$note": "Ambient is COLD and the practicals split by wing, which is the whole reason the two halves of this building read as two buildings. The Blocks light themselves with a forty-watt tungsten night circuit - amber, sagging, never switched off - and the Ward with failing fluorescent and x-ray boxes, a green-white that is colder than the fill itself. A warm ambient would take the tungsten's job away and leave the map one colour, which is the finding this project has now paid for twice (docs/art/ROOM_REVIEW.md). The fog is a warm near-black: coal smoke and carbolic rather than sea water, and it is what closes a twenty-four metre landing down at the far end and what keeps a barred window reading as a picture rather than as a lamp. Intensity sits with the manor's, because a good half of what a player navigates by here is the emissive night course along every wall and the fill is only doing the corners.",
+      "overrides": {
+        "world": {
+          "grid": { "width": 6, "height": 6 },
+          "doors": { "lockedDoorCount": 2 }
+        },
+        "graphics": {
+          "fog": { "color": "#0a0908", "density": 0.05 },
+          "ambientColor": "#242c42",
+          "ambientIntensity": 0.98
+        }
+      },
+      "ambienceTrack": "ambience/mansion_loop",
+      "musicTrack": "music/mansion_tension"
     }
   }
 }

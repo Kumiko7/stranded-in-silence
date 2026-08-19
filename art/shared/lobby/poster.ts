@@ -152,4 +152,5 @@ export const buildPosterAbyss = posterBuilder('poster.abyss');
 export const buildPosterCrypt = posterBuilder('poster.crypt');
 export const buildPosterForge = posterBuilder('poster.forge');
 export const buildPosterHeartwood = posterBuilder('poster.heartwood');
+export const buildPosterPrison = posterBuilder('poster.prison');
 export const buildPosterTest = posterBuilder('poster.test');
