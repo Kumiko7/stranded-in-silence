@@ -615,7 +615,7 @@ export interface MenusConfig {
 }
 
 /**
- * The main menu's cross-faded stills. `folder` is served out of `assets/`, so a
+ * The main menu's cross-faded stills. `folder` is relative to `assets/` (no leading slash - it is prefixed with the base URL), so a
  * different set is files on disk plus an edit to `images` - no code change.
  */
 export interface MenuBackgroundConfig {

@@ -9,7 +9,7 @@ config, not code:
 "menus": {
   "mainMenuBackground": "screenshots",
   "background": {
-    "folder": "/ui/menu/",
+    "folder": "ui/menu/",
     "images": ["mansion-foyer.jpg", "crypt-sepulchre.jpg", "..."],
     "holdSeconds": 9,
     "fadeSeconds": 2.4,

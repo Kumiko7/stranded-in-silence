@@ -104,7 +104,7 @@ are the thing an audio file replaces. Everything a designer would tune about a s
 | Which hats the wardrobe sells, and for how much | `player.json` | `customisation.hats` — `artId` must resolve in `art/shared/index.ts`, `cost` is in banked coins and `0` means owned from the start. The order here is the order the shop lists them in, so it doubles as the price ladder |
 | UI colours, fonts, HUD layout | `ui.json` | `theme.*`, `hud.*` |
 | What is behind the main menu | `ui.json` | `menus.mainMenuBackground` — `screenshots` runs the slideshow, anything else leaves the flat gradient |
-| Which stills the main menu shows, and how they move | `ui.json` | `menus.background.*` — `images` are files in `assets/ui/menu/`, `holdSeconds`/`fadeSeconds` time the cross-fade, `drift` is the slow creep, `dim`/`grain` are the wash over them. See [`assets/ui/menu/README.md`](../assets/ui/menu/README.md) |
+| Which stills the main menu shows, and how they move | `ui.json` | `menus.background.*` — `folder` is relative to `assets/` with no leading slash (the base URL is prefixed at runtime), `images` are files in `assets/ui/menu/`, `holdSeconds`/`fadeSeconds` time the cross-fade, `drift` is the slow creep, `dim`/`grain` are the wash over them. See [`assets/ui/menu/README.md`](../assets/ui/menu/README.md) |
 | Difficulty modes | `difficulty.json` | `modes.*` — two ship: `normal` (the base config untouched) and `hard` |
 | Which difficulties the lobby lever offers | `difficulty.json` | `modes.<id>.enabled`, in the order the file lists them |
 | What a difficulty actually changes | `difficulty.json` | `modes.<id>.overrides` — a deep merge over `enemy`, `world` and `player`, applied at run start. Adding a mode is config only |

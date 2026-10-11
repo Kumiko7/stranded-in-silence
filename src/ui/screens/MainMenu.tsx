@@ -199,7 +199,7 @@ function items(root: HTMLElement | null): HTMLButtonElement[] {
 function Backdrop({ config }: { config: MenuBackgroundConfig }) {
   // Shuffled once per mount, so the menu does not open on the same still every
   // launch. Nothing here is simulated, so the seeded RNG has no claim on it.
-  const order = useMemo(() => shuffle(config.images.map((file) => config.folder + file)), [config]);
+  const order = useMemo(() => shuffle(config.images.map((file) => import.meta.env.BASE_URL + config.folder + file)), [config]);
   const [step, setStep] = useState(0);
 
   useEffect(() => {

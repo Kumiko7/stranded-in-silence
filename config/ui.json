@@ -90,7 +90,7 @@
 
     "background": {
       "$doc": "Stills from the game, cross-faded behind the main menu. `folder` is served from assets/, so swapping the set is dropping files in assets/ui/menu/ and editing `images` - see assets/ui/menu/README.md. Order is shuffled at boot, so nobody gets the same first frame every launch.",
-      "folder": "/ui/menu/",
+      "folder": "ui/menu/",
       "images": [
         "mansion-foyer.jpg",
         "crypt-sepulchre.jpg",

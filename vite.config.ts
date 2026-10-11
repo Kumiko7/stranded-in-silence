@@ -53,6 +53,9 @@ function roomshotSave(): Plugin {
 
 export default defineConfig({
   root: '.',
+  // Relative, so the same bundle loads from a GitHub Pages subpath and from
+  // Electron's game://bundle/. Runtime URLs prefix import.meta.env.BASE_URL.
+  base: './',
   publicDir: 'assets',
   plugins: [roomshotSave()],
   resolve: {
